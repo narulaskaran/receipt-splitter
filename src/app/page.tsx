@@ -442,7 +442,7 @@ export default function Home() {
         </TabsContent>
       </Tabs>
 
-      <div className="mt-8 flex justify-center">
+      <div className="flex justify-between items-center w-full mt-4">
         <KofiButton />
       </div>
     </main>
