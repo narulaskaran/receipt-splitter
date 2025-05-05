@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { TextBlock } from '@anthropic-ai/sdk/resources';
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -86,15 +87,30 @@ export async function POST(request: NextRequest) {
       ],
     });
 
-    // Extract the JSON from the response
-    const content = message.content[0].text;
+    // Extract the JSON from the response and handle potential type issues
+    let jsonText = '';
+    
+    // Safely get text content from the response
+    for (const block of message.content) {
+      if (block.type === 'text') {
+        jsonText = (block as TextBlock).text;
+        break;
+      }
+    }
+    
+    if (!jsonText) {
+      return NextResponse.json(
+        { error: 'No text response received from Claude' },
+        { status: 500 }
+      );
+    }
     
     // Try to parse the JSON
     try {
-      const parsedData = JSON.parse(content);
+      const parsedData = JSON.parse(jsonText);
       return NextResponse.json(parsedData);
     } catch {
-      console.error('Failed to parse JSON from Claude response:', content);
+      console.error('Failed to parse JSON from Claude response:', jsonText);
       return NextResponse.json(
         { error: 'Failed to parse receipt data' },
         { status: 500 }
