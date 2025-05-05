@@ -4,7 +4,6 @@ import { UploadCloud, Loader2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { type Receipt } from '@/types';
-import Image from 'next/image';
 
 interface ReceiptUploaderProps {
   onReceiptParsed: (receipt: Receipt) => void;
@@ -84,7 +83,7 @@ export function ReceiptUploader({
           
           {previewUrl ? (
             <div className="flex flex-col items-center">
-              {/* Using img tag for file URLs, Next Image doesn't support blob URLs well */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img 
                 src={previewUrl} 
                 alt="Receipt preview" 

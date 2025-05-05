@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
     try {
       const parsedData = JSON.parse(content);
       return NextResponse.json(parsedData);
-    } catch (error) {
+    } catch (_) {
       console.error('Failed to parse JSON from Claude response:', content);
       return NextResponse.json(
         { error: 'Failed to parse receipt data' },
