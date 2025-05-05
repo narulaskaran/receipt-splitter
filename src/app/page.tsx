@@ -13,6 +13,7 @@ import { ItemAssignment } from "@/components/item-assignment";
 import { ReceiptDetails } from "@/components/receipt-details";
 import { ResultsSummary } from "@/components/results-summary";
 import { PersonItems } from "@/components/person-items";
+import { KofiButton } from "@/components/kofi-button";
 
 import {
   type Receipt,
@@ -440,6 +441,10 @@ export default function Home() {
           <PersonItems people={state.people} />
         </TabsContent>
       </Tabs>
+
+      <div className="flex justify-between items-center w-full mt-4">
+        <KofiButton />
+      </div>
     </main>
   );
 }
