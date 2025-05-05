@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     const buffer = await file.arrayBuffer();
     const base64 = Buffer.from(buffer).toString('base64');
     const mimeType = file.type;
-    const dataURI = `data:${mimeType};base64,${base64}`;
+    // dataURI is not used, removed to fix linting error
 
     // Call Anthropic with the image
     const message = await anthropic.messages.create({
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
     try {
       const parsedData = JSON.parse(content);
       return NextResponse.json(parsedData);
-    } catch (e) {
+    } catch (error) {
       console.error('Failed to parse JSON from Claude response:', content);
       return NextResponse.json(
         { error: 'Failed to parse receipt data' },
