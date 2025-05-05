@@ -1,0 +1,114 @@
+import { useState, useCallback } from 'react';
+import { useDropzone } from 'react-dropzone';
+import { UploadCloud, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { toast } from 'sonner';
+import { type Receipt } from '@/types';
+
+interface ReceiptUploaderProps {
+  onReceiptParsed: (receipt: Receipt) => void;
+  isLoading: boolean;
+  setIsLoading: (isLoading: boolean) => void;
+}
+
+export function ReceiptUploader({ 
+  onReceiptParsed, 
+  isLoading, 
+  setIsLoading 
+}: ReceiptUploaderProps) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0) return;
+    
+    // Get the first file
+    const file = acceptedFiles[0];
+    
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file');
+      return;
+    }
+    
+    // Create preview
+    const preview = URL.createObjectURL(file);
+    setPreviewUrl(preview);
+    
+    // Parse receipt
+    try {
+      setIsLoading(true);
+      
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/parse-receipt', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to parse receipt');
+      }
+      
+      const receiptData = await response.json();
+      onReceiptParsed(receiptData);
+    } catch (error) {
+      console.error('Receipt parsing error:', error);
+      toast.error('Failed to parse receipt. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [onReceiptParsed, setIsLoading]);
+  
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ 
+    onDrop,
+    accept: {
+      'image/*': ['.jpeg', '.jpg', '.png', '.heif', '.heic', '.webp']
+    },
+    maxFiles: 1,
+    disabled: isLoading
+  });
+
+  return (
+    <Card className="w-full">
+      <CardContent className="p-6">
+        <div
+          {...getRootProps()}
+          className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+            isDragActive ? 'border-primary bg-primary/5' : 'border-input'
+          } ${isLoading ? 'opacity-60 cursor-not-allowed' : ''}`}
+        >
+          <input {...getInputProps()} disabled={isLoading} />
+          
+          {previewUrl ? (
+            <div className="flex flex-col items-center">
+              <img 
+                src={previewUrl} 
+                alt="Receipt preview" 
+                className="max-h-64 max-w-full mb-4 rounded-md"
+              />
+              {isLoading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <p>Parsing receipt...</p>
+                </div>
+              ) : (
+                <p>Click or drag to upload a different receipt</p>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center">
+              <UploadCloud className="h-12 w-12 mb-4 text-muted-foreground" />
+              <p className="mb-1 font-medium">Upload your receipt</p>
+              <p className="text-sm text-muted-foreground">
+                Drag and drop or click to select
+              </p>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}

@@ -1,0 +1,15 @@
+{
+  "name": "Receipt Splitter",
+  "description": "Upload a receipt, add people, and easily split items.",
+  "images": [
+    {
+      "url": "/og-image.png",
+      "width": 1200,
+      "height": 630,
+      "alt": "Receipt Splitter"
+    }
+  ],
+  "type": "website",
+  "locale": "en_US",
+  "version": "1.0.0"
+}
