@@ -6,6 +6,9 @@ const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
+// Valid media types for Anthropic API
+type ValidMediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+
 export async function POST(request: NextRequest) {
   try {
     // Validate API key exists
@@ -31,7 +34,15 @@ export async function POST(request: NextRequest) {
     const buffer = await file.arrayBuffer();
     const base64 = Buffer.from(buffer).toString('base64');
     const mimeType = file.type;
-    // dataURI is not used, removed to fix linting error
+    
+    // Validate mime type
+    const validMediaTypes: ValidMediaType[] = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validMediaTypes.includes(mimeType as ValidMediaType)) {
+      return NextResponse.json(
+        { error: 'Unsupported image format. Please use JPEG, PNG, GIF, or WebP.' },
+        { status: 400 }
+      );
+    }
 
     // Call Anthropic with the image
     const message = await anthropic.messages.create({
@@ -45,7 +56,7 @@ export async function POST(request: NextRequest) {
               type: 'image',
               source: {
                 type: 'base64',
-                media_type: mimeType,
+                media_type: mimeType as ValidMediaType,
                 data: base64,
               },
             },
