@@ -311,15 +311,15 @@ export default function Home() {
 
   return (
     <main className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="flex justify-between items-center mb-6">
-        <div>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div className="w-full sm:w-auto">
           <h1 className="text-3xl font-bold mb-2">Receipt Splitter</h1>
           <p className="text-muted-foreground">
             Upload a receipt, add people, and easily split items
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 w-full sm:w-auto justify-end">
           <Button
             variant="outline"
             size="sm"
@@ -348,8 +348,8 @@ export default function Home() {
         onValueChange={setActiveTab}
         className="space-y-6"
       >
-        <div className="flex flex-col sm:flex-row gap-4 mb-2">
-          <TabsList className="w-full sm:w-auto">
+        <div className="flex flex-col gap-4 mb-2">
+          <TabsList className="w-full overflow-x-auto">
             <TabsTrigger value="upload">Upload Receipt</TabsTrigger>
             <TabsTrigger value="people" disabled={!state.originalReceipt}>
               Add People
@@ -369,20 +369,22 @@ export default function Home() {
           </TabsList>
 
           {state.originalReceipt && (
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Progress
-                value={calculateProgress()}
-                className="w-full sm:w-48"
-              />
-              <span className="text-sm whitespace-nowrap w-12">
-                {Math.round(calculateProgress())}%
-              </span>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Progress
+                  value={calculateProgress()}
+                  className="w-full sm:w-48"
+                />
+                <span className="text-sm whitespace-nowrap w-12">
+                  {Math.round(calculateProgress())}%
+                </span>
+              </div>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={splitAllItemsEvenly}
                 disabled={state.people.length === 0}
-                className="whitespace-nowrap"
+                className="whitespace-nowrap w-full sm:w-auto"
               >
                 Split All Evenly
               </Button>
