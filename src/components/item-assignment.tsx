@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Check, AlertCircle, Pencil, Edit } from "lucide-react";
+import { Check, AlertCircle, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -66,24 +66,6 @@ export function ItemAssignment({
   const [selectedPeople, setSelectedPeople] = useState<
     Map<number, Set<string>>
   >(new Map());
-
-  // Open the assignment dialog for a specific item
-  const openAssignmentDialog = (itemIndex: number) => {
-    // Get current assignments for this item
-    const currentAssignments = assignedItems.get(itemIndex) || [];
-
-    // Build assignments map for the form
-    const newAssignments = new Map<string, number>();
-
-    // Initialize with existing assignments
-    currentAssignments.forEach((assignment) => {
-      newAssignments.set(assignment.personId, assignment.sharePercentage);
-    });
-
-    setAssignments(newAssignments);
-    setCurrentItemIndex(itemIndex);
-    setOpen(true);
-  };
 
   // Apply selections to assignments when the dialog opens
   useEffect(() => {
