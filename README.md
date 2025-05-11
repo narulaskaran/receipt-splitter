@@ -6,12 +6,13 @@ A web application for easily splitting receipts among friends and groups. No app
 
 - Upload a receipt image to automatically parse items, subtotal, tax, and tip
 - Add people who shared the receipt
-- Assign items to individuals or split items among multiple people 
+- Assign items to individuals or split items among multiple people
 - Calculate tax and tip proportionally based on item costs
 - View detailed breakdown of what each person owes
 - Share results easily via native share API or copy to clipboard
 - Responsive design that works on mobile and desktop
-- Supports light/dark mode based on system preferences
+- Automatic light/dark mode based on system preferences with manual override
+- Support the project via Ko-fi integration
 
 ## Technology Stack
 
@@ -21,35 +22,41 @@ A web application for easily splitting receipts among friends and groups. No app
 - shadcn/ui components
 - Anthropic Claude API for receipt parsing
 - Decimal.js for precise financial calculations
+- next-themes for theme management
+- Ko-fi integration for donations
 - Vercel for deployment and serverless functions
 
 ## Development
 
 ### Prerequisites
 
-- Node.js 18+ 
+- Node.js 18+
 - npm or yarn
 - Anthropic API key for receipt parsing
 
 ### Setup
 
 1. Clone the repository
+
 ```bash
 git clone https://github.com/yourusername/receipt-splitter.git
 cd receipt-splitter
 ```
 
 2. Install dependencies
+
 ```bash
 npm install
 ```
 
 3. Create a `.env.local` file in the root directory with your Anthropic API key:
+
 ```
 ANTHROPIC_API_KEY=your_api_key_here
 ```
 
 4. Start the development server
+
 ```bash
 npm run dev
 ```
@@ -59,6 +66,7 @@ npm run dev
 ### Testing
 
 Run the test suite with:
+
 ```bash
 npm test
 ```

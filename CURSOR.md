@@ -15,7 +15,14 @@ This project is a receipt splitting web application built with Next.js, TypeScri
 - `src/app/api/parse-receipt/route.ts` - Anthropic API integration for receipt parsing
 - `src/components/receipt-uploader.tsx` - Receipt image upload component
 - `src/components/item-assignment.tsx` - UI for assigning items to people
+- `src/components/people-manager.tsx` - UI for managing people in the split
+- `src/components/person-items.tsx` - UI for displaying items assigned to a person
+- `src/components/receipt-details.tsx` - UI for displaying receipt information
+- `src/components/results-summary.tsx` - UI for displaying the final split results
+- `src/components/theme-provider.tsx` - Theme management for light/dark mode
+- `src/components/kofi-button.tsx` - Ko-fi integration for donations
 - `src/lib/receipt-utils.ts` - Utility functions for receipt calculations
+- `src/lib/utils.ts` - General utility functions
 
 ## Environment Setup
 
