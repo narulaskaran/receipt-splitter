@@ -1,5 +1,4 @@
 import React from "react";
-import Image from "next/image";
 
 interface KofiButtonProps {
   className?: string;
@@ -14,10 +13,9 @@ export const KofiButton: React.FC<KofiButtonProps> = ({ className }) => {
         rel="noopener noreferrer"
         className="transform scale-75 transition-all hover:scale-[.755] hover:brightness-110"
       >
-        <Image
-          height={40}
-          width={160}
-          style={{ border: 0 }}
+        <img
+          height="36"
+          style={{ border: 0, height: "40px" }}
           src="https://storage.ko-fi.com/cdn/kofi3.png?v=6"
           alt="Buy Me a Coffee at ko-fi.com"
         />

@@ -28,19 +28,16 @@ ANTHROPIC_API_KEY=your_api_key_here
 ## Core Functionality
 
 1. **Receipt Parsing**
-
    - Upload receipt images
    - Parse receipt items, totals, and metadata using Claude API
 
 2. **People Management**
-
    - Add and remove people
    - Track individual expenses
 
 3. **Item Assignment**
-
    - Assign items to specific people
-   - Split items proportionally among multiple people
+   - Split items proportionally among multiple people  
 
 4. **Expense Calculation**
    - Calculate tax and tip proportionally
@@ -49,7 +46,7 @@ ANTHROPIC_API_KEY=your_api_key_here
 ## Development Commands
 
 - `npm run dev` - Start development server
-- `npm run build` - Build for production (runs linter)
+- `npm run build` - Build for production
 - `npm start` - Start production server
 
 ## Technology Stack
