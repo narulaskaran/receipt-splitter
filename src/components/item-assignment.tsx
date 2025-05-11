@@ -589,7 +589,7 @@ export function ItemAssignment({
             >
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="item-price">Price</Label>
+                  <Label htmlFor="item-price">Item Price</Label>
                   <Input
                     id="item-price"
                     type="number"
