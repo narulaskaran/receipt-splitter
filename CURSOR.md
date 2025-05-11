@@ -35,20 +35,27 @@ ANTHROPIC_API_KEY=your_api_key_here
 ## Core Functionality
 
 1. **Receipt Parsing**
+
    - Upload receipt images
    - Parse receipt items, totals, and metadata using Claude API
 
 2. **People Management**
+
    - Add and remove people
    - Track individual expenses
 
 3. **Item Assignment**
+
    - Assign items to specific people
-   - Split items proportionally among multiple people  
+   - Split items proportionally among multiple people
 
 4. **Expense Calculation**
    - Calculate tax and tip proportionally
    - Compute final amounts owed by each person
+
+## Analytics
+
+Vercel Web Analytics is integrated using the `@vercel/analytics` package. The `<Analytics />` component is included in the root layout (`src/app/layout.tsx`) to enable privacy-friendly, cookieless analytics and page view tracking. Analytics data is viewable in the Vercel dashboard under the Analytics tab for the project.
 
 ## Development Commands
 
