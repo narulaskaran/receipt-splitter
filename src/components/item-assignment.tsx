@@ -366,7 +366,15 @@ export function ItemAssignment({
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    {formatCurrency(item.price * (item.quantity || 1))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="min-w-[90px] justify-between"
+                      onClick={() => handleEditItem(index)}
+                      title="Click to edit price and quantity"
+                    >
+                      {formatCurrency(item.price * (item.quantity || 1))}
+                    </Button>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
@@ -424,13 +432,6 @@ export function ItemAssignment({
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEditItem(index)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
@@ -580,60 +581,68 @@ export function ItemAssignment({
               </DialogTitle>
             </DialogHeader>
 
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="item-price">Price</Label>
-                <Input
-                  id="item-price"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={editedItem?.price || ""}
-                  onChange={(e) =>
-                    setEditedItem({
-                      ...editedItem!,
-                      price: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                />
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                saveItemEdit();
+              }}
+            >
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="item-price">Price</Label>
+                  <Input
+                    id="item-price"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={editedItem?.price || ""}
+                    onChange={(e) =>
+                      setEditedItem({
+                        ...editedItem!,
+                        price: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="item-quantity">Quantity</Label>
+                  <Input
+                    id="item-quantity"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={editedItem?.quantity || ""}
+                    onChange={(e) =>
+                      setEditedItem({
+                        ...editedItem!,
+                        quantity: parseInt(e.target.value) || 1,
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Total:</span>
+                  <span>
+                    {editedItem
+                      ? formatCurrency(editedItem.price * editedItem.quantity)
+                      : ""}
+                  </span>
+                </div>
               </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="item-quantity">Quantity</Label>
-                <Input
-                  id="item-quantity"
-                  type="number"
-                  min="1"
-                  step="1"
-                  value={editedItem?.quantity || ""}
-                  onChange={(e) =>
-                    setEditedItem({
-                      ...editedItem!,
-                      quantity: parseInt(e.target.value) || 1,
-                    })
-                  }
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="font-medium">Total:</span>
-                <span>
-                  {editedItem
-                    ? formatCurrency(editedItem.price * editedItem.quantity)
-                    : ""}
-                </span>
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setEditItemDialogOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button onClick={saveItemEdit}>Save Changes</Button>
-            </DialogFooter>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setEditItemDialogOpen(false)}
+                  type="button"
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">Save Changes</Button>
+              </DialogFooter>
+            </form>
           </DialogContent>
         </Dialog>
       </CardContent>
