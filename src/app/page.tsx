@@ -429,6 +429,7 @@ export default function Home() {
               assignedItems={state.assignedItems}
               unassignedItems={state.unassignedItems}
               onAssignItems={handleAssignItems}
+              onReceiptUpdate={handleReceiptUpdate}
             />
           )}
         </TabsContent>

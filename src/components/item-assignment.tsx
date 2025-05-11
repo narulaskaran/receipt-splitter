@@ -39,6 +39,7 @@ interface ItemAssignmentProps {
     itemIndex: number,
     assignments: PersonItemAssignment[]
   ) => void;
+  onReceiptUpdate: (receipt: Receipt) => void;
 }
 
 export function ItemAssignment({
@@ -47,33 +48,24 @@ export function ItemAssignment({
   assignedItems,
   unassignedItems,
   onAssignItems,
+  onReceiptUpdate,
 }: ItemAssignmentProps) {
   const [open, setOpen] = useState(false);
+  const [editItemDialogOpen, setEditItemDialogOpen] = useState(false);
   const [currentItemIndex, setCurrentItemIndex] = useState<number | null>(null);
+  const [currentEditItemIndex, setCurrentEditItemIndex] = useState<
+    number | null
+  >(null);
+  const [editedItem, setEditedItem] = useState<{
+    price: number;
+    quantity: number;
+  } | null>(null);
   const [assignments, setAssignments] = useState<Map<string, number>>(
     new Map()
   );
   const [selectedPeople, setSelectedPeople] = useState<
     Map<number, Set<string>>
   >(new Map());
-
-  // Open the assignment dialog for a specific item
-  const openAssignmentDialog = (itemIndex: number) => {
-    // Get current assignments for this item
-    const currentAssignments = assignedItems.get(itemIndex) || [];
-
-    // Build assignments map for the form
-    const newAssignments = new Map<string, number>();
-
-    // Initialize with existing assignments
-    currentAssignments.forEach((assignment) => {
-      newAssignments.set(assignment.personId, assignment.sharePercentage);
-    });
-
-    setAssignments(newAssignments);
-    setCurrentItemIndex(itemIndex);
-    setOpen(true);
-  };
 
   // Apply selections to assignments when the dialog opens
   useEffect(() => {
@@ -281,6 +273,43 @@ export function ItemAssignment({
     setSelectedPeople(newSelectedPeople);
   }, [assignedItems]);
 
+  // Handle item edit
+  const handleEditItem = (index: number) => {
+    const item = receipt.items[index];
+    setCurrentEditItemIndex(index);
+    setEditedItem({
+      price: item.price,
+      quantity: item.quantity || 1,
+    });
+    setEditItemDialogOpen(true);
+  };
+
+  // Save item edit
+  const saveItemEdit = () => {
+    if (currentEditItemIndex === null || !editedItem) return;
+
+    const updatedReceipt = { ...receipt };
+    updatedReceipt.items = [...receipt.items];
+    updatedReceipt.items[currentEditItemIndex] = {
+      ...updatedReceipt.items[currentEditItemIndex],
+      price: editedItem.price,
+      quantity: editedItem.quantity,
+    };
+
+    // Recalculate subtotal
+    updatedReceipt.subtotal = updatedReceipt.items.reduce(
+      (sum, item) => sum + item.price * (item.quantity || 1),
+      0
+    );
+
+    // Update the receipt
+    onReceiptUpdate(updatedReceipt);
+    setEditItemDialogOpen(false);
+    setCurrentEditItemIndex(null);
+    setEditedItem(null);
+    toast.success("Item updated successfully");
+  };
+
   return (
     <Card className="w-full">
       <CardHeader>
@@ -319,7 +348,15 @@ export function ItemAssignment({
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    {formatCurrency(item.price * (item.quantity || 1))}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="min-w-[90px] justify-between"
+                      onClick={() => handleEditItem(index)}
+                      title="Click to edit price and quantity"
+                    >
+                      {formatCurrency(item.price * (item.quantity || 1))}
+                    </Button>
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-1">
@@ -376,15 +413,18 @@ export function ItemAssignment({
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => openAssignmentDialog(index)}
-                      className="font-medium flex items-center gap-1"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                      Edit Split
-                    </Button>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setCurrentItemIndex(index);
+                          setOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -508,6 +548,83 @@ export function ItemAssignment({
                 Save Assignment
               </Button>
             </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* New item edit dialog */}
+        <Dialog open={editItemDialogOpen} onOpenChange={setEditItemDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                Edit Item:{" "}
+                {currentEditItemIndex !== null
+                  ? receipt.items[currentEditItemIndex]?.name
+                  : ""}
+              </DialogTitle>
+            </DialogHeader>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                saveItemEdit();
+              }}
+            >
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="item-price">Item Price</Label>
+                  <Input
+                    id="item-price"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={editedItem?.price || ""}
+                    onChange={(e) =>
+                      setEditedItem({
+                        ...editedItem!,
+                        price: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="item-quantity">Quantity</Label>
+                  <Input
+                    id="item-quantity"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={editedItem?.quantity || ""}
+                    onChange={(e) =>
+                      setEditedItem({
+                        ...editedItem!,
+                        quantity: parseInt(e.target.value) || 1,
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Total:</span>
+                  <span>
+                    {editedItem
+                      ? formatCurrency(editedItem.price * editedItem.quantity)
+                      : ""}
+                  </span>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setEditItemDialogOpen(false)}
+                  type="button"
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">Save Changes</Button>
+              </DialogFooter>
+            </form>
           </DialogContent>
         </Dialog>
       </CardContent>
