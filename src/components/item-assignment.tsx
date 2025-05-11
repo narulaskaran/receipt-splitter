@@ -315,10 +315,21 @@ export function ItemAssignment({
     };
 
     // Recalculate subtotal
-    updatedReceipt.subtotal = updatedReceipt.items.reduce(
+    const newSubtotal = updatedReceipt.items.reduce(
       (sum, item) => sum + item.price * (item.quantity || 1),
       0
     );
+
+    // Update the subtotal
+    updatedReceipt.subtotal = newSubtotal;
+
+    // Validate that subtotal + tax + tip = total
+    const calculatedTotal =
+      newSubtotal + updatedReceipt.tax + (updatedReceipt.tip || 0);
+    if (Math.abs(calculatedTotal - updatedReceipt.total) > 0.01) {
+      toast.error("Total must equal subtotal + tax + tip");
+      return;
+    }
 
     // Update the receipt
     onReceiptUpdate(updatedReceipt);
