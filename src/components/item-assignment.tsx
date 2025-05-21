@@ -101,11 +101,21 @@ export function ItemAssignment({
     if (currentItemIndex === null) return;
 
     // Get selected people (those with any value assigned)
-    const selectedPeopleIds = Array.from(assignments.keys());
+    let selectedPeopleIds = Array.from(assignments.keys());
 
+    // If none are selected, select all people
     if (selectedPeopleIds.length === 0) {
-      toast.error("Please select at least one person");
-      return;
+      selectedPeopleIds = people.map((p) => p.id);
+      if (selectedPeopleIds.length === 0) {
+        toast.error("No people to assign");
+        return;
+      }
+      // Update assignments state to include all people with 0% (will be set below)
+      const newAssignments = new Map(assignments);
+      selectedPeopleIds.forEach((personId) => {
+        newAssignments.set(personId, 0);
+      });
+      setAssignments(newAssignments);
     }
 
     // Calculate equal share with 2 decimal places
