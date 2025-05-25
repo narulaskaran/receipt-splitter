@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
@@ -28,7 +28,7 @@ import {
 } from "@/lib/receipt-utils";
 
 export default function Home() {
-  // Receipt state
+  const LOCAL_STORAGE_KEY = "receiptSplitterSession";
   const [state, setState] = useState<ReceiptState>({
     originalReceipt: null,
     people: [],
@@ -37,9 +37,62 @@ export default function Home() {
     isLoading: false,
     error: null,
   });
-
-  // Current tab
   const [activeTab, setActiveTab] = useState("upload");
+  const [hasSession, setHasSession] = useState(false);
+  const isFirstLoad = useRef(true);
+
+  // Restore session from localStorage on mount
+  useEffect(() => {
+    const session = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (session) {
+      try {
+        const parsed = JSON.parse(session);
+        // Convert assignedItems back to Map
+        if (parsed.assignedItems) {
+          parsed.assignedItems = new Map(parsed.assignedItems);
+        }
+        setState(parsed.state || parsed);
+        setActiveTab(parsed.activeTab || "upload");
+        setHasSession(true);
+      } catch (e) {
+        // Ignore parse errors
+      }
+    }
+    isFirstLoad.current = false;
+  }, []);
+
+  // Save session to localStorage on state or tab change
+  useEffect(() => {
+    if (isFirstLoad.current) return;
+    // Only save if not loading
+    if (!state.isLoading) {
+      const toSave = {
+        state: {
+          ...state,
+          // Convert Map to array for serialization
+          assignedItems: Array.from(state.assignedItems.entries()),
+        },
+        activeTab,
+      };
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(toSave));
+      setHasSession(true);
+    }
+  }, [state, activeTab]);
+
+  // Handler for New Split button
+  const handleNewSplit = () => {
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
+    setState({
+      originalReceipt: null,
+      people: [],
+      assignedItems: new Map(),
+      unassignedItems: [],
+      isLoading: false,
+      error: null,
+    });
+    setActiveTab("upload");
+    setHasSession(false);
+  };
 
   // Check if all items are assigned
   const allItemsAssigned = state.originalReceipt
@@ -312,11 +365,27 @@ export default function Home() {
   return (
     <main className="container mx-auto px-4 py-8 max-w-4xl">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div className="w-full sm:w-auto">
-          <h1 className="text-3xl font-bold mb-2">Receipt Splitter</h1>
-          <p className="text-muted-foreground">
-            Upload a receipt, add people, and easily split items
-          </p>
+        <div className="w-full sm:w-auto flex items-center gap-2">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Receipt Splitter</h1>
+            <p className="text-muted-foreground">
+              Upload a receipt, add people, and easily split items
+            </p>
+          </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            className="ml-2 whitespace-nowrap"
+            onClick={handleNewSplit}
+            disabled={!hasSession}
+            title={
+              hasSession
+                ? "Start a new split (clear session)"
+                : "No session to clear"
+            }
+          >
+            New Split
+          </Button>
         </div>
 
         <div className="flex gap-2 w-full sm:w-auto justify-end">
