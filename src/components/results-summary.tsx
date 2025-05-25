@@ -83,12 +83,10 @@ export function ResultsSummary({
 
   // Helper to generate Venmo payment link
   const getVenmoLink = (amount: number, note: string) => {
-    // Remove non-digits from phone number
-    const phone = phoneNumber.replace(/\D/g, "");
     // Venmo expects amount in decimal, note as string
     // https://venmo.com/paymentlinks/
     // Example: https://venmo.com/?txn=pay&recipients=PHONE&amount=10.00&note=Restaurant
-    return `https://venmo.com/?txn=pay&recipients=${phone}&amount=${amount.toFixed(
+    return `https://venmo.com/?txn=pay&recipients=${phoneNumber}&amount=${amount.toFixed(
       2
     )}&note=${encodeURIComponent(note)}`;
   };
@@ -99,7 +97,7 @@ export function ResultsSummary({
     const link = getVenmoLink(person.finalTotal, note);
     if (navigator.share) {
       navigator.share({
-        title: `Pay ${person.name} via Venmo`,
+        title: `Pay via Venmo`,
         url: link,
       });
     } else {
@@ -122,7 +120,7 @@ export function ResultsSummary({
           type="tel"
           placeholder="e.g. 555-123-4567"
           value={phoneNumber}
-          onChange={(e) => setPhoneNumber(e.target.value)}
+          onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ""))}
           className="w-full sm:w-64 border rounded px-3 py-1"
         />
       </div>
