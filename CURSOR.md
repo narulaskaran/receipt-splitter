@@ -55,8 +55,10 @@ ANTHROPIC_API_KEY=your_api_key_here
    - Calculate tax and tip proportionally
    - Compute final amounts owed by each person
 
-5. **Session Persistence**
+5. **Session & Image Persistence**
+
    - The app automatically saves the current session (receipt, people, assignments, and tab) to localStorage. If the user navigates away or reloads, the session is restored. The 'New Split' button allows clearing the session and starting over. The button is disabled if there is no session data.
+   - The uploaded receipt image is also saved in localStorage as a Base64 string under the key `receiptSplitterImage`. The image preview is restored on mount in the uploader. When 'New Split' is clicked, a parent-managed `resetImageTrigger` prop is incremented and passed to the uploader, which clears the preview and removes the image from localStorage only when the trigger changes (not on initial mount). This ensures correct restoration and clearing of the image preview in all flows.
 
 ## Analytics
 
