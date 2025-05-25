@@ -40,6 +40,19 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState("upload");
   const [hasSession, setHasSession] = useState(false);
   const isFirstLoad = useRef(true);
+  const [resetImageTrigger, setResetImageTrigger] = useState(0);
+
+  const defaultSession = {
+    state: {
+      originalReceipt: null,
+      people: [],
+      assignedItems: [],
+      unassignedItems: [],
+      isLoading: false,
+      error: null,
+    },
+    activeTab: "upload",
+  };
 
   // Restore session from localStorage on mount
   useEffect(() => {
@@ -47,16 +60,20 @@ export default function Home() {
     if (session) {
       try {
         const parsed = JSON.parse(session);
-        // Convert assignedItems back to Map
-        if (parsed.assignedItems) {
-          parsed.assignedItems = new Map(parsed.assignedItems);
+        // Always convert assignedItems to Map if it's an array
+        if (parsed.state && Array.isArray(parsed.state.assignedItems)) {
+          parsed.state.assignedItems = new Map(parsed.state.assignedItems);
         }
         setState(parsed.state || parsed);
         setActiveTab(parsed.activeTab || "upload");
-        setHasSession(true);
+        const isDefault =
+          JSON.stringify(parsed) === JSON.stringify(defaultSession);
+        setHasSession(!isDefault);
       } catch (err) {
         console.log("Failed to restore session from localStorage", err);
       }
+    } else {
+      setHasSession(false);
     }
     isFirstLoad.current = false;
   }, []);
@@ -75,13 +92,17 @@ export default function Home() {
         activeTab,
       };
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(toSave));
-      setHasSession(true);
+      // Check if session is not default
+      const isDefault =
+        JSON.stringify(toSave) === JSON.stringify(defaultSession);
+      setHasSession(!isDefault);
     }
   }, [state, activeTab]);
 
   // Handler for New Split button
   const handleNewSplit = () => {
     localStorage.removeItem(LOCAL_STORAGE_KEY);
+    localStorage.removeItem("receiptSplitterImage");
     setState({
       originalReceipt: null,
       people: [],
@@ -92,6 +113,7 @@ export default function Home() {
     });
     setActiveTab("upload");
     setHasSession(false);
+    setResetImageTrigger((v) => v + 1);
   };
 
   // Check if all items are assigned
@@ -365,19 +387,20 @@ export default function Home() {
   return (
     <main className="container mx-auto px-4 py-8 max-w-4xl">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div className="w-full sm:w-auto flex items-center gap-2">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Receipt Splitter</h1>
-            <p className="text-muted-foreground">
-              Upload a receipt, add people, and easily split items
-            </p>
-          </div>
+        <div className="w-full sm:w-auto">
+          <h1 className="text-3xl font-bold mb-2">Receipt Splitter</h1>
+          <p className="text-muted-foreground">
+            Upload a receipt, add people, and easily split items
+          </p>
+        </div>
+
+        <div className="flex gap-2 w-full sm:w-auto justify-end">
           <Button
-            variant="destructive"
+            variant="outline"
             size="sm"
-            className="ml-2 whitespace-nowrap"
             onClick={handleNewSplit}
             disabled={!hasSession}
+            className="flex items-center gap-1"
             title={
               hasSession
                 ? "Start a new split (clear session)"
@@ -386,9 +409,6 @@ export default function Home() {
           >
             New Split
           </Button>
-        </div>
-
-        <div className="flex gap-2 w-full sm:w-auto justify-end">
           <Button
             variant="outline"
             size="sm"
@@ -466,6 +486,7 @@ export default function Home() {
             onReceiptParsed={handleReceiptParsed}
             isLoading={state.isLoading}
             setIsLoading={setIsLoading}
+            resetImageTrigger={resetImageTrigger}
           />
 
           {state.originalReceipt && (
