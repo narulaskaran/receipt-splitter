@@ -54,8 +54,8 @@ export default function Home() {
         setState(parsed.state || parsed);
         setActiveTab(parsed.activeTab || "upload");
         setHasSession(true);
-      } catch {
-        // Ignore parse errors
+      } catch (err) {
+        console.log("Failed to restore session from localStorage", err);
       }
     }
     isFirstLoad.current = false;
