@@ -54,7 +54,7 @@ export default function Home() {
         setState(parsed.state || parsed);
         setActiveTab(parsed.activeTab || "upload");
         setHasSession(true);
-      } catch (e) {
+      } catch {
         // Ignore parse errors
       }
     }
