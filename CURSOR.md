@@ -64,6 +64,8 @@ ANTHROPIC_API_KEY=your_api_key_here
 
 Vercel Web Analytics is integrated using the `@vercel/analytics` package. The `<Analytics />` component is included in the root layout (`src/app/layout.tsx`) to enable privacy-friendly, cookieless analytics and page view tracking. Analytics data is viewable in the Vercel dashboard under the Analytics tab for the project.
 
+**Vercel SpeedInsights** is also integrated using the `@vercel/speed-insights` package. The `<SpeedInsights />` component is included in the root layout (`src/app/layout.tsx`) after `<Analytics />` to provide real user performance metrics. SpeedInsights data is available in the Vercel dashboard under the Speed Insights tab for the project.
+
 ## Development Commands
 
 - `npm run dev` - Start development server
