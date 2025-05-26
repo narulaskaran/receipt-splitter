@@ -1,16 +1,12 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { PeopleManager } from "./people-manager";
 import { toast } from "sonner";
+import { mockPeople, setupGlobalMocks } from "@/test/test-utils";
 
 jest.mock("sonner", () => ({ toast: { error: jest.fn() } }));
 
 beforeAll(() => {
-  if (!global.crypto) {
-    global.crypto = {} as Crypto;
-  }
-  global.crypto.randomUUID = jest.fn(
-    () => "00000000-0000-4000-8000-000000000000"
-  ) as unknown as Crypto["randomUUID"];
+  setupGlobalMocks();
 });
 
 beforeEach(() => {
@@ -65,20 +61,7 @@ describe("PeopleManager", () => {
   it("removes a person when remove button is clicked", () => {
     const handleChange = jest.fn();
     render(
-      <PeopleManager
-        people={[
-          {
-            id: "1",
-            name: "Alice",
-            items: [],
-            totalBeforeTax: 0,
-            tax: 0,
-            tip: 0,
-            finalTotal: 0,
-          },
-        ]}
-        onPeopleChange={handleChange}
-      />
+      <PeopleManager people={[mockPeople[0]]} onPeopleChange={handleChange} />
     );
     fireEvent.click(screen.getByLabelText(/remove alice/i));
     expect(handleChange).toHaveBeenCalledWith([]);
