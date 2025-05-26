@@ -4,8 +4,8 @@ import {
   formatCurrency,
   getUnassignedItems,
 } from "./receipt-utils";
-import { type Receipt, type Person, type PersonItemAssignment } from "@/types";
 import { mockPeople, mockReceipt, mockAssignedItems } from "@/test/test-utils";
+import { type PersonItemAssignment } from "@/types";
 
 describe("receipt-utils", () => {
   it("calculatePersonTotals splits tax and tip proportionally", () => {

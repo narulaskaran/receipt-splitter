@@ -1,6 +1,5 @@
 import { render, screen } from "@testing-library/react";
 import { ItemAssignment } from "./item-assignment";
-import { type Receipt, type Person, type PersonItemAssignment } from "@/types";
 import { mockPeople, mockReceipt, mockAssignedItems } from "@/test/test-utils";
 
 describe("ItemAssignment", () => {

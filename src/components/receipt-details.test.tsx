@@ -1,6 +1,5 @@
 import { render, screen } from "@testing-library/react";
 import { ReceiptDetails } from "./receipt-details";
-import { type Receipt } from "@/types";
 import { mockReceipt } from "@/test/test-utils";
 
 describe("ReceiptDetails", () => {
