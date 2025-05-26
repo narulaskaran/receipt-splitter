@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
@@ -42,17 +42,20 @@ export default function Home() {
   const isFirstLoad = useRef(true);
   const [resetImageTrigger, setResetImageTrigger] = useState(0);
 
-  const defaultSession = {
-    state: {
-      originalReceipt: null,
-      people: [],
-      assignedItems: [],
-      unassignedItems: [],
-      isLoading: false,
-      error: null,
-    },
-    activeTab: "upload",
-  };
+  const defaultSession = useMemo(
+    () => ({
+      state: {
+        originalReceipt: null,
+        people: [],
+        assignedItems: [],
+        unassignedItems: [],
+        isLoading: false,
+        error: null,
+      },
+      activeTab: "upload",
+    }),
+    []
+  );
 
   // Restore session from localStorage on mount
   useEffect(() => {
@@ -76,7 +79,7 @@ export default function Home() {
       setHasSession(false);
     }
     isFirstLoad.current = false;
-  }, []);
+  }, [defaultSession]);
 
   // Save session to localStorage on state or tab change
   useEffect(() => {
@@ -97,7 +100,7 @@ export default function Home() {
         JSON.stringify(toSave) === JSON.stringify(defaultSession);
       setHasSession(!isDefault);
     }
-  }, [state, activeTab]);
+  }, [state, activeTab, defaultSession]);
 
   // Handler for New Split button
   const handleNewSplit = () => {
