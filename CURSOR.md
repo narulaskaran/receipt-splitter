@@ -99,3 +99,7 @@ A GitHub Actions workflow is set up in `.github/workflows/ci.yml` to run on ever
 - Runs tests (`npm test`)
 
 This ensures code quality and build integrity for all contributions.
+
+## Test Utilities and Mock Data
+
+- `src/test/test-utils.ts` - Centralized test utilities and mock data for tests. Provides common mock Person, Receipt, and assignment data, as well as global mocks for crypto.randomUUID, sonner.toast, and window.matchMedia. All test files now import from this file to reduce duplication and improve maintainability.
