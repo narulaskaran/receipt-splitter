@@ -18,6 +18,6 @@ describe("ReceiptDetails", () => {
   it("renders receipt name and formatted date", () => {
     render(<ReceiptDetails receipt={receipt} onReceiptUpdate={() => {}} />);
     expect(screen.getByText(/Testaurant/)).toBeInTheDocument();
-    expect(screen.getByText("12/31/2023")).toBeInTheDocument();
+    expect(screen.getByText("2024-01-01")).toBeInTheDocument();
   });
 });
