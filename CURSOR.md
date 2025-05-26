@@ -86,3 +86,16 @@ Vercel Web Analytics is integrated using the `@vercel/analytics` package. The `<
 The application is configured for automatic deployment on Vercel. Any code pushed to the main branch will be automatically deployed.
 
 Environment variables need to be configured in the Vercel dashboard.
+
+## Continuous Integration
+
+A GitHub Actions workflow is set up in `.github/workflows/ci.yml` to run on every push and pull request to `main`, `add/*`, `ci/*`, and `feature/*` branches. The workflow performs the following steps:
+
+- Checks out the code
+- Sets up Node.js 20 with npm caching
+- Installs dependencies with `npm ci`
+- Runs lint checks (`npm run lint`)
+- Builds the project (`npm run build`)
+- Runs tests (`npm test`)
+
+This ensures code quality and build integrity for all contributions.
