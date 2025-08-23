@@ -35,12 +35,21 @@ export interface PersonItem {
   amount: number;
 }
 
+// Group types
+export interface Group {
+  id: string;
+  name: string;
+  memberIds: string[];
+  emoji?: string;
+}
+
 // UI State types
 export interface ReceiptState {
   originalReceipt: Receipt | null;
   people: Person[];
   assignedItems: Map<number, PersonItemAssignment[]>;
   unassignedItems: number[];
+  groups: Group[];
   isLoading: boolean;
   error: string | null;
 }

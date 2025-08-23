@@ -27,12 +27,18 @@ import {
   PopoverContent,
 } from "@/components/ui/popover";
 
-import { type Receipt, type Person, type PersonItemAssignment } from "@/types";
+import {
+  type Receipt,
+  type Person,
+  type PersonItemAssignment,
+  type Group,
+} from "@/types";
 import { formatCurrency } from "@/lib/receipt-utils";
 
 interface ItemAssignmentProps {
   receipt: Receipt;
   people: Person[];
+  groups?: Group[];
   assignedItems: Map<number, PersonItemAssignment[]>;
   unassignedItems: number[];
   onAssignItems: (
@@ -45,6 +51,7 @@ interface ItemAssignmentProps {
 export function ItemAssignment({
   receipt,
   people,
+  groups = [],
   assignedItems,
   unassignedItems,
   onAssignItems,
@@ -138,6 +145,76 @@ export function ItemAssignment({
     });
 
     setAssignments(newAssignments);
+  };
+
+  // Check if all members of a group are selected for an item
+  const isGroupFullySelected = (itemIndex: number, group: Group): boolean => {
+    const selected = selectedPeople.get(itemIndex) || new Set<string>();
+    return group.memberIds.every((memberId) => selected.has(memberId));
+  };
+
+  // Check if any members of a group are selected for an item
+  const isGroupPartiallySelected = (
+    itemIndex: number,
+    group: Group
+  ): boolean => {
+    const selected = selectedPeople.get(itemIndex) || new Set<string>();
+    return group.memberIds.some((memberId) => selected.has(memberId));
+  };
+
+  // Toggle group selection for an item
+  const toggleGroupSelection = (itemIndex: number, group: Group) => {
+    const currentSelected = selectedPeople.get(itemIndex) || new Set<string>();
+    const newSelected = new Set(currentSelected);
+
+    // If group is fully selected, deselect all members
+    if (isGroupFullySelected(itemIndex, group)) {
+      group.memberIds.forEach((memberId) => {
+        newSelected.delete(memberId);
+      });
+    } else {
+      // If group is not fully selected, select all members
+      group.memberIds.forEach((memberId) => {
+        newSelected.add(memberId);
+      });
+    }
+
+    // Update selected people
+    const newSelectedPeople = new Map(selectedPeople);
+    newSelectedPeople.set(itemIndex, newSelected);
+    setSelectedPeople(newSelectedPeople);
+
+    // Auto-assign equal shares immediately
+    if (newSelected.size > 0) {
+      const peopleToAssign = Array.from(newSelected);
+      const equalShare = +(100 / peopleToAssign.length).toFixed(2);
+
+      const assignments: PersonItemAssignment[] = [];
+      let runningSum = 0;
+
+      peopleToAssign.forEach((personId, index) => {
+        // Last person gets the remainder to ensure total is exactly 100%
+        if (index === peopleToAssign.length - 1) {
+          const lastShare = +(100 - runningSum).toFixed(2);
+          assignments.push({
+            personId,
+            sharePercentage: lastShare,
+          });
+        } else {
+          assignments.push({
+            personId,
+            sharePercentage: equalShare,
+          });
+          runningSum += equalShare;
+        }
+      });
+
+      // Call the parent handler to update assignments
+      onAssignItems(itemIndex, assignments);
+    } else {
+      // If no people selected, clear assignments
+      onAssignItems(itemIndex, []);
+    }
   };
 
   // Toggle person selection for an item
@@ -394,7 +471,11 @@ export function ItemAssignment({
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="p-0" align="end">
-                          <div className="p-2 flex flex-col gap-2">
+                          <div className="p-2 flex flex-col gap-2 max-h-64 overflow-y-auto">
+                            {/* Individual People */}
+                            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                              Individuals
+                            </div>
                             {people.map((person) => (
                               <div
                                 key={person.id}
@@ -417,6 +498,69 @@ export function ItemAssignment({
                                 </label>
                               </div>
                             ))}
+
+                            {/* Groups */}
+                            {groups && groups.length > 0 && (
+                              <>
+                                <div className="border-t pt-2 mt-2">
+                                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                                    Groups
+                                  </div>
+                                  {groups.map((group) => (
+                                    <div
+                                      key={group.id}
+                                      className="flex items-center gap-2"
+                                    >
+                                      <Checkbox
+                                        id={`group-${group.id}-item-${index}`}
+                                        checked={isGroupFullySelected(
+                                          index,
+                                          group
+                                        )}
+                                        onCheckedChange={() =>
+                                          toggleGroupSelection(index, group)
+                                        }
+                                        className={
+                                          isGroupPartiallySelected(
+                                            index,
+                                            group
+                                          ) &&
+                                          !isGroupFullySelected(index, group)
+                                            ? "data-[state=unchecked]:border-primary data-[state=unchecked]:bg-primary/20"
+                                            : ""
+                                        }
+                                      />
+                                      <label
+                                        htmlFor={`group-${group.id}-item-${index}`}
+                                        className="flex-1 cursor-pointer"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-4 h-4 flex items-center justify-center">
+                                            {group.emoji || "👥"}
+                                          </div>
+                                          <div className="flex-1">
+                                            <div className="text-sm font-medium">
+                                              {group.name}
+                                            </div>
+                                            <div className="text-xs text-muted-foreground">
+                                              {group.memberIds
+                                                .map(
+                                                  (id) =>
+                                                    people.find(
+                                                      (p) => p.id === id
+                                                    )?.name
+                                                )
+                                                .filter(Boolean)
+                                                .join(", ")}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </label>
+                                    </div>
+                                  ))}
+                                </div>
+                              </>
+                            )}
                           </div>
                         </PopoverContent>
                       </Popover>
