@@ -9,6 +9,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 
 import { ReceiptUploader } from "@/components/receipt-uploader";
 import { PeopleManager } from "@/components/people-manager";
+import { GroupManager } from "@/components/group-manager";
 import { ItemAssignment } from "@/components/item-assignment";
 import { ReceiptDetails } from "@/components/receipt-details";
 import { ResultsSummary } from "@/components/results-summary";
@@ -20,12 +21,17 @@ import {
   type Person,
   type PersonItemAssignment,
   type ReceiptState,
+  type Group,
 } from "@/types";
 import {
   calculatePersonTotals,
   validateItemAssignments,
   getUnassignedItems,
 } from "@/lib/receipt-utils";
+import {
+  getUniqueGroupEmoji,
+  getRandomGroupEmojiExcluding,
+} from "@/lib/emoji-utils";
 
 export default function Home() {
   const LOCAL_STORAGE_KEY = "receiptSplitterSession";
@@ -34,6 +40,7 @@ export default function Home() {
     people: [],
     assignedItems: new Map(),
     unassignedItems: [],
+    groups: [],
     isLoading: false,
     error: null,
   });
@@ -49,6 +56,7 @@ export default function Home() {
         people: [],
         assignedItems: [],
         unassignedItems: [],
+        groups: [],
         isLoading: false,
         error: null,
       },
@@ -111,6 +119,7 @@ export default function Home() {
       people: [],
       assignedItems: new Map(),
       unassignedItems: [],
+      groups: [],
       isLoading: false,
       error: null,
     });
@@ -145,6 +154,7 @@ export default function Home() {
         { length: receipt.items.length },
         (_, i) => i
       ),
+      groups: [],
       isLoading: false,
       error: null,
     });
@@ -275,6 +285,61 @@ export default function Home() {
       ...prevState,
       isLoading,
     }));
+  };
+
+  // Handle group creation
+  const handleGroupCreate = (name: string, memberIds: string[]) => {
+    // Get emojis already used by existing groups for uniqueness
+    const existingEmojis = state.groups
+      .map((group) => group.emoji)
+      .filter(Boolean) as string[];
+
+    const newGroup: Group = {
+      id: crypto.randomUUID(),
+      name: name.trim(),
+      memberIds,
+      emoji: getUniqueGroupEmoji(existingEmojis),
+    };
+
+    setState((prevState) => ({
+      ...prevState,
+      groups: [...prevState.groups, newGroup],
+    }));
+  };
+
+  // Handle group update
+  const handleGroupUpdate = (groupId: string, updates: Partial<Group>) => {
+    setState((prevState) => ({
+      ...prevState,
+      groups: prevState.groups.map((group) =>
+        group.id === groupId ? { ...group, ...updates } : group
+      ),
+    }));
+  };
+
+  // Handle group deletion
+  const handleGroupDelete = (groupId: string) => {
+    setState((prevState) => ({
+      ...prevState,
+      groups: prevState.groups.filter((group) => group.id !== groupId),
+    }));
+  };
+
+  // Handle emoji regeneration for a group
+  const handleGroupEmojiRegenerate = (groupId: string) => {
+    setState((prevState) => {
+      const group = prevState.groups.find((g) => g.id === groupId);
+      if (!group) return prevState;
+
+      const newEmoji = getRandomGroupEmojiExcluding(group.emoji);
+
+      return {
+        ...prevState,
+        groups: prevState.groups.map((g) =>
+          g.id === groupId ? { ...g, emoji: newEmoji } : g
+        ),
+      };
+    });
   };
 
   // Navigate to the next tab
@@ -506,6 +571,15 @@ export default function Home() {
             onPeopleChange={handlePeopleChange}
           />
 
+          <GroupManager
+            people={state.people}
+            groups={state.groups}
+            onGroupCreate={handleGroupCreate}
+            onGroupUpdate={handleGroupUpdate}
+            onGroupDelete={handleGroupDelete}
+            onGroupEmojiRegenerate={handleGroupEmojiRegenerate}
+          />
+
           {state.originalReceipt && (
             <ReceiptDetails
               receipt={state.originalReceipt}
@@ -519,6 +593,7 @@ export default function Home() {
             <ItemAssignment
               receipt={state.originalReceipt}
               people={state.people}
+              groups={state.groups}
               assignedItems={state.assignedItems}
               unassignedItems={state.unassignedItems}
               onAssignItems={handleAssignItems}
