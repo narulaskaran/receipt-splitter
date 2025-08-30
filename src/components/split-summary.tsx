@@ -1,13 +1,16 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Receipt, Users, Calendar, DollarSign } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Receipt, Users, Calendar, DollarSign, CreditCard } from 'lucide-react';
 import { type SharedSplitData } from '@/lib/split-sharing';
 import { formatCurrency } from '@/lib/receipt-utils';
+import { generateVenmoLink } from '@/lib/venmo-utils';
 
 interface SplitSummaryProps {
   splitData: SharedSplitData;
+  phoneNumber?: string;
 }
 
-export function SplitSummary({ splitData }: SplitSummaryProps) {
+export function SplitSummary({ splitData, phoneNumber }: SplitSummaryProps) {
   const formatDate = (dateString: string): string => {
     try {
       const date = new Date(dateString);
@@ -108,21 +111,31 @@ export function SplitSummary({ splitData }: SplitSummaryProps) {
                   </div>
                   <span className="font-semibold text-base">{name}</span>
                 </div>
-                <span className="font-bold text-xl text-primary">{formatCurrency(splitData.amounts[index])}</span>
+                <div className="flex items-center gap-3">
+                  <span className="font-bold text-xl text-primary">{formatCurrency(splitData.amounts[index])}</span>
+                  {phoneNumber && (
+                    <Button
+                      onClick={() => {
+                        const note = `${splitData.note} - ${name}`;
+                        const venmoLink = generateVenmoLink(phoneNumber, splitData.amounts[index], note);
+                        if (venmoLink) {
+                          window.open(venmoLink, '_blank', 'noopener,noreferrer');
+                        }
+                      }}
+                      size="sm"
+                      className="h-8 px-3 text-xs font-medium transition-all duration-200 hover:shadow-md active:scale-95"
+                    >
+                      <CreditCard className="h-3 w-3 mr-1" />
+                      Venmo
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Verification Note */}
-        <div className="p-4 bg-gradient-to-r from-blue-50/80 to-blue-50/40 dark:from-blue-950/30 dark:to-blue-950/10 rounded-xl border border-blue-200/50 dark:border-blue-800/50">
-          <p className="text-sm text-blue-700 dark:text-blue-300 text-center">
-            <strong>✓ Verification:</strong> Individual amounts add up to {formatCurrency(splitData.amounts.reduce((sum, amount) => sum + amount, 0))}
-            {Math.abs(splitData.amounts.reduce((sum, amount) => sum + amount, 0) - splitData.total) < 0.01 && 
-              ' (matches total bill)'
-            }
-          </p>
-        </div>
+
       </CardContent>
     </Card>
   );

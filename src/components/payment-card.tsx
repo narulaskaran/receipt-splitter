@@ -65,18 +65,7 @@ export function PaymentCard({
           </div>
         </div>
 
-        {/* Additional Info Bar */}
-        <div className="mt-4 pt-4 border-t border-border/50">
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 text-sm">
-            <span className="text-muted-foreground text-center sm:text-left">
-              Payment for {name}
-            </span>
-            <div className="flex items-center justify-center sm:justify-end gap-2 text-muted-foreground">
-              <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-              <span>Ready to pay</span>
-            </div>
-          </div>
-        </div>
+
       </CardContent>
     </Card>
   );

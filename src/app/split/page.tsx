@@ -6,9 +6,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 import { deserializeSplitData, validateSplitData, type SharedSplitData } from '@/lib/split-sharing';
-import { generateVenmoLink } from '@/lib/venmo-utils';
+
 import { SplitSummary } from '@/components/split-summary';
-import { PaymentCardsList } from '@/components/payment-card';
 import Link from 'next/link';
 
 interface SplitPageState {
@@ -172,24 +171,9 @@ function SplitPageContent() {
         </div>
 
         {/* Split Summary */}
-        <SplitSummary splitData={splitData} />
+        <SplitSummary splitData={splitData} phoneNumber={splitData.phone} />
 
-        {/* Individual Payment Cards with Venmo Integration */}
-        <PaymentCardsList
-          names={splitData.names}
-          amounts={splitData.amounts}
-          onPaymentClick={(name, amount) => {
-            // Generate Venmo note with restaurant name and person
-            const note = `${splitData.note} - ${name}`;
-            // Open Venmo payment for this person
-            const venmoLink = generateVenmoLink(splitData.phone, amount, note);
-            if (venmoLink) {
-              window.open(venmoLink, '_blank', 'noopener,noreferrer');
-            }
-          }}
-          isPaymentEnabled={true}
-          paymentButtonText="Pay with Venmo"
-        />
+
       </div>
     </div>
   );

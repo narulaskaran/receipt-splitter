@@ -26,7 +26,7 @@ const mockMinimalSplitData: SharedSplitData = {
 
 describe('SplitSummary', () => {
   it('renders complete split summary with all information', () => {
-    render(<SplitSummary splitData={mockSplitData} />);
+    render(<SplitSummary splitData={mockSplitData} phoneNumber="5551234567" />);
     
     // Check main title
     expect(screen.getByText('Split Summary')).toBeInTheDocument();
@@ -57,7 +57,7 @@ describe('SplitSummary', () => {
   });
 
   it('renders minimal split summary without optional date field', () => {
-    render(<SplitSummary splitData={mockMinimalSplitData} />);
+    render(<SplitSummary splitData={mockMinimalSplitData} phoneNumber="5551234567" />);
     
     // Check main title
     expect(screen.getByText('Split Summary')).toBeInTheDocument();
@@ -85,7 +85,7 @@ describe('SplitSummary', () => {
       date: '2024-12-25',
     };
     
-    render(<SplitSummary splitData={splitDataWithDate} />);
+    render(<SplitSummary splitData={splitDataWithDate} phoneNumber="5551234567" />);
     
     expect(screen.getByText('Date')).toBeInTheDocument();
     // Should format as a readable date - be flexible about the day due to timezone differences
@@ -98,7 +98,7 @@ describe('SplitSummary', () => {
       date: 'invalid-date',
     };
     
-    render(<SplitSummary splitData={splitDataWithBadDate} />);
+    render(<SplitSummary splitData={splitDataWithBadDate} phoneNumber="5551234567" />);
     
     expect(screen.getByText('Date')).toBeInTheDocument();
     // Should fall back to original string when date parsing fails
@@ -106,29 +106,28 @@ describe('SplitSummary', () => {
   });
 
   it('displays verification note with correct calculation', () => {
-    render(<SplitSummary splitData={mockSplitData} />);
+    render(<SplitSummary splitData={mockSplitData} phoneNumber="5551234567" />);
     
-    expect(screen.getByText(/Verification:/)).toBeInTheDocument();
-    expect(screen.getByText(/Individual amounts add up to/)).toBeInTheDocument();
-    expect(screen.getByText(/matches total bill/)).toBeInTheDocument();
+    // Verification note has been removed for cleaner design
+    // Component now focuses on core split information display
   });
 
   it('handles single person correctly', () => {
-    render(<SplitSummary splitData={mockMinimalSplitData} />);
+    render(<SplitSummary splitData={mockMinimalSplitData} phoneNumber="5551234567" />);
     
     expect(screen.getByText('1 person')).toBeInTheDocument();
     expect(screen.queryByText('people')).not.toBeInTheDocument();
   });
 
   it('handles multiple people correctly', () => {
-    render(<SplitSummary splitData={mockSplitData} />);
+    render(<SplitSummary splitData={mockSplitData} phoneNumber="5551234567" />);
     
     expect(screen.getByText('3 people')).toBeInTheDocument();
     expect(screen.queryByText('person')).not.toBeInTheDocument();
   });
 
   it('displays all individual amounts in breakdown', () => {
-    render(<SplitSummary splitData={mockSplitData} />);
+    render(<SplitSummary splitData={mockSplitData} phoneNumber="5551234567" />);
     
     // All names should be present
     mockSplitData.names.forEach(name => {
@@ -142,7 +141,7 @@ describe('SplitSummary', () => {
   });
 
   it('always displays required note field', () => {
-    render(<SplitSummary splitData={mockSplitData} />);
+    render(<SplitSummary splitData={mockSplitData} phoneNumber="5551234567" />);
     
     // Note is required, so should always be present
     expect(screen.getByText('Description')).toBeInTheDocument();
@@ -155,7 +154,7 @@ describe('SplitSummary', () => {
       note: 'This is a very long restaurant name that should be truncated properly',
     };
     
-    render(<SplitSummary splitData={longNoteData} />);
+    render(<SplitSummary splitData={longNoteData} phoneNumber="5551234567" />);
     
     expect(screen.getByText('Description')).toBeInTheDocument();
     // The full text should be present in the DOM (truncation is CSS-based)
