@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/table";
 import { type Person } from "@/types";
 import { formatCurrency } from "@/lib/receipt-utils";
-import { generateVenmoLink, shareVenmoPayment } from "@/lib/venmo-utils";
 import { generateShareableUrl, validateSerializationInput } from "@/lib/split-sharing";
 import { useState } from "react";
 
@@ -235,48 +234,64 @@ export function ResultsSummary({
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Person</TableHead>
-                <TableHead className="text-right">Subtotal</TableHead>
-                <TableHead className="text-right">Tax</TableHead>
-                <TableHead className="text-right">Tip</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-                <TableHead className="text-right">Venmo</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedPeople.map((person) => (
-                <TableRow key={person.id}>
-                  <TableCell className="font-medium">{person.name}</TableCell>
-                  <TableCell className="text-right">
-                    {formatCurrency(person.totalBeforeTax)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatCurrency(person.tax)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatCurrency(person.tip)}
-                  </TableCell>
-                  <TableCell className="text-right font-bold">
-                    {formatCurrency(person.finalTotal)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!phoneNumber.replace(/\D/g, "")}
-                      onClick={() => handleVenmoClick(person)}
-                    >
-                      Venmo Link
-                    </Button>
-                  </TableCell>
+        <CardContent className="p-0">
+          {/* Mobile-friendly responsive table */}
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="min-w-[100px]">Person</TableHead>
+                  <TableHead className="text-right min-w-[80px] hidden sm:table-cell">Subtotal</TableHead>
+                  <TableHead className="text-right min-w-[60px] hidden sm:table-cell">Tax</TableHead>
+                  <TableHead className="text-right min-w-[60px] hidden sm:table-cell">Tip</TableHead>
+                  <TableHead className="text-right min-w-[80px] font-semibold">Total</TableHead>
+                  <TableHead className="text-right min-w-[120px]">Action</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {sortedPeople.map((person) => (
+                  <TableRow key={person.id} className="group hover:bg-muted/50 transition-colors">
+                    <TableCell className="font-medium py-4">
+                      <div className="flex flex-col">
+                        <span className="font-semibold">{person.name}</span>
+                        {/* Mobile-only breakdown */}
+                        <div className="text-xs text-muted-foreground mt-1 sm:hidden">
+                          Subtotal: {formatCurrency(person.totalBeforeTax)} • 
+                          Tax: {formatCurrency(person.tax)} • 
+                          Tip: {formatCurrency(person.tip)}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right py-4 hidden sm:table-cell">
+                      {formatCurrency(person.totalBeforeTax)}
+                    </TableCell>
+                    <TableCell className="text-right py-4 hidden sm:table-cell">
+                      {formatCurrency(person.tax)}
+                    </TableCell>
+                    <TableCell className="text-right py-4 hidden sm:table-cell">
+                      {formatCurrency(person.tip)}
+                    </TableCell>
+                    <TableCell className="text-right py-4">
+                      <span className="font-bold text-lg text-primary">
+                        {formatCurrency(person.finalTotal)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right py-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!phoneNumber.replace(/\D/g, "")}
+                        onClick={() => handleVenmoClick(person)}
+                        className="w-full sm:w-auto min-w-[100px] h-9 text-sm font-medium transition-all duration-200 hover:bg-primary hover:text-primary-foreground active:scale-95"
+                      >
+                        {phoneNumber.replace(/\D/g, "") ? 'Pay via Venmo' : 'Enter Phone'}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>
