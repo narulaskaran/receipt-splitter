@@ -4,27 +4,38 @@ A web application for easily splitting receipts among friends and groups. No app
 
 ## Features
 
-- Upload a receipt image to automatically parse items, subtotal, tax, and tip
-- Add people who shared the receipt
-- Assign items to individuals or split items among multiple people
-- Calculate tax and tip proportionally based on item costs
-- View detailed breakdown of what each person owes
-- Share results easily via native share API or copy to clipboard
-- Responsive design that works on mobile and desktop
-- Automatic light/dark mode based on system preferences with manual override
-- Support the project via Ko-fi integration
+- **AI-Powered Receipt Parsing**: Upload a receipt image to automatically parse items, subtotal, tax, and tip using Claude AI
+- **Advanced People Management**: Add people who shared the receipt with unique names and IDs
+- **Group Organization**: Create named groups with emoji identifiers for better organization
+- **Flexible Item Assignment**: 
+  - Assign items to individuals
+  - Split items among multiple people with percentage-based splitting
+  - Assign items to entire groups
+- **Intelligent Calculations**: Calculate tax and tip proportionally based on item costs
+- **Enhanced Receipt Sharing**: 
+  - Generate shareable URLs with comprehensive split data
+  - Include names, amounts, totals, notes, phone numbers, and dates
+  - Advanced validation with detailed error reporting
+- **Split Payment Page**: Dedicated `/split` route where recipients can view their individual amounts
+- **Venmo Integration**: Direct payment links for each person with phone number validation
+- **Mobile-First Design**: Responsive design optimized for all devices with touch-friendly interface
+- **Session Persistence**: Automatic saving and restoration of your split session
+- **Theme Support**: Automatic light/dark mode based on system preferences with manual override
+- **Ko-fi Integration**: Support the project via donations
 
 ## Technology Stack
 
-- Next.js 14 with App Router
-- TypeScript
-- Tailwind CSS
-- shadcn/ui components
-- Anthropic Claude API for receipt parsing
-- Decimal.js for precise financial calculations
-- next-themes for theme management
-- Ko-fi integration for donations
-- Vercel for deployment and serverless functions
+- **Framework**: Next.js 15.3.1 with App Router
+- **Language**: TypeScript with strict type checking
+- **Styling**: Tailwind CSS with custom CSS variables
+- **UI Components**: shadcn/ui component library
+- **AI Integration**: Anthropic Claude API for receipt parsing
+- **State Management**: React hooks with localStorage persistence
+- **Validation**: Custom validation with detailed error reporting
+- **Payment Integration**: Venmo payment link generation
+- **Testing**: Jest with React Testing Library
+- **Deployment**: Vercel with automatic deployments
+- **Analytics**: Vercel Web Analytics and SpeedInsights
 
 ## Development
 
@@ -71,9 +82,43 @@ Run the test suite with:
 npm test
 ```
 
+Run linting checks:
+
+```bash
+npm run lint
+```
+
+Build for production:
+
+```bash
+npm run build
+```
+
+## Key Components
+
+### Core Application
+- **Main Page**: Tabbed interface with session management and responsive design
+- **Receipt Uploader**: Drag & drop image upload with AI parsing
+- **People Manager**: Add/remove people with validation
+- **Group Manager**: Create and manage groups with emoji identifiers
+- **Item Assignment**: Flexible assignment with drag & drop and touch support
+- **Results Summary**: Final calculations with sharing and Venmo integration
+
+### Split Sharing
+- **URL Generation**: Create shareable links from the results page
+- **Split Page**: Dedicated route for recipients to view their amounts
+- **Payment Cards**: Individual payment display with Venmo integration
+- **Validation**: Comprehensive data validation and error handling
+
+### Utilities
+- **Receipt Utils**: Tax/tip calculations and person totals
+- **Split Sharing**: URL serialization/deserialization with validation
+- **Venmo Utils**: Payment link generation and validation
+- **Emoji Utils**: Group emoji management system
+
 ## Deployment
 
-The application is configured for seamless deployment on Vercel. Just connect your GitHub repository to Vercel and it will automatically deploy when changes are pushed to the main branch.
+The application is configured for automatic deployment on Vercel. Just connect your GitHub repository to Vercel and it will automatically deploy when changes are pushed to the main branch.
 
 Make sure to add your Anthropic API key as an environment variable in your Vercel project settings.
 
