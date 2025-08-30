@@ -15,7 +15,7 @@ import {
   generateShareableUrl,
   validateSerializationInput,
 } from "@/lib/split-sharing";
-import { generateVenmoLink, shareVenmoPayment } from "@/lib/venmo-utils";
+
 import { useState } from "react";
 
 interface ResultsSummaryProps {
@@ -89,31 +89,7 @@ export function ResultsSummary({
     }
   };
 
-  // Share or open Venmo link using consolidated venmo-utils
-  const handleVenmoClick = async (person: Person) => {
-    const note = receiptName || "Receipt Split";
-    const cleanPhone = phoneNumber.replace(/\D/g, "");
 
-    if (!cleanPhone) {
-      alert("Please enter a phone number to generate Venmo payment links.");
-      return;
-    }
-
-    try {
-      await shareVenmoPayment(cleanPhone, person.finalTotal, note, person.name);
-    } catch (error) {
-      console.error("Venmo payment error:", error);
-      // Fallback: try to generate link directly
-      const link = generateVenmoLink(cleanPhone, person.finalTotal, note);
-      if (link) {
-        window.open(link, "_blank");
-      } else {
-        alert(
-          "Failed to generate Venmo payment link. Please check the phone number."
-        );
-      }
-    }
-  };
 
   // Share split functionality
   const shareSplit = async () => {
@@ -263,9 +239,6 @@ export function ResultsSummary({
                   <TableHead className="text-right min-w-[80px] font-semibold">
                     Total
                   </TableHead>
-                  <TableHead className="text-right min-w-[120px]">
-                    Action
-                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -298,19 +271,6 @@ export function ResultsSummary({
                       <span className="font-bold text-lg text-primary">
                         {formatCurrency(person.finalTotal)}
                       </span>
-                    </TableCell>
-                    <TableCell className="text-right py-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={!phoneNumber.replace(/\D/g, "")}
-                        onClick={() => handleVenmoClick(person)}
-                        className="w-full sm:w-auto min-w-[100px] h-9 text-sm font-medium transition-all duration-200 hover:bg-primary hover:text-primary-foreground active:scale-95"
-                      >
-                        {phoneNumber.replace(/\D/g, "")
-                          ? "Pay via Venmo"
-                          : "Enter Phone"}
-                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
