@@ -1,29 +1,223 @@
 # Receipt Splitter - Cursor Project Guide
 
-This project is a receipt splitting web application built with Next.js, TypeScript, and shadcn/ui components. It allows users to upload a photo of a receipt, parse it using Claude AI, and split expenses among multiple people.
+This project is a receipt splitting web application built with Next.js, TypeScript, and shadcn/ui components. It allows users to upload a photo of a receipt, parse it using Claude AI, and split expenses among multiple people with advanced group management and sharing capabilities.
 
 ## Project Structure
 
 - `src/app/` - Next.js app router pages and API routes
-- `src/components/` - React components
-- `src/lib/` - Utility functions
+- `src/components/` - React components including UI components and business logic
+- `src/lib/` - Utility functions for business logic, validation, and integrations
 - `src/types/` - TypeScript type definitions
+- `src/test/` - Test utilities and mock data
 
 ## Key Files
 
-- `src/app/page.tsx` - Main application page
-  - Implements session caching in localStorage. The receipt split state and current tab are saved to localStorage on any change, and restored on page load. A 'New Split' button is shown next to the heading, which clears the session and resets the app. The button is only enabled if session data exists.
-- `src/app/api/parse-receipt/route.ts` - Anthropic API integration for receipt parsing
-- `src/components/receipt-uploader.tsx` - Receipt image upload component
-- `src/components/item-assignment.tsx` - UI for assigning items to people
-- `src/components/people-manager.tsx` - UI for managing people in the split
-- `src/components/person-items.tsx` - UI for displaying items assigned to a person
-- `src/components/receipt-details.tsx` - UI for displaying receipt information
-- `src/components/results-summary.tsx` - UI for displaying the final split results
-- `src/components/theme-provider.tsx` - Theme management for light/dark mode
-- `src/components/kofi-button.tsx` - Ko-fi integration for donations
-- `src/lib/receipt-utils.ts` - Utility functions for receipt calculations
+### Core Application
+- `src/app/page.tsx` - Main application page with tabbed interface
+  - Implements session caching in localStorage with automatic restoration
+  - New Split button for clearing session and resetting app state
+  - Responsive design with mobile-first approach
+  - Tab-based workflow: Upload → People → Groups → Assignment → Results
+
+- `src/app/layout.tsx` - Root layout with theme provider and analytics
+  - Vercel Web Analytics integration
+  - Vercel SpeedInsights for performance monitoring
+  - Theme management with system preference detection
+
+- `src/app/globals.css` - Global styles with Tailwind CSS and custom CSS variables
+
+### API Routes
+- `src/app/api/parse-receipt/route.ts` - Anthropic Claude API integration for receipt parsing
+
+### Split Sharing Route
+- `src/app/split/page.tsx` - Split sharing page for recipients
+  - Displays individual payment amounts from shared URLs
+  - Mobile-optimized design with loading states
+  - Error handling for invalid or corrupted links
+- `src/app/split/error.tsx` - Error boundary for split page failures
+
+### Core Components
+
+#### Receipt Management
+- `src/components/receipt-uploader.tsx` - Receipt image upload with drag & drop
+  - Image preview and validation
+  - Loading states and error handling
+  - Mobile-optimized touch interactions
+
+- `src/components/receipt-details.tsx` - Receipt information display and editing
+  - Editable restaurant name and date
+  - Tax and tip adjustment capabilities
+  - Real-time validation and formatting
+
+#### People & Group Management
+- `src/components/people-manager.tsx` - Add/remove people from the split
+  - Name input with validation
+  - Delete functionality with confirmation
+  - Mobile-responsive design
+
+- `src/components/group-manager.tsx` - Advanced group management system
+  - Create, edit, and delete groups
+  - Assign people to groups with visual feedback
+  - Random emoji assignment for group identification
+  - Bulk operations for group management
+
+- `src/components/person-items.tsx` - Display items assigned to a person
+  - Item breakdown with quantities and amounts
+  - Tax and tip calculations per person
+  - Responsive grid layout
+
+#### Item Assignment & Results
+- `src/components/item-assignment.tsx` - Core item assignment interface
+  - Drag & drop assignment (desktop)
+  - Touch-friendly mobile interface
+  - Percentage-based splitting
+  - Group-based assignment with emoji indicators
+  - Real-time validation and error handling
+
+- `src/components/results-summary.tsx` - Final results with sharing capabilities
+  - Individual payment amounts
+  - Venmo integration with phone number input
+  - Share split functionality for URL generation
+  - Mobile-optimized payment buttons
+  - Copy to clipboard and native sharing
+
+- `src/components/split-summary.tsx` - Shared split display component
+  - Used on the `/split` route
+  - Individual payment cards
+  - Verification that amounts add up correctly
+
+- `src/components/payment-card.tsx` - Individual payment display
+  - Person name and amount
+  - Payment button integration
+  - Responsive design for mobile and desktop
+
+#### UI & Theme
+- `src/components/theme-provider.tsx` - Theme management
+### Core Application
+- `src/app/page.tsx` - Main application page with tabbed interface
+  - Implements session caching in localStorage with automatic restoration
+  - New Split button for clearing session and resetting app state
+  - Responsive design with mobile-first approach
+  - Tab-based workflow: Upload → People → Groups → Assignment → Results
+
+- `src/app/layout.tsx` - Root layout with theme provider and analytics
+  - Vercel Web Analytics integration
+  - Vercel SpeedInsights for performance monitoring
+  - Theme management with system preference detection
+
+- `src/app/globals.css` - Global styles with Tailwind CSS and custom CSS variables
+
+### API Routes
+- `src/app/api/parse-receipt/route.ts` - Anthropic Claude API integration for receipt parsing
+
+### Split Sharing Route
+- `src/app/split/page.tsx` - Split sharing page for recipients
+  - Displays individual payment amounts from shared URLs
+  - Mobile-optimized design with loading states
+  - Error handling for invalid or corrupted links
+- `src/app/split/error.tsx` - Error boundary for split page failures
+
+### Core Components
+
+#### Receipt Management
+- `src/components/receipt-uploader.tsx` - Receipt image upload with drag & drop
+  - Image preview and validation
+  - Loading states and error handling
+  - Mobile-optimized touch interactions
+
+- `src/components/receipt-details.tsx` - Receipt information display and editing
+  - Editable restaurant name and date
+  - Tax and tip adjustment capabilities
+  - Real-time validation and formatting
+
+#### People & Group Management
+- `src/components/people-manager.tsx` - Add/remove people from the split
+  - Name input with validation
+  - Delete functionality with confirmation
+  - Mobile-responsive design
+
+- `src/components/group-manager.tsx` - Advanced group management system
+  - Create, edit, and delete groups
+  - Assign people to groups with visual feedback
+  - Random emoji assignment for group identification
+  - Bulk operations for group management
+
+- `src/components/person-items.tsx` - Display items assigned to a person
+  - Item breakdown with quantities and amounts
+  - Tax and tip calculations per person
+  - Responsive grid layout
+
+#### Item Assignment & Results
+- `src/components/item-assignment.tsx` - Core item assignment interface
+  - Drag & drop assignment (desktop)
+  - Touch-friendly mobile interface
+  - Percentage-based splitting
+  - Group-based assignment with emoji indicators
+  - Real-time validation and error handling
+
+- `src/components/results-summary.tsx` - Final results with sharing capabilities
+  - Individual payment amounts
+  - Venmo integration with phone number input
+  - Share split functionality for URL generation
+  - Mobile-optimized payment buttons
+  - Copy to clipboard and native sharing
+
+- `src/components/split-summary.tsx` - Shared split display component
+  - Used on the `/split` route
+  - Individual payment cards
+  - Verification that amounts add up correctly
+
+- `src/components/payment-card.tsx` - Individual payment display
+  - Person name and amount
+  - Payment button integration
+  - Responsive design for mobile and desktop
+
+#### UI & Theme
+- `src/components/theme-provider.tsx` - Theme management
+  - Light/dark mode switching
+  - System preference detection
+  - Persistent theme selection
+
+- `src/components/kofi-button.tsx` - Ko-fi donation integration
+  - Support the project button
+  - Responsive design
+
+### Utility Libraries
+
+#### Core Business Logic
+- `src/lib/receipt-utils.ts` - Receipt calculation utilities
+  - Tax and tip distribution
+  - Person total calculations
+  - Assignment validation
+  - Currency formatting
+
+- `src/lib/split-sharing.ts` - Advanced split sharing system
+  - URL serialization/deserialization
+  - Comprehensive data validation
+  - Error handling with detailed messages
+  - Phone number and date validation
+  - Security limits and constraints
+
+- `src/lib/venmo-utils.ts` - Venmo payment integration
+  - Payment link generation
+  - Parameter validation
+  - Amount and note limits
+  - Error handling for failed payments
+
+- `src/lib/emoji-utils.ts` - Group emoji management
+  - Curated emoji selection
+  - Random assignment with collision avoidance
+  - Group identification system
+
 - `src/lib/utils.ts` - General utility functions
+  - Common helper functions
+  - Type guards and validators
+
+### Test Infrastructure
+- `src/test/test-utils.ts` - Centralized test utilities
+  - Mock data for Person, Receipt, and assignments
+  - Global mocks for crypto.randomUUID, sonner.toast, window.matchMedia
+  - Common test setup and teardown
 
 ## Environment Setup
 
@@ -35,71 +229,142 @@ ANTHROPIC_API_KEY=your_api_key_here
 
 ## Core Functionality
 
-1. **Receipt Parsing**
+### 1. Receipt Parsing & Management
+- **AI-Powered Parsing**: Upload receipt images and automatically extract items, prices, tax, and tip using Claude AI
+- **Manual Editing**: Adjust parsed data with real-time validation
+- **Image Persistence**: Receipt images are cached in localStorage for session restoration
 
-   - Upload receipt images
-   - Parse receipt items, totals, and metadata using Claude API
+### 2. Advanced People & Group Management
+- **Individual People**: Add/remove people with unique names and IDs
+- **Group Organization**: Create named groups with emoji identifiers
+- **Flexible Assignment**: Assign people to groups or keep them ungrouped
+- **Visual Feedback**: Emoji-based group identification system
 
-2. **People Management**
+### 3. Intelligent Item Assignment
+- **Multiple Assignment Modes**:
+  - Individual assignment (one person per item)
+  - Percentage-based splitting (multiple people share an item)
+  - Group-based assignment (assign items to entire groups)
+- **Real-time Validation**: Ensure all items are properly assigned
+- **Mobile Optimization**: Touch-friendly interface with responsive design
 
-   - Add and remove people
-   - Track individual expenses
+### 4. Advanced Expense Calculation
+- **Proportional Distribution**: Tax and tip calculated based on item costs
+- **Group Calculations**: Automatic distribution within groups
+- **Precision Handling**: Uses Decimal.js for accurate financial calculations
+- **Validation**: Ensures amounts add up correctly with tolerance for rounding
 
-3. **Item Assignment**
+### 5. Enhanced Receipt Sharing System
+- **URL-Based Sharing**: Generate shareable links from the results summary
+- **Comprehensive Data**: Include names, amounts, totals, notes, phone numbers, and dates
+- **Enhanced Validation**: Detailed error reporting and data integrity checks
+- **Mobile-Optimized**: Responsive design for all device types
 
-   - Assign items to specific people
-   - Split items proportionally among multiple people
+### 6. Split Payment Page (`/split` Route)
+- **Individual View**: Each person sees only their payment amount
+- **Payment Integration**: Direct Venmo payment links
+- **Error Handling**: Graceful fallbacks for invalid or corrupted links
+- **Loading States**: Smooth user experience with visual feedback
 
-4. **Expense Calculation**
+### 7. Venmo Payment Integration
+- **Direct Payment Links**: Generate Venmo payment URLs for each person
+- **Phone Number Validation**: US phone number format validation
+- **Note Management**: Automatic note truncation to meet Venmo limits
+- **Amount Validation**: Ensures amounts are within Venmo transaction limits
 
-   - Calculate tax and tip proportionally
-   - Compute final amounts owed by each person
+### 8. Session & State Management
+- **Automatic Persistence**: Session data saved to localStorage on every change
+- **Tab Restoration**: Active tab is remembered and restored
+- **Image Caching**: Receipt images cached for seamless restoration
+- **Reset Functionality**: Clear session and start over with New Split button
 
-5. **Session & Image Persistence**
+### 9. Mobile-First Responsive Design
+- **Touch Optimization**: Large touch targets and gesture support
+- **Responsive Layouts**: Adapts to all screen sizes
+- **Mobile Navigation**: Tab-based interface optimized for mobile
+- **Performance**: Optimized for mobile devices with efficient rendering
 
-   - The app automatically saves the current session (receipt, people, assignments, and tab) to localStorage. If the user navigates away or reloads, the session is restored. The 'New Split' button allows clearing the session and starting over. The button is disabled if there is no session data.
-   - The uploaded receipt image is also saved in localStorage as a Base64 string under the key `receiptSplitterImage`. The image preview is restored on mount in the uploader. When 'New Split' is clicked, a parent-managed `resetImageTrigger` prop is incremented and passed to the uploader, which clears the preview and removes the image from localStorage only when the trigger changes (not on initial mount). This ensures correct restoration and clearing of the image preview in all flows.
+### 10. Advanced Validation & Error Handling
+- **Input Validation**: Real-time validation for all user inputs
+- **Data Integrity**: Comprehensive checks for split data consistency
+- **Error Messages**: User-friendly error descriptions with actionable guidance
+- **Fallback Handling**: Graceful degradation when features fail
 
-## Analytics
+## Analytics & Performance
 
-Vercel Web Analytics is integrated using the `@vercel/analytics` package. The `<Analytics />` component is included in the root layout (`src/app/layout.tsx`) to enable privacy-friendly, cookieless analytics and page view tracking. Analytics data is viewable in the Vercel dashboard under the Analytics tab for the project.
+### Vercel Web Analytics
+- **Privacy-First**: Cookieless analytics with GDPR compliance
+- **Page Tracking**: Automatic page view and user interaction tracking
+- **Performance Metrics**: Core Web Vitals and user experience data
 
-**Vercel SpeedInsights** is also integrated using the `@vercel/speed-insights` package. The `<SpeedInsights />` component is included in the root layout (`src/app/layout.tsx`) after `<Analytics />` to provide real user performance metrics. SpeedInsights data is available in the Vercel dashboard under the Speed Insights tab for the project.
+### Vercel SpeedInsights
+- **Real User Monitoring**: Performance data from actual users
+- **Performance Metrics**: Load times, interaction delays, and optimization opportunities
+- **Dashboard Integration**: View data in Vercel dashboard
 
 ## Development Commands
 
 - `npm run dev` - Start development server
 - `npm run build` - Build for production
 - `npm start` - Start production server
+- `npm test` - Run test suite
+- `npm run lint` - Run ESLint checks
 
 ## Technology Stack
 
-- Next.js 14 with App Router
-- TypeScript
-- Tailwind CSS
-- shadcn/ui components
-- Anthropic Claude API
-- Vercel Deployment
+- **Framework**: Next.js 15.3.1 with App Router
+- **Language**: TypeScript with strict type checking
+- **Styling**: Tailwind CSS with custom CSS variables
+- **UI Components**: shadcn/ui component library
+- **AI Integration**: Anthropic Claude API for receipt parsing
+- **State Management**: React hooks with localStorage persistence
+- **Validation**: Custom validation with detailed error reporting
+- **Payment Integration**: Venmo payment link generation
+- **Testing**: Jest with React Testing Library
+- **Deployment**: Vercel with automatic deployments
+- **Analytics**: Vercel Web Analytics and SpeedInsights
 
 ## Deployment
 
-The application is configured for automatic deployment on Vercel. Any code pushed to the main branch will be automatically deployed.
+The application is configured for automatic deployment on Vercel. Any code pushed to the main branch will be automatically deployed with:
 
-Environment variables need to be configured in the Vercel dashboard.
+- **Automatic Builds**: Next.js optimization and static generation
+- **Environment Variables**: Secure API key management
+- **Performance Monitoring**: Real-time performance insights
+- **Global CDN**: Fast loading worldwide
 
 ## Continuous Integration
 
-A GitHub Actions workflow is set up in `.github/workflows/ci.yml` to run on every push and pull request to `main`, `add/*`, `ci/*`, and `feature/*` branches. The workflow performs the following steps:
+GitHub Actions workflow runs on every push and pull request to ensure code quality:
 
-- Checks out the code
-- Sets up Node.js 20 with npm caching
-- Installs dependencies with `npm ci`
-- Runs lint checks (`npm run lint`)
-- Builds the project (`npm run build`)
-- Runs tests (`npm test`)
+- **Dependency Installation**: Secure npm ci with caching
+- **Linting**: ESLint checks for code quality
+- **Build Verification**: Production build validation
+- **Test Execution**: Full test suite validation
+- **Quality Gates**: All checks must pass before merging
 
-This ensures code quality and build integrity for all contributions.
+## Test Coverage
 
-## Test Utilities and Mock Data
+Comprehensive test coverage including:
 
-- `src/test/test-utils.ts` - Centralized test utilities and mock data for tests. Provides common mock Person, Receipt, and assignment data, as well as global mocks for crypto.randomUUID, sonner.toast, and window.matchMedia. All test files now import from this file to reduce duplication and improve maintainability.
+- **Unit Tests**: Individual function and component testing
+- **Integration Tests**: Component interaction testing
+- **Mock Data**: Centralized test utilities and mock data
+- **Global Mocks**: Browser API and utility function mocking
+- **Test Utilities**: Common setup and assertion helpers
+
+## Security & Validation
+
+- **Input Sanitization**: All user inputs are validated and sanitized
+- **Data Validation**: Comprehensive validation for shared data
+- **Phone Number Security**: Secure phone number handling for payments
+- **URL Safety**: Secure URL generation and parameter handling
+- **Error Boundaries**: Graceful error handling throughout the application
+
+## Mobile Optimization
+
+- **Touch Interface**: Optimized for touch devices with large targets
+- **Responsive Design**: Adapts to all screen sizes and orientations
+- **Performance**: Optimized rendering and efficient state management
+- **Accessibility**: Screen reader support and keyboard navigation
+- **Progressive Enhancement**: Core functionality works on all devices
