@@ -1,9 +1,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Receipt, Users, Calendar, DollarSign, CreditCard } from 'lucide-react';
+import { Receipt, Users, Calendar, DollarSign } from 'lucide-react';
 import { type SharedSplitData } from '@/lib/split-sharing';
 import { formatCurrency } from '@/lib/receipt-utils';
 import { generateVenmoLink } from '@/lib/venmo-utils';
+import Image from 'next/image';
 
 interface SplitSummaryProps {
   splitData: SharedSplitData;
@@ -103,7 +104,7 @@ export function SplitSummary({ splitData, phoneNumber }: SplitSummaryProps) {
             {splitData.names.map((name, index) => (
               <div 
                 key={`${name}-${index}`}
-                className="flex justify-between items-center py-4 px-4 bg-gradient-to-r from-muted/40 to-muted/20 rounded-xl hover:from-muted/60 hover:to-muted/40 transition-all duration-200 active:scale-[0.98]"
+                className="flex justify-between items-center py-4 px-4 bg-gradient-to-r from-muted/40 to-muted/20 rounded-xl"
               >
                 <div className="flex items-center gap-3">
                   <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -125,7 +126,7 @@ export function SplitSummary({ splitData, phoneNumber }: SplitSummaryProps) {
                       size="sm"
                       className="h-8 px-3 text-xs font-medium transition-all duration-200 hover:shadow-md active:scale-95"
                     >
-                      <CreditCard className="h-3 w-3 mr-1" />
+                      <Image src="/venmo.png" alt="Venmo" width={12} height={12} className="mr-1" />
                       Venmo
                     </Button>
                   )}
