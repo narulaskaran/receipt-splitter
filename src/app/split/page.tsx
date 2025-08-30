@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 import { deserializeSplitData, validateSplitData, type SharedSplitData } from '@/lib/split-sharing';
 import { SplitSummary } from '@/components/split-summary';
+import { PaymentCardsList } from '@/components/payment-card';
 import Link from 'next/link';
 
 interface SplitPageState {
@@ -132,12 +133,22 @@ function SplitPageContent() {
         </div>
 
         {/* Split Summary Component */}
-        <SplitSummary splitData={splitData} />
+        <div className="mb-8">
+          <SplitSummary splitData={splitData} />
+        </div>
+
+        {/* Payment Cards */}
+        <PaymentCardsList 
+          names={splitData.names}
+          amounts={splitData.amounts}
+          isPaymentEnabled={false}
+          paymentButtonText="Payment Coming Soon"
+        />
 
         {/* Footer with info */}
         <div className="mt-8 p-4 bg-muted rounded-lg">
           <p className="text-sm text-muted-foreground text-center">
-            Payment functionality will be available in the next update.
+            Payment functionality will be integrated in the next update.
             {splitData.phone && (
               <span className="block mt-1">
                 Venmo payments will be sent to: {splitData.phone}
