@@ -8,12 +8,14 @@ import { AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 import { deserializeSplitData, validateSplitData, type SharedSplitData } from '@/lib/split-sharing';
 import { SplitSummary } from '@/components/split-summary';
 import { PaymentCardsList } from '@/components/payment-card';
+import { shareVenmoPayment, formatVenmoNote } from '@/lib/venmo-utils';
 import Link from 'next/link';
 
 interface SplitPageState {
   splitData: SharedSplitData | null;
   isLoading: boolean;
   error: string | null;
+  paymentLoading: string | null; // personName currently processing payment
 }
 
 function SplitPageContent() {
@@ -22,6 +24,7 @@ function SplitPageContent() {
     splitData: null,
     isLoading: true,
     error: null,
+    paymentLoading: null,
   });
 
   useEffect(() => {
@@ -34,6 +37,7 @@ function SplitPageContent() {
           splitData: null,
           isLoading: false,
           error: 'Invalid or missing split data in URL. The link may be corrupted or incomplete.',
+          paymentLoading: null,
         });
         return;
       }
@@ -44,6 +48,7 @@ function SplitPageContent() {
           splitData: null,
           isLoading: false,
           error: 'The split data is invalid. The amounts may not add up correctly or contain invalid values.',
+          paymentLoading: null,
         });
         return;
       }
@@ -53,15 +58,37 @@ function SplitPageContent() {
         splitData,
         isLoading: false,
         error: null,
+        paymentLoading: null,
       });
     } catch {
       setState({
         splitData: null,
         isLoading: false,
         error: 'An unexpected error occurred while processing the split data. Please check the link and try again.',
+        paymentLoading: null,
       });
     }
   }, [searchParams]);
+
+  // Handle Venmo payment
+  const handlePayment = async (personName: string, amount: number) => {
+    if (!state.splitData?.phone) {
+      alert('No phone number available for Venmo payments. Please check the split link.');
+      return;
+    }
+
+    setState(prev => ({ ...prev, paymentLoading: personName }));
+
+    try {
+      const note = formatVenmoNote(state.splitData.restaurant, personName);
+      await shareVenmoPayment(state.splitData.phone, amount, note, personName);
+    } catch (error) {
+      console.error('Payment error:', error);
+      alert('Failed to open Venmo payment. Please check the phone number and try again.');
+    } finally {
+      setState(prev => ({ ...prev, paymentLoading: null }));
+    }
+  };
 
   // Loading state
   if (state.isLoading) {
@@ -141,20 +168,38 @@ function SplitPageContent() {
         <PaymentCardsList 
           names={splitData.names}
           amounts={splitData.amounts}
-          isPaymentEnabled={false}
-          paymentButtonText="Payment Coming Soon"
+          onPaymentClick={splitData.phone ? handlePayment : undefined}
+          isPaymentEnabled={!!splitData.phone && !state.paymentLoading}
+          paymentButtonText={
+            state.paymentLoading 
+              ? 'Processing...' 
+              : splitData.phone 
+                ? 'Pay with Venmo' 
+                : 'Phone Required'
+          }
         />
 
         {/* Footer with info */}
         <div className="mt-8 p-4 bg-muted rounded-lg">
-          <p className="text-sm text-muted-foreground text-center">
-            Payment functionality will be integrated in the next update.
-            {splitData.phone && (
-              <span className="block mt-1">
-                Venmo payments will be sent to: {splitData.phone}
-              </span>
-            )}
-          </p>
+          {splitData.phone ? (
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">
+                ✓ Venmo payments enabled
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Payments will be sent to: {splitData.phone}
+              </p>
+            </div>
+          ) : (
+            <div className="text-center">
+              <p className="text-sm text-muted-foreground">
+                ⚠️ No phone number provided in this split link
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Venmo payments require a phone number to be included when sharing the split
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

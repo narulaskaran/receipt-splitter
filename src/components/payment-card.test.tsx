@@ -145,7 +145,7 @@ describe('PaymentCardsList', () => {
     const buttons = screen.getAllByRole('button');
     fireEvent.click(buttons[0]);
     
-    expect(mockClick).toHaveBeenCalledWith('Alice', 32.50, 0);
+    expect(mockClick).toHaveBeenCalledWith('Alice', 32.50);
   });
 
   it('renders with payment buttons when onPaymentClick is provided', () => {

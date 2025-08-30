@@ -84,7 +84,7 @@ export function PaymentCard({
 interface PaymentCardsListProps {
   names: string[];
   amounts: number[];
-  onPaymentClick?: (name: string, amount: number, index: number) => void;
+  onPaymentClick?: (name: string, amount: number) => void;
   isPaymentEnabled?: boolean;
   paymentButtonText?: string;
 }
@@ -113,7 +113,7 @@ export function PaymentCardsList({
           key={`${name}-${index}`}
           name={name}
           amount={amounts[index]}
-          onPaymentClick={onPaymentClick ? () => onPaymentClick(name, amounts[index], index) : undefined}
+          onPaymentClick={onPaymentClick ? () => onPaymentClick(name, amounts[index]) : undefined}
           isPaymentEnabled={isPaymentEnabled}
           paymentButtonText={paymentButtonText}
         />
