@@ -4,15 +4,18 @@ A web application for easily splitting receipts among friends and groups. No app
 
 ## Features
 
-- Upload a receipt image to automatically parse items, subtotal, tax, and tip
-- Add people who shared the receipt
-- Assign items to individuals or split items among multiple people
-- Calculate tax and tip proportionally based on item costs
-- View detailed breakdown of what each person owes
-- Share results easily via native share API or copy to clipboard
-- Responsive design that works on mobile and desktop
-- Automatic light/dark mode based on system preferences with manual override
-- Support the project via Ko-fi integration
+- **Receipt Parsing**: Upload a receipt image to automatically parse items, subtotal, tax, and tip
+- **Group Management**: Add people who shared the receipt
+- **Item Assignment**: Assign items to individuals or split items among multiple people
+- **Smart Calculations**: Calculate tax and tip proportionally based on item costs
+- **Detailed Breakdown**: View detailed breakdown of what each person owes
+- **Receipt Sharing**: Generate shareable links for group members to view and pay their amounts
+- **Split Payment Page**: Dedicated page where everyone can see their amount and pay directly
+- **Venmo Integration**: Direct payment links with pre-filled amounts and descriptions
+- **Text Sharing**: Share results easily via native share API or copy to clipboard
+- **Mobile-Optimized**: Responsive design with enhanced mobile UX and touch targets
+- **Theme Support**: Automatic light/dark mode based on system preferences with manual override
+- **Support the Project**: Ko-fi integration for donations
 
 ## Technology Stack
 
@@ -25,6 +28,19 @@ A web application for easily splitting receipts among friends and groups. No app
 - next-themes for theme management
 - Ko-fi integration for donations
 - Vercel for deployment and serverless functions
+
+## How Receipt Sharing Works
+
+1. **Create Split**: Upload a receipt and assign items to group members
+2. **Enter Phone**: Add your phone number for Venmo payment functionality
+3. **Share Link**: Click "Share Split" to generate a link with everyone's amounts
+4. **Group Pays**: Members visit the link and pay their amount directly via Venmo
+5. **Done**: No more collecting money or calculating who owes what!
+
+### Example Shared URL
+```
+https://receipt-splitter.app/split?names=Alice,Bob&amounts=25.50,30.25&total=55.75&note=Dinner&phone=15551234567
+```
 
 ## Development
 

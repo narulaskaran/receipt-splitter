@@ -19,10 +19,15 @@ This project is a receipt splitting web application built with Next.js, TypeScri
 - `src/components/people-manager.tsx` - UI for managing people in the split
 - `src/components/person-items.tsx` - UI for displaying items assigned to a person
 - `src/components/receipt-details.tsx` - UI for displaying receipt information
-- `src/components/results-summary.tsx` - UI for displaying the final split results
+- `src/components/results-summary.tsx` - UI for displaying the final split results with sharing functionality
 - `src/components/theme-provider.tsx` - Theme management for light/dark mode
 - `src/components/kofi-button.tsx` - Ko-fi integration for donations
+- `src/app/split/page.tsx` - Split viewing page for shared receipt links
+- `src/components/split-summary.tsx` - Component for displaying shared split details
+- `src/components/payment-card.tsx` - Individual payment cards with Venmo integration
 - `src/lib/receipt-utils.ts` - Utility functions for receipt calculations
+- `src/lib/split-sharing.ts` - Core utilities for sharing split data via URLs
+- `src/lib/venmo-utils.ts` - Venmo payment link generation and sharing utilities
 - `src/lib/utils.ts` - General utility functions
 
 ## Environment Setup
@@ -99,6 +104,42 @@ A GitHub Actions workflow is set up in `.github/workflows/ci.yml` to run on ever
 - Runs tests (`npm test`)
 
 This ensures code quality and build integrity for all contributions.
+
+## Receipt Sharing
+
+The application now supports sharing receipt splits via URLs, allowing group members to view split details and pay their individual amounts directly through Venmo.
+
+### Key Features
+
+- **Shareable URLs**: Generate links containing split data that can be shared with group members
+- **Split Viewing Page**: Dedicated `/split` route for viewing shared receipt splits
+- **Venmo Integration**: Direct payment links for each person's amount
+- **Mobile-Optimized**: Responsive design with enhanced mobile UX and touch targets
+- **Data Validation**: Comprehensive validation of split data with detailed error reporting
+- **URL Serialization**: Secure encoding/decoding of split data in URL parameters
+
+### URL Format
+
+Shared split URLs follow this format:
+```
+https://yourapp.com/split?names=Alice,Bob&amounts=25.50,30.25&total=55.75&note=Dinner&phone=15551234567&date=2024-01-15
+```
+
+### Technical Implementation
+
+- **Split Data Utilities** (`src/lib/split-sharing.ts`): Core serialization, validation, and URL generation
+- **Venmo Integration** (`src/lib/venmo-utils.ts`): Payment link generation and native sharing
+- **Split Components**: Dedicated UI components for viewing and paying splits
+- **Enhanced Validation**: Detailed error messages with specific data validation
+- **Mobile UX**: Optimized payment flows with loading states and animations
+
+### Sharing Workflow
+
+1. User completes receipt split in main app
+2. Enters phone number for Venmo payments
+3. Clicks "Share Split" button to generate shareable URL
+4. Group members visit shared URL to view split and pay their amount
+5. Venmo payment links open with pre-filled amounts and descriptions
 
 ## Test Utilities and Mock Data
 
