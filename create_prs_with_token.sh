@@ -5,9 +5,9 @@
 
 echo "🚀 Creating stacked PRs for receipt sharing feature..."
 
-# Check for GITHUB_TOKEN
-if [ -z "$GITHUB_TOKEN" ]; then
-    echo "❌ GITHUB_TOKEN environment variable not set."
+# Check for GitHub token (GitHub CLI supports both GH_TOKEN and GITHUB_TOKEN)
+if [ -z "$GITHUB_TOKEN" ] && [ -z "$GH_TOKEN" ]; then
+    echo "❌ GitHub token environment variable not set."
     echo ""
     echo "To create a GitHub token:"
     echo "1. Go to https://github.com/settings/tokens"
@@ -15,13 +15,22 @@ if [ -z "$GITHUB_TOKEN" ]; then
     echo "3. Select scopes: repo, workflow"
     echo "4. Copy the token"
     echo ""
-    echo "Then run:"
+    echo "Then run one of:"
+    echo "GH_TOKEN=your_token_here ./create_prs_with_token.sh"
     echo "GITHUB_TOKEN=your_token_here ./create_prs_with_token.sh"
     echo ""
     echo "Or export it permanently:"
-    echo "export GITHUB_TOKEN=your_token_here"
+    echo "export GH_TOKEN=your_token_here"
     echo "./create_prs_with_token.sh"
     exit 1
+fi
+
+# Use whichever token is available
+if [ -n "$GH_TOKEN" ]; then
+    echo "✅ Using GH_TOKEN for authentication"
+    export GITHUB_TOKEN="$GH_TOKEN"
+elif [ -n "$GITHUB_TOKEN" ]; then
+    echo "✅ Using GITHUB_TOKEN for authentication"
 fi
 
 # Verify GitHub CLI can use the token
