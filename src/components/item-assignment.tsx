@@ -322,17 +322,9 @@ export function ItemAssignment({
       return "Unassigned";
     }
 
-    if (
-      itemAssignments.length === 1 &&
-      itemAssignments[0].sharePercentage === 100
-    ) {
-      return getPersonName(itemAssignments[0].personId);
-    }
-
+    // Show just the names of people assigned to this item
     return itemAssignments
-      .map(
-        (a) => `${getPersonName(a.personId)} (${a.sharePercentage.toFixed(2)}%)`
-      )
+      .map((a) => getPersonName(a.personId))
       .join(", ");
   };
 
