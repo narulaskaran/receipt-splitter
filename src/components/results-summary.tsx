@@ -236,47 +236,93 @@ export function ResultsSummary({
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Person</TableHead>
-                <TableHead className="text-right">Subtotal</TableHead>
-                <TableHead className="text-right">Tax</TableHead>
-                <TableHead className="text-right">Tip</TableHead>
-                <TableHead className="text-right">Total</TableHead>
-                <TableHead className="text-right">Venmo</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {sortedPeople.map((person) => (
-                <TableRow key={person.id}>
-                  <TableCell className="font-medium">{person.name}</TableCell>
-                  <TableCell className="text-right">
-                    {formatCurrency(person.totalBeforeTax)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatCurrency(person.tax)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatCurrency(person.tip)}
-                  </TableCell>
-                  <TableCell className="text-right font-bold">
-                    {formatCurrency(person.finalTotal)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!phoneNumber.replace(/\D/g, "")}
-                      onClick={() => handleVenmoClick(person)}
-                    >
-                      Venmo Link
-                    </Button>
-                  </TableCell>
+          {/* Mobile Card Layout */}
+          <div className="block sm:hidden space-y-4">
+            {sortedPeople.map((person) => (
+              <Card key={person.id} className="transition-all duration-200 hover:shadow-md">
+                <CardContent className="p-4">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-lg">{person.name}</h3>
+                      <span className="text-2xl font-bold text-primary">
+                        {formatCurrency(person.finalTotal)}
+                      </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-3 text-sm">
+                      <div className="text-center">
+                        <p className="text-muted-foreground text-xs">Subtotal</p>
+                        <p className="font-medium">{formatCurrency(person.totalBeforeTax)}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-muted-foreground text-xs">Tax</p>
+                        <p className="font-medium">{formatCurrency(person.tax)}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-muted-foreground text-xs">Tip</p>
+                        <p className="font-medium">{formatCurrency(person.tip)}</p>
+                      </div>
+                    </div>
+                    
+                    {phoneNumber.replace(/\D/g, "") && (
+                      <Button
+                        variant="default"
+                        onClick={() => handleVenmoClick(person)}
+                        className="w-full h-12 text-base font-medium transition-all duration-200 shadow-md hover:shadow-lg active:scale-95 touch-manipulation"
+                      >
+                        💸 Pay {formatCurrency(person.finalTotal)} via Venmo
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {/* Desktop Table Layout */}
+          <div className="hidden sm:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Person</TableHead>
+                  <TableHead className="text-right">Subtotal</TableHead>
+                  <TableHead className="text-right">Tax</TableHead>
+                  <TableHead className="text-right">Tip</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                  <TableHead className="text-right">Venmo</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {sortedPeople.map((person) => (
+                  <TableRow key={person.id}>
+                    <TableCell className="font-medium">{person.name}</TableCell>
+                    <TableCell className="text-right">
+                      {formatCurrency(person.totalBeforeTax)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatCurrency(person.tax)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {formatCurrency(person.tip)}
+                    </TableCell>
+                    <TableCell className="text-right font-bold">
+                      {formatCurrency(person.finalTotal)}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!phoneNumber.replace(/\D/g, "")}
+                        onClick={() => handleVenmoClick(person)}
+                      >
+                        Venmo Link
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -55,10 +55,10 @@ export function PaymentCard({
               <Button
                 onClick={onPaymentClick}
                 disabled={!isPaymentEnabled}
-                className="w-full sm:w-auto min-w-[140px] h-12 sm:h-10 text-base sm:text-sm font-semibold transition-all duration-200 shadow-md hover:shadow-lg active:scale-95"
+                className="w-full sm:w-auto min-w-[140px] h-14 sm:h-10 text-lg sm:text-sm font-semibold transition-all duration-200 shadow-md hover:shadow-lg active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation"
                 size="lg"
               >
-                <CreditCard className="h-5 w-5 sm:h-4 sm:w-4" />
+                <CreditCard className="h-6 w-6 sm:h-4 sm:w-4" />
                 {paymentButtonText}
               </Button>
             )}

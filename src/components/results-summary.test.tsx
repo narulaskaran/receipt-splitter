@@ -11,7 +11,7 @@ describe("ResultsSummary", () => {
         receiptDate="2024-01-01"
       />
     );
-    expect(screen.getByText(/Alice/)).toBeInTheDocument();
-    expect(screen.getByText(/Bob/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Alice/)[0]).toBeInTheDocument();
+    expect(screen.getAllByText(/Bob/)[0]).toBeInTheDocument();
   });
 });

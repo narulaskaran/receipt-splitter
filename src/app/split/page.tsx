@@ -2,16 +2,20 @@
 
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 import { deserializeSplitData, validateSplitData, type SharedSplitData } from '@/lib/split-sharing';
+import { SplitSummary } from '@/components/split-summary';
+import { PaymentCardsList } from '@/components/payment-card';
+import { shareVenmoPayment, formatVenmoNote } from '@/lib/venmo-utils';
 import Link from 'next/link';
 
 interface SplitPageState {
   splitData: SharedSplitData | null;
   isLoading: boolean;
   error: string | null;
+  paymentLoading: string | null; // personName currently processing payment
 }
 
 function SplitPageContent() {
@@ -20,6 +24,7 @@ function SplitPageContent() {
     splitData: null,
     isLoading: true,
     error: null,
+    paymentLoading: null,
   });
 
   useEffect(() => {
@@ -32,6 +37,7 @@ function SplitPageContent() {
           splitData: null,
           isLoading: false,
           error: 'Invalid or missing split data in URL. The link may be corrupted or incomplete.',
+          paymentLoading: null,
         });
         return;
       }
@@ -42,6 +48,7 @@ function SplitPageContent() {
           splitData: null,
           isLoading: false,
           error: 'The split data is invalid. The amounts may not add up correctly or contain invalid values.',
+          paymentLoading: null,
         });
         return;
       }
@@ -51,15 +58,37 @@ function SplitPageContent() {
         splitData,
         isLoading: false,
         error: null,
+        paymentLoading: null,
       });
     } catch {
       setState({
         splitData: null,
         isLoading: false,
         error: 'An unexpected error occurred while processing the split data. Please check the link and try again.',
+        paymentLoading: null,
       });
     }
   }, [searchParams]);
+
+  // Handle Venmo payment with enhanced mobile UX
+  const handlePayment = async (personName: string, amount: number) => {
+    if (!state.splitData?.phone) {
+      alert('No phone number available for Venmo payments. Please check the split link.');
+      return;
+    }
+
+    setState(prev => ({ ...prev, paymentLoading: personName }));
+
+    try {
+      const note = formatVenmoNote(state.splitData.note, personName);
+      await shareVenmoPayment(state.splitData.phone, amount, note, personName);
+    } catch (error) {
+      console.error('Payment error:', error);
+      alert('Failed to open Venmo payment. Please check the phone number and try again.');
+    } finally {
+      setState(prev => ({ ...prev, paymentLoading: null }));
+    }
+  };
 
   // Loading state with enhanced design
   if (state.isLoading) {
@@ -145,88 +174,76 @@ function SplitPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-background to-muted/20">
       <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 max-w-4xl">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-8">
+        {/* Header with enhanced mobile design */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-6 mb-8 animate-in fade-in-0 slide-in-from-top-4 duration-500">
           <Button 
             variant="ghost" 
-            size="sm" 
+            size="default" 
             asChild 
-            className="self-start h-10 px-3 transition-all duration-200 hover:bg-muted active:scale-95"
+            className="self-start h-12 sm:h-10 px-4 sm:px-3 text-base sm:text-sm transition-all duration-200 hover:bg-muted active:scale-95 touch-manipulation"
           >
             <Link href="/">
-              <ArrowLeft className="h-4 w-4 mr-2" />
+              <ArrowLeft className="h-5 w-5 sm:h-4 sm:w-4 mr-3 sm:mr-2" />
               Back to App
             </Link>
           </Button>
-          <div className="flex-1">
-            <h1 className="text-2xl sm:text-3xl font-bold mb-1">Receipt Split</h1>
-            <p className="text-sm sm:text-base text-muted-foreground">
+          <div className="flex-1 text-center sm:text-left">
+            <h1 className="text-3xl sm:text-4xl font-bold mb-2 bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
+              Receipt Split
+            </h1>
+            <p className="text-base sm:text-lg text-muted-foreground">
               Review the split details and pay your amount
             </p>
           </div>
         </div>
 
-        {/* Basic Split Display (SplitSummary component will be added in next PR) */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="text-xl">Split Summary</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {/* Description */}
-              <div className="flex justify-between">
-                <span className="font-medium">Description:</span>
-                <span className="text-right">{splitData.note}</span>
-              </div>
-              
-              {/* Date if available */}
-              {splitData.date && (
-                <div className="flex justify-between">
-                  <span className="font-medium">Date:</span>
-                  <span>{new Date(splitData.date).toLocaleDateString()}</span>
-                </div>
-              )}
-              
-              {/* Total */}
-              <div className="flex justify-between border-t pt-3">
-                <span className="font-medium">Total Bill:</span>
-                <span className="font-bold">${splitData.total.toFixed(2)}</span>
-              </div>
-              
-              {/* People count */}
-              <div className="flex justify-between">
-                <span className="font-medium">Split Among:</span>
-                <span>{splitData.names.length} {splitData.names.length === 1 ? 'person' : 'people'}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Content Container with enhanced mobile animations */}
+        <div className="space-y-8">
+          {/* Split Summary Component */}
+          <div className="animate-in fade-in-0 slide-in-from-left-4 duration-700">
+            <SplitSummary splitData={splitData} />
+          </div>
 
-        {/* Individual Amount Cards */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Individual Amounts</h2>
-          {splitData.names.map((name, index) => (
-            <Card key={`${name}-${index}`}>
-              <CardContent className="py-4">
-                <div className="flex justify-between items-center">
-                  <span className="font-medium">{name}</span>
-                  <span className="text-lg font-bold">${splitData.amounts[index].toFixed(2)}</span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+          {/* Payment Cards with staggered animations */}
+          <div className="animate-in fade-in-0 slide-in-from-right-4 duration-700 delay-300">
+            <PaymentCardsList 
+              names={splitData.names}
+              amounts={splitData.amounts}
+              onPaymentClick={handlePayment}
+              isPaymentEnabled={!state.paymentLoading}
+              paymentButtonText={
+                state.paymentLoading 
+                  ? 'Processing...' 
+                  : 'Pay with Venmo'
+              }
+            />
+          </div>
         </div>
 
-        {/* Footer with phone info */}
-        <div className="mt-8 p-4 bg-muted rounded-lg">
-          <p className="text-sm text-muted-foreground text-center">
-            Payment functionality will be available in the next update.
-            <span className="block mt-1">
-              Venmo payments will be sent to: <span className="font-mono">{splitData.phone}</span>
-            </span>
-          </p>
+        {/* Footer with enhanced mobile payment status */}
+        <div className="animate-in fade-in-0 slide-in-from-bottom-6 duration-700 delay-500">
+          <div className="mt-8 p-6 bg-gradient-to-r from-green-50/80 to-blue-50/40 dark:from-green-950/30 dark:to-blue-950/10 rounded-2xl border border-green-200/50 dark:border-green-800/50 shadow-sm">
+            <div className="text-center space-y-3">
+              <div className="flex items-center justify-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-green-500 animate-pulse" />
+                <p className="text-base sm:text-lg font-semibold text-green-700 dark:text-green-300">
+                  ✓ Ready for Venmo Payments
+                </p>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  Tap any &quot;Pay with Venmo&quot; button to send payment
+                </p>
+                <div className="bg-background/60 rounded-lg px-4 py-2 border">
+                  <p className="text-xs text-muted-foreground">
+                    Payments go to: <span className="font-mono text-primary">{splitData.phone}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
