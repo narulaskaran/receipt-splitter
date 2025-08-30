@@ -201,43 +201,7 @@ export function ResultsSummary({
         />
       </div>
 
-      {/* Sharing instructions */}
-      <div className="text-sm text-muted-foreground mb-4 p-4 bg-blue-50/80 dark:bg-blue-950/30 rounded-xl border border-blue-200/50 dark:border-blue-800/50 transition-all duration-200">
-        <p className="font-medium text-blue-700 dark:text-blue-300 mb-2 flex items-center gap-2">
-          💡 Sharing Options
-        </p>
-        <ul className="text-blue-600 dark:text-blue-400 space-y-2">
-          <li className="flex items-start gap-2">
-            <span className="font-semibold">•</span>
-            <span>
-              <strong>Share Text:</strong> Copy a text summary to send manually
-            </span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="font-semibold">•</span>
-            <span>
-              <strong>Share Split:</strong> Create a link where everyone can pay
-              their own amount directly
-            </span>
-          </li>
-          {phoneNumber && (
-            <li className="flex items-start gap-2">
-              <span className="font-semibold">•</span>
-              <span>
-                <strong>Venmo Links:</strong> Individual payment links for each
-                person
-              </span>
-            </li>
-          )}
-        </ul>
-        {!canShareSplit &&
-          phoneNumber.length > 0 &&
-          phoneNumber.replace(/\D/g, "").length < 10 && (
-            <p className="text-amber-600 dark:text-amber-400 text-xs mt-2">
-              ⚠️ Enter a valid phone number to enable split sharing
-            </p>
-          )}
-      </div>
+
 
       <Card className="w-full">
         <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
