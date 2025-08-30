@@ -21,6 +21,11 @@ export const metadata: Metadata = {
   description: "Upload a receipt, add people, and split the bill",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
