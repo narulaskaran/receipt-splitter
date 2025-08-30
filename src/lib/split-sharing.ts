@@ -7,28 +7,36 @@ export interface SharedSplitData {
   names: string[];
   amounts: number[];
   total: number;
-  restaurant?: string;
-  date?: string;
-  phone?: string;
+  note: string; // Required: becomes Venmo transaction description
+  phone: string; // Required: needed for Venmo payment links
+  date?: string; // Optional: receipt date for display
 }
 
 /**
  * Serializes split data into URL-safe parameters
  * 
  * @param people - Array of people with their calculated amounts
- * @param restaurant - Optional restaurant name
+ * @param note - Required note/memo for the split (becomes Venmo transaction description)
+ * @param phone - Required phone number for Venmo payments
  * @param date - Optional receipt date
- * @param phone - Optional phone number for Venmo
  * @returns URLSearchParams object ready to be appended to a URL
  */
 export function serializeSplitData(
   people: Person[],
-  restaurant?: string | null,
-  date?: string | null,
-  phone?: string
+  note: string,
+  phone: string,
+  date?: string | null
 ): URLSearchParams {
   if (people.length === 0) {
     throw new Error('Cannot serialize empty people array');
+  }
+
+  if (!note || note.trim().length === 0) {
+    throw new Error('Note is required for split sharing');
+  }
+
+  if (!phone || phone.trim().length === 0) {
+    throw new Error('Phone number is required for split sharing');
   }
 
   // Sort people by name for consistent ordering
@@ -44,18 +52,12 @@ export function serializeSplitData(
   params.set('names', names.join(','));
   params.set('amounts', amounts.map(amount => amount.toFixed(2)).join(','));
   params.set('total', total.toFixed(2));
+  params.set('note', note.trim());
+  params.set('phone', phone.trim());
   
   // Optional parameters
-  if (restaurant) {
-    params.set('restaurant', restaurant);
-  }
-  
   if (date) {
     params.set('date', date);
-  }
-  
-  if (phone) {
-    params.set('phone', phone);
   }
 
   return params;
@@ -72,15 +74,24 @@ export function deserializeSplitData(searchParams: URLSearchParams): SharedSplit
     const namesParam = searchParams.get('names');
     const amountsParam = searchParams.get('amounts');
     const totalParam = searchParams.get('total');
+    const noteParam = searchParams.get('note');
+    const phoneParam = searchParams.get('phone');
 
     // Required parameters check
-    if (!namesParam || !amountsParam || !totalParam) {
+    if (!namesParam || !amountsParam || !totalParam || !noteParam || !phoneParam) {
       return null;
     }
 
     const names = namesParam.split(',').map(name => name.trim()).filter(name => name.length > 0);
     const amountStrings = amountsParam.split(',').map(amount => amount.trim());
     const total = parseFloat(totalParam);
+    const note = noteParam.trim();
+    const phone = phoneParam.trim();
+
+    // Validate required fields
+    if (note.length === 0 || phone.length === 0) {
+      return null;
+    }
 
     // Validate arrays have same length
     if (names.length !== amountStrings.length || names.length === 0) {
@@ -103,17 +114,15 @@ export function deserializeSplitData(searchParams: URLSearchParams): SharedSplit
     }
 
     // Optional parameters
-    const restaurant = searchParams.get('restaurant') || undefined;
     const date = searchParams.get('date') || undefined;
-    const phone = searchParams.get('phone') || undefined;
 
     return {
       names,
       amounts,
       total,
-      restaurant,
-      date,
+      note,
       phone,
+      date,
     };
   } catch {
     // Return null for any parsing errors
@@ -126,19 +135,19 @@ export function deserializeSplitData(searchParams: URLSearchParams): SharedSplit
  * 
  * @param baseUrl - The base URL of the application (e.g., 'https://yourapp.com')
  * @param people - Array of people with their calculated amounts
- * @param restaurant - Optional restaurant name
+ * @param note - Required note/memo for the split (becomes Venmo transaction description)
+ * @param phone - Required phone number for Venmo payments
  * @param date - Optional receipt date
- * @param phone - Optional phone number for Venmo
  * @returns Complete shareable URL
  */
 export function generateShareableUrl(
   baseUrl: string,
   people: Person[],
-  restaurant?: string | null,
-  date?: string | null,
-  phone?: string
+  note: string,
+  phone: string,
+  date?: string | null
 ): string {
-  const params = serializeSplitData(people, restaurant, date, phone);
+  const params = serializeSplitData(people, note, phone, date);
   // Ensure baseUrl doesn't end with slash to avoid double slashes
   const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
   return `${cleanBaseUrl}/split?${params.toString()}`;
@@ -164,6 +173,15 @@ export function validateSplitData(splitData: SharedSplitData): boolean {
 
     // Check names are not empty
     if (splitData.names.some(name => name.trim().length === 0)) {
+      return false;
+    }
+
+    // Check required fields
+    if (!splitData.note || splitData.note.trim().length === 0) {
+      return false;
+    }
+
+    if (!splitData.phone || splitData.phone.trim().length === 0) {
       return false;
     }
 
