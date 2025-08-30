@@ -3,6 +3,12 @@ import {
   deserializeSplitData, 
   generateShareableUrl, 
   validateSplitData,
+  validateSplitDataDetailed,
+  validateSerializationInput,
+  isValidPhoneNumber,
+  isValidDateFormat,
+  SplitDataError,
+  VALIDATION_LIMITS,
   type SharedSplitData 
 } from './split-sharing';
 import { type Person } from '@/types';
@@ -72,17 +78,17 @@ describe('serializeSplitData', () => {
   });
 
   it('should throw error for empty people array', () => {
-    expect(() => serializeSplitData([], 'Test', '5551234567')).toThrow('Cannot serialize empty people array');
+    expect(() => serializeSplitData([], 'Test', '5551234567')).toThrow('Invalid split data: At least one person must be included in the split');
   });
 
   it('should throw error for empty note', () => {
-    expect(() => serializeSplitData(mockPeople, '', '5551234567')).toThrow('Note is required for split sharing');
-    expect(() => serializeSplitData(mockPeople, '   ', '5551234567')).toThrow('Note is required for split sharing');
+    expect(() => serializeSplitData(mockPeople, '', '5551234567')).toThrow('Invalid split data: Note/memo is required for split sharing');
+    expect(() => serializeSplitData(mockPeople, '   ', '5551234567')).toThrow('Invalid split data: Note/memo is required for split sharing');
   });
 
   it('should throw error for empty phone', () => {
-    expect(() => serializeSplitData(mockPeople, 'Test Note', '')).toThrow('Phone number is required for split sharing');
-    expect(() => serializeSplitData(mockPeople, 'Test Note', '   ')).toThrow('Phone number is required for split sharing');
+    expect(() => serializeSplitData(mockPeople, 'Test Note', '')).toThrow('Invalid split data: Phone number is required for split sharing');
+    expect(() => serializeSplitData(mockPeople, 'Test Note', '   ')).toThrow('Invalid split data: Phone number is required for split sharing');
   });
 
   it('should handle special characters in names and note', () => {
@@ -443,5 +449,193 @@ describe('round-trip serialization', () => {
     expect(deserialized!.note).toBe('Minimum');
     expect(deserialized!.phone).toBe('5551234567');
     expect(validateSplitData(deserialized!)).toBe(true);
+  });
+});
+
+describe('isValidPhoneNumber', () => {
+  it('should validate 10-digit US phone numbers', () => {
+    expect(isValidPhoneNumber('5551234567')).toBe(true);
+    expect(isValidPhoneNumber('555-123-4567')).toBe(true);
+    expect(isValidPhoneNumber('(555) 123-4567')).toBe(true);
+    expect(isValidPhoneNumber('555.123.4567')).toBe(true);
+  });
+
+  it('should validate 11-digit US phone numbers with country code', () => {
+    expect(isValidPhoneNumber('15551234567')).toBe(true);
+    expect(isValidPhoneNumber('1-555-123-4567')).toBe(true);
+    expect(isValidPhoneNumber('+1 555 123 4567')).toBe(true);
+  });
+
+  it('should reject invalid phone numbers', () => {
+    expect(isValidPhoneNumber('')).toBe(false);
+    expect(isValidPhoneNumber('123')).toBe(false);
+    expect(isValidPhoneNumber('12345')).toBe(false);
+    expect(isValidPhoneNumber('123456789')).toBe(false); // 9 digits
+    expect(isValidPhoneNumber('10234567890')).toBe(false); // 11 digits starting with 1 but second digit is 0
+    expect(isValidPhoneNumber('11234567890')).toBe(false); // 11 digits starting with 1 but second digit is 1
+    expect(isValidPhoneNumber('555123456789')).toBe(false); // 12 digits
+    expect(isValidPhoneNumber('abc-def-ghij')).toBe(false);
+  });
+});
+
+describe('isValidDateFormat', () => {
+  it('should validate ISO date formats', () => {
+    expect(isValidDateFormat('2024-01-15')).toBe(true);
+    expect(isValidDateFormat('2024-12-31')).toBe(true);
+    expect(isValidDateFormat('2024-01-01T00:00:00Z')).toBe(true);
+  });
+
+  it('should validate common date formats', () => {
+    expect(isValidDateFormat('01/15/2024')).toBe(true);
+    expect(isValidDateFormat('Jan 15, 2024')).toBe(true);
+    expect(isValidDateFormat('January 15, 2024')).toBe(true);
+  });
+
+  it('should reject invalid dates', () => {
+    expect(isValidDateFormat('')).toBe(false);
+    expect(isValidDateFormat('invalid')).toBe(false);
+    expect(isValidDateFormat('2024')).toBe(false); // too short
+    expect(isValidDateFormat('2024-13-01')).toBe(false); // invalid month
+    expect(isValidDateFormat('2024-01-32')).toBe(false); // invalid day
+  });
+});
+
+describe('validateSplitDataDetailed', () => {
+  const validSplitData: SharedSplitData = {
+    names: ['Alice', 'Bob'],
+    amounts: [30.00, 20.00],
+    total: 50.00,
+    note: 'Test Restaurant',
+    phone: '5551234567',
+    date: '2024-01-15'
+  };
+
+  it('should return detailed validation for valid data', () => {
+    const result = validateSplitDataDetailed(validSplitData);
+    
+    expect(result.isValid).toBe(true);
+    expect(result.errors).toEqual([]);
+    expect(result.errorMessages).toEqual([]);
+  });
+
+  it('should detect empty people array', () => {
+    const invalidData: SharedSplitData = {
+      ...validSplitData,
+      names: [],
+      amounts: [],
+    };
+    
+    const result = validateSplitDataDetailed(invalidData);
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toContain(SplitDataError.EMPTY_PEOPLE_ARRAY);
+    expect(result.errorMessages[0]).toContain('At least one person must be included');
+  });
+
+  it('should detect missing required note field', () => {
+    const invalidData: SharedSplitData = {
+      ...validSplitData,
+      note: ''
+    };
+    
+    const result = validateSplitDataDetailed(invalidData);
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toContain(SplitDataError.EMPTY_NAME);
+    expect(result.errorMessages[0]).toContain('Note/memo is required');
+  });
+
+  it('should detect missing required phone field', () => {
+    const invalidData: SharedSplitData = {
+      ...validSplitData,
+      phone: ''
+    };
+    
+    const result = validateSplitDataDetailed(invalidData);
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toContain(SplitDataError.INVALID_PHONE_NUMBER);
+    expect(result.errorMessages[0]).toContain('Phone number is required');
+  });
+
+  it('should detect invalid phone numbers', () => {
+    const invalidData: SharedSplitData = {
+      ...validSplitData,
+      phone: '123456789', // 9 digits
+    };
+    
+    const result = validateSplitDataDetailed(invalidData);
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toContain(SplitDataError.INVALID_PHONE_NUMBER);
+    expect(result.errorMessages[0]).toContain('Phone number format is invalid');
+  });
+
+  it('should detect invalid dates', () => {
+    const invalidData: SharedSplitData = {
+      ...validSplitData,
+      date: 'invalid-date',
+    };
+    
+    const result = validateSplitDataDetailed(invalidData);
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toContain(SplitDataError.INVALID_DATE_FORMAT);
+    expect(result.errorMessages[0]).toContain('Date format is invalid');
+  });
+
+  it('should detect note that is too long', () => {
+    const longNote = 'N'.repeat(VALIDATION_LIMITS.MAX_NOTE_LENGTH + 1);
+    const invalidData: SharedSplitData = {
+      ...validSplitData,
+      note: longNote,
+    };
+    
+    const result = validateSplitDataDetailed(invalidData);
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toContain(SplitDataError.NOTE_TOO_LONG);
+    expect(result.errorMessages[0]).toContain('Note exceeds');
+  });
+});
+
+describe('validateSerializationInput', () => {
+  it('should validate valid Person array input', () => {
+    const result = validateSerializationInput(
+      mockPeople,
+      'Test Restaurant',
+      '5551234567',
+      '2024-01-15'
+    );
+    
+    expect(result.isValid).toBe(true);
+    expect(result.errors).toEqual([]);
+    expect(result.errorMessages).toEqual([]);
+  });
+
+  it('should detect empty people array', () => {
+    const result = validateSerializationInput([], 'Test', '5551234567');
+    
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toContain(SplitDataError.EMPTY_PEOPLE_ARRAY);
+    expect(result.errorMessages[0]).toContain('At least one person must be included');
+  });
+
+  it('should detect empty note', () => {
+    const result = validateSerializationInput(mockPeople, '', '5551234567');
+    
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toContain(SplitDataError.EMPTY_NAME);
+    expect(result.errorMessages[0]).toContain('Note/memo is required');
+  });
+
+  it('should detect empty phone', () => {
+    const result = validateSerializationInput(mockPeople, 'Test', '');
+    
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toContain(SplitDataError.INVALID_PHONE_NUMBER);
+    expect(result.errorMessages[0]).toContain('Phone number is required');
+  });
+
+  it('should detect invalid phone format', () => {
+    const result = validateSerializationInput(mockPeople, 'Test', '123'); // invalid phone
+    
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toContain(SplitDataError.INVALID_PHONE_NUMBER);
+    expect(result.errorMessages[0]).toContain('Phone number format is invalid');
   });
 });
