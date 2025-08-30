@@ -220,7 +220,7 @@ export function ResultsSummary({
             </Button>
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-6">
           {/* Mobile-friendly responsive table */}
           <div className="overflow-x-auto">
             <Table>
