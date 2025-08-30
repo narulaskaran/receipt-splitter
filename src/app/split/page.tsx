@@ -2,10 +2,11 @@
 
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 import { deserializeSplitData, validateSplitData, type SharedSplitData } from '@/lib/split-sharing';
+import { SplitSummary } from '@/components/split-summary';
 import Link from 'next/link';
 
 interface SplitPageState {
@@ -130,56 +131,8 @@ function SplitPageContent() {
           </div>
         </div>
 
-        {/* Split Summary Card */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <span>Split Summary</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {splitData.restaurant && (
-                <div className="flex justify-between">
-                  <span className="font-medium">Restaurant:</span>
-                  <span>{splitData.restaurant}</span>
-                </div>
-              )}
-              
-              {splitData.date && (
-                <div className="flex justify-between">
-                  <span className="font-medium">Date:</span>
-                  <span>{new Date(splitData.date).toLocaleDateString()}</span>
-                </div>
-              )}
-              
-              <div className="flex justify-between border-t pt-3">
-                <span className="font-medium">Total Bill:</span>
-                <span className="font-bold">${splitData.total.toFixed(2)}</span>
-              </div>
-              
-              <div className="flex justify-between">
-                <span className="font-medium">Split Among:</span>
-                <span>{splitData.names.length} {splitData.names.length === 1 ? 'person' : 'people'}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Individual Amount Cards - Placeholder for now */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Individual Amounts</h2>
-          {splitData.names.map((name, index) => (
-            <Card key={`${name}-${index}`}>
-              <CardContent className="py-4">
-                <div className="flex justify-between items-center">
-                  <span className="font-medium">{name}</span>
-                  <span className="text-lg font-bold">${splitData.amounts[index].toFixed(2)}</span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        {/* Split Summary Component */}
+        <SplitSummary splitData={splitData} />
 
         {/* Footer with info */}
         <div className="mt-8 p-4 bg-muted rounded-lg">

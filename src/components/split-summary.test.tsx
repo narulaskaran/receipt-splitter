@@ -1,0 +1,138 @@
+import { render, screen } from '@testing-library/react';
+import { SplitSummary } from './split-summary';
+import { type SharedSplitData } from '@/lib/split-sharing';
+
+// Mock the formatCurrency function
+jest.mock('@/lib/receipt-utils', () => ({
+  formatCurrency: jest.fn((amount: number) => `$${amount.toFixed(2)}`),
+}));
+
+const mockSplitData: SharedSplitData = {
+  names: ['Alice', 'Bob', 'Charlie'],
+  amounts: [32.50, 19.50, 13.00],
+  total: 65.00,
+  restaurant: 'Pizza Palace',
+  date: '2024-01-15',
+  phone: '5551234567'
+};
+
+const mockMinimalSplitData: SharedSplitData = {
+  names: ['Alice'],
+  amounts: [25.00],
+  total: 25.00,
+};
+
+describe('SplitSummary', () => {
+  it('renders complete split summary with all information', () => {
+    render(<SplitSummary splitData={mockSplitData} />);
+    
+    // Check main title
+    expect(screen.getByText('Split Summary')).toBeInTheDocument();
+    
+    // Check restaurant info
+    expect(screen.getByText('Restaurant')).toBeInTheDocument();
+    expect(screen.getByText('Pizza Palace')).toBeInTheDocument();
+    
+    // Check date info
+    expect(screen.getByText('Date')).toBeInTheDocument();
+    
+    // Check total amount
+    expect(screen.getByText('Total Bill')).toBeInTheDocument();
+    expect(screen.getByText('$65.00')).toBeInTheDocument();
+    
+    // Check people count
+    expect(screen.getByText('Split Among')).toBeInTheDocument();
+    expect(screen.getByText('3 people')).toBeInTheDocument();
+    
+    // Check individual breakdown
+    expect(screen.getByText('Individual Breakdown')).toBeInTheDocument();
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+    expect(screen.getByText('Bob')).toBeInTheDocument();
+    expect(screen.getByText('Charlie')).toBeInTheDocument();
+    expect(screen.getByText('$32.50')).toBeInTheDocument();
+    expect(screen.getByText('$19.50')).toBeInTheDocument();
+    expect(screen.getByText('$13.00')).toBeInTheDocument();
+  });
+
+  it('renders minimal split summary without optional fields', () => {
+    render(<SplitSummary splitData={mockMinimalSplitData} />);
+    
+    // Check main title
+    expect(screen.getByText('Split Summary')).toBeInTheDocument();
+    
+    // Restaurant and date should not be present
+    expect(screen.queryByText('Restaurant')).not.toBeInTheDocument();
+    expect(screen.queryByText('Date')).not.toBeInTheDocument();
+    
+    // Check total amount - use getAllByText since $25.00 appears twice
+    expect(screen.getByText('Total Bill')).toBeInTheDocument();
+    const amounts = screen.getAllByText('$25.00');
+    expect(amounts.length).toBeGreaterThan(0);
+    
+    // Check single person
+    expect(screen.getByText('1 person')).toBeInTheDocument();
+    expect(screen.getByText('Alice')).toBeInTheDocument();
+  });
+
+  it('handles date formatting correctly', () => {
+    const splitDataWithDate: SharedSplitData = {
+      ...mockMinimalSplitData,
+      date: '2024-12-25',
+    };
+    
+    render(<SplitSummary splitData={splitDataWithDate} />);
+    
+    expect(screen.getByText('Date')).toBeInTheDocument();
+    // Should format as a readable date
+    expect(screen.getByText(/Dec.*25.*2024/)).toBeInTheDocument();
+  });
+
+  it('handles invalid date gracefully', () => {
+    const splitDataWithBadDate: SharedSplitData = {
+      ...mockMinimalSplitData,
+      date: 'invalid-date',
+    };
+    
+    render(<SplitSummary splitData={splitDataWithBadDate} />);
+    
+    expect(screen.getByText('Date')).toBeInTheDocument();
+    // Should fall back to original string when date parsing fails
+    expect(screen.getByText('invalid-date')).toBeInTheDocument();
+  });
+
+  it('displays verification note with correct calculation', () => {
+    render(<SplitSummary splitData={mockSplitData} />);
+    
+    expect(screen.getByText(/Verification:/)).toBeInTheDocument();
+    expect(screen.getByText(/Individual amounts add up to/)).toBeInTheDocument();
+    expect(screen.getByText(/matches total bill/)).toBeInTheDocument();
+  });
+
+  it('handles single person correctly', () => {
+    render(<SplitSummary splitData={mockMinimalSplitData} />);
+    
+    expect(screen.getByText('1 person')).toBeInTheDocument();
+    expect(screen.queryByText('people')).not.toBeInTheDocument();
+  });
+
+  it('handles multiple people correctly', () => {
+    render(<SplitSummary splitData={mockSplitData} />);
+    
+    expect(screen.getByText('3 people')).toBeInTheDocument();
+    expect(screen.queryByText('person')).not.toBeInTheDocument();
+  });
+
+  it('displays all individual amounts in breakdown', () => {
+    render(<SplitSummary splitData={mockSplitData} />);
+    
+    // All names should be present
+    mockSplitData.names.forEach(name => {
+      expect(screen.getByText(name)).toBeInTheDocument();
+    });
+    
+    // All amounts should be present (formatted by mock function)
+    mockSplitData.amounts.forEach(amount => {
+      expect(screen.getByText(`$${amount.toFixed(2)}`)).toBeInTheDocument();
+    });
+  });
+});
