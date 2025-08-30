@@ -564,7 +564,7 @@ describe('validateSplitDataDetailed', () => {
     const result = validateSplitDataDetailed(invalidData);
     expect(result.isValid).toBe(false);
     expect(result.errors).toContain(SplitDataError.INVALID_PHONE_NUMBER);
-    expect(result.errorMessages[0]).toContain('Phone number format is invalid');
+    expect(result.errorMessages[0]).toContain('Phone number \'123456789\' format is invalid');
   });
 
   it('should detect invalid dates', () => {
@@ -576,7 +576,7 @@ describe('validateSplitDataDetailed', () => {
     const result = validateSplitDataDetailed(invalidData);
     expect(result.isValid).toBe(false);
     expect(result.errors).toContain(SplitDataError.INVALID_DATE_FORMAT);
-    expect(result.errorMessages[0]).toContain('Date format is invalid');
+    expect(result.errorMessages[0]).toContain('Date format \'invalid-date\' is invalid');
   });
 
   it('should detect note that is too long', () => {
@@ -589,7 +589,7 @@ describe('validateSplitDataDetailed', () => {
     const result = validateSplitDataDetailed(invalidData);
     expect(result.isValid).toBe(false);
     expect(result.errors).toContain(SplitDataError.NOTE_TOO_LONG);
-    expect(result.errorMessages[0]).toContain('Note exceeds');
+    expect(result.errorMessages[0]).toContain(`Note '${longNote}' exceeds ${VALIDATION_LIMITS.MAX_NOTE_LENGTH} characters`);
   });
 });
 
@@ -636,6 +636,6 @@ describe('validateSerializationInput', () => {
     
     expect(result.isValid).toBe(false);
     expect(result.errors).toContain(SplitDataError.INVALID_PHONE_NUMBER);
-    expect(result.errorMessages[0]).toContain('Phone number format is invalid');
+    expect(result.errorMessages[0]).toContain('Phone number \'123\' format is invalid');
   });
 });

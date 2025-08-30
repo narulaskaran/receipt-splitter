@@ -29,7 +29,8 @@ export enum SplitDataError {
   NAME_TOO_LONG = 'NAME_TOO_LONG',
   NOTE_TOO_LONG = 'NOTE_TOO_LONG',
   TOO_MANY_PEOPLE = 'TOO_MANY_PEOPLE',
-  AMOUNT_TOO_LARGE = 'AMOUNT_TOO_LARGE'
+  AMOUNT_TOO_LARGE = 'AMOUNT_TOO_LARGE',
+  INVALID_SPLIT_DETAILS = 'INVALID_SPLIT_DETAILS'
 }
 
 /**
@@ -286,10 +287,10 @@ export function validateSplitDataDetailed(splitData: SharedSplitData): SplitVali
     // Validate total
     if (isNaN(splitData.total)) {
       errors.push(SplitDataError.INVALID_TOTAL);
-      errorMessages.push('Total amount is not a valid number');
+      errorMessages.push(`Total amount '${splitData.total}' is not a valid number`);
     } else if (splitData.total < 0) {
       errors.push(SplitDataError.NEGATIVE_TOTAL);
-      errorMessages.push('Total amount cannot be negative');
+      errorMessages.push(`Total amount '${splitData.total}' cannot be negative`);
     } else {
       // Only check amount sum if total is valid
       const calculatedTotal = splitData.amounts.reduce((sum, amount) => sum + amount, 0);
@@ -304,25 +305,25 @@ export function validateSplitDataDetailed(splitData: SharedSplitData): SplitVali
     // Validate required note field
     if (!splitData.note || splitData.note.trim().length === 0) {
       errors.push(SplitDataError.EMPTY_NAME); // Reuse existing error type
-      errorMessages.push('Note/memo is required for split sharing');
+      errorMessages.push(`Note/memo is required for split sharing. Received: '${splitData.note || 'undefined'}'`);
     } else if (splitData.note.length > VALIDATION_LIMITS.MAX_NOTE_LENGTH) {
       errors.push(SplitDataError.NOTE_TOO_LONG);
-      errorMessages.push(`Note exceeds ${VALIDATION_LIMITS.MAX_NOTE_LENGTH} characters`);
+      errorMessages.push(`Note '${splitData.note}' exceeds ${VALIDATION_LIMITS.MAX_NOTE_LENGTH} characters (length: ${splitData.note.length})`);
     }
 
     // Validate required phone field
     if (!splitData.phone || splitData.phone.trim().length === 0) {
       errors.push(SplitDataError.INVALID_PHONE_NUMBER);
-      errorMessages.push('Phone number is required for split sharing');
+      errorMessages.push(`Phone number is required for split sharing. Received: '${splitData.phone || 'undefined'}'`);
     } else if (!isValidPhoneNumber(splitData.phone)) {
       errors.push(SplitDataError.INVALID_PHONE_NUMBER);
-      errorMessages.push('Phone number format is invalid for Venmo (must be 10 or 11 digits)');
+      errorMessages.push(`Phone number '${splitData.phone}' format is invalid for Venmo (must be 10 or 11 digits)`);
     }
 
     // Validate optional date field
     if (splitData.date && !isValidDateFormat(splitData.date)) {
       errors.push(SplitDataError.INVALID_DATE_FORMAT);
-      errorMessages.push('Date format is invalid');
+      errorMessages.push(`Date format '${splitData.date}' is invalid`);
     }
 
     return {
@@ -333,8 +334,8 @@ export function validateSplitDataDetailed(splitData: SharedSplitData): SplitVali
   } catch {
     return {
       isValid: false,
-      errors: [SplitDataError.INVALID_AMOUNT],
-      errorMessages: ['An unexpected error occurred during validation']
+      errors: [SplitDataError.INVALID_SPLIT_DETAILS],
+      errorMessages: [`An unexpected error occurred during validation. Split data: ${JSON.stringify(splitData)}`]
     };
   }
 }
@@ -404,25 +405,25 @@ export function validateSerializationInput(
   // Validate required note field
   if (!note || note.trim().length === 0) {
     errors.push(SplitDataError.EMPTY_NAME); // Reuse existing error type
-    errorMessages.push('Note/memo is required for split sharing');
+    errorMessages.push(`Note/memo is required for split sharing. Received: '${note || 'undefined'}'`);
   } else if (note.length > VALIDATION_LIMITS.MAX_NOTE_LENGTH) {
     errors.push(SplitDataError.NOTE_TOO_LONG);
-    errorMessages.push(`Note exceeds ${VALIDATION_LIMITS.MAX_NOTE_LENGTH} characters`);
+    errorMessages.push(`Note '${note}' exceeds ${VALIDATION_LIMITS.MAX_NOTE_LENGTH} characters (length: ${note.length})`);
   }
 
   // Validate required phone field
   if (!phone || phone.trim().length === 0) {
     errors.push(SplitDataError.INVALID_PHONE_NUMBER);
-    errorMessages.push('Phone number is required for split sharing');
+    errorMessages.push(`Phone number is required for split sharing. Received: '${phone || 'undefined'}'`);
   } else if (!isValidPhoneNumber(phone)) {
     errors.push(SplitDataError.INVALID_PHONE_NUMBER);
-    errorMessages.push('Phone number format is invalid for Venmo (must be 10 or 11 digits)');
+    errorMessages.push(`Phone number '${phone}' format is invalid for Venmo (must be 10 or 11 digits)`);
   }
 
   // Validate optional date field
   if (date && !isValidDateFormat(date)) {
     errors.push(SplitDataError.INVALID_DATE_FORMAT);
-    errorMessages.push('Date format is invalid');
+    errorMessages.push(`Date format '${date}' is invalid`);
   }
 
   return {
