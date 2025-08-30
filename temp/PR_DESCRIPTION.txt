@@ -1,4 +1,4 @@
-# Fix Mobile UI Responsiveness for Receipt Splitter
+Fix mobile UI responsiveness for receipt splitter
 
 ## Overview
 This PR fixes the mobile UI issues identified in #23 by implementing a responsive design for the Assign Items table.
@@ -27,6 +27,7 @@ Implemented a responsive design with two distinct layouts:
 - **Compact Design**: Reduced button sizes and optimized spacing
 - **Text Truncation**: Long item names are truncated with ellipsis
 - **Flexible Layout**: Uses flexbox for optimal space utilization
+- **Multi-User Support**: Cards remain readable even with many assigned users
 
 ### ✅ Technical Improvements
 - **Proper Viewport**: Added Next.js 15 compatible viewport export
@@ -43,23 +44,31 @@ Implemented a responsive design with two distinct layouts:
 ## Screenshots
 
 ### Mobile View (375px width)
-![Mobile Assign Items](./temp/screenshots/mobile-assign-items.png)
-*Mobile card-based layout - no horizontal scrolling, all content visible*
 
-![Mobile Home](./temp/screenshots/mobile-home.png)
-*Mobile home page showing responsive navigation*
+#### Light Mode
+![Mobile Light Mode](https://github.com/narulaskaran/receipt-splitter/blob/cursor/fix-mobile-receipt-splitter-ui-and-link-pr-cf42/temp/screenshots/mobile-light-assign-items.png?raw=true)
+*Mobile card-based layout showing items with multiple user assignments - no horizontal scrolling, all content visible*
+
+#### Dark Mode
+![Mobile Dark Mode](https://github.com/narulaskaran/receipt-splitter/blob/cursor/fix-mobile-receipt-splitter-ui-and-link-pr-cf42/temp/screenshots/mobile-dark-assign-items.png?raw=true)
+*Mobile dark mode - excellent readability with proper contrast*
 
 ### Desktop View (1280px width)
-![Desktop Assign Items](./temp/screenshots/desktop-assign-items.png)
+
+#### Light Mode
+![Desktop Light Mode](https://github.com/narulaskaran/receipt-splitter/blob/cursor/fix-mobile-receipt-splitter-ui-and-link-pr-cf42/temp/screenshots/desktop-light-assign-items.png?raw=true)
 *Desktop table layout preserved - optimal for larger screens*
 
-## Key Features Maintained
-- ✅ Item assignment via popovers
-- ✅ Quick assignment checkboxes  
-- ✅ Visual assignment status indicators
-- ✅ Price editing functionality
-- ✅ Group assignment support
-- ✅ Assignment validation and feedback
+#### Dark Mode
+![Desktop Dark Mode](https://github.com/narulaskaran/receipt-splitter/blob/cursor/fix-mobile-receipt-splitter-ui-and-link-pr-cf42/temp/screenshots/desktop-dark-assign-items.png?raw=true)
+*Desktop dark mode - maintains professional appearance*
+
+## Key Features Demonstrated
+- ✅ **Multi-User Assignments**: Screenshots show items assigned to 4-5 users simultaneously
+- ✅ **Long Item Names**: Proper truncation of lengthy menu item descriptions
+- ✅ **Assignment Status**: Clear visual indicators for assigned/unassigned items
+- ✅ **Dark Mode Support**: Excellent contrast and readability in both themes
+- ✅ **Touch-Friendly**: Appropriate button sizes and spacing for mobile interaction
 
 ## Testing Instructions
 1. **Mobile Testing**: 
@@ -74,10 +83,10 @@ Implemented a responsive design with two distinct layouts:
    - Verify table layout is unchanged
    - Confirm all functionality works as before
 
-3. **Responsive Testing**:
-   - Resize browser window from mobile to desktop
-   - Verify smooth transition between layouts
-   - Test at various breakpoints
+3. **Dark Mode Testing**:
+   - Toggle dark mode in both mobile and desktop views
+   - Verify proper contrast and readability
+   - Test all interactive elements in dark mode
 
 ## Browser Support
 - ✅ Chrome/Chromium
