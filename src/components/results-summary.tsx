@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/table";
 import { type Person } from "@/types";
 import { formatCurrency } from "@/lib/receipt-utils";
+import { generateVenmoLink, shareVenmoPayment } from "@/lib/venmo-utils";
 import { useState } from "react";
 
 interface ResultsSummaryProps {
@@ -81,27 +82,27 @@ export function ResultsSummary({
     }
   };
 
-  // Helper to generate Venmo payment link
-  const getVenmoLink = (amount: number, note: string) => {
-    // Venmo expects amount in decimal, note as string
-    // https://venmo.com/paymentlinks/
-    // Example: https://venmo.com/?txn=pay&recipients=PHONE&amount=10.00&note=Restaurant
-    return `https://venmo.com/?txn=pay&recipients=${phoneNumber}&amount=${amount.toFixed(
-      2
-    )}&note=${encodeURIComponent(note)}`;
-  };
-
-  // Share or open Venmo link
-  const handleVenmoClick = (person: Person) => {
+  // Share or open Venmo link using consolidated venmo-utils
+  const handleVenmoClick = async (person: Person) => {
     const note = receiptName || "Receipt Split";
-    const link = getVenmoLink(person.finalTotal, note);
-    if (navigator.share) {
-      navigator.share({
-        title: `Pay via Venmo`,
-        url: link,
-      });
-    } else {
-      window.open(link, "_blank");
+    const cleanPhone = phoneNumber.replace(/\D/g, "");
+    
+    if (!cleanPhone) {
+      alert('Please enter a phone number to generate Venmo payment links.');
+      return;
+    }
+
+    try {
+      await shareVenmoPayment(cleanPhone, person.finalTotal, note, person.name);
+    } catch (error) {
+      console.error('Venmo payment error:', error);
+      // Fallback: try to generate link directly
+      const link = generateVenmoLink(cleanPhone, person.finalTotal, note);
+      if (link) {
+        window.open(link, "_blank");
+      } else {
+        alert('Failed to generate Venmo payment link. Please check the phone number.');
+      }
     }
   };
 
