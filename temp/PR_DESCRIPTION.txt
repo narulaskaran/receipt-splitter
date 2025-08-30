@@ -65,7 +65,8 @@ Implemented a responsive design with two distinct layouts:
 
 ## Key Features Demonstrated
 - ✅ **Multi-User Assignments**: Screenshots show items assigned to 4-5 users simultaneously
-- ✅ **Long Item Names**: Proper truncation of lengthy menu item descriptions
+- ✅ **Clean Assignment Display**: Shows comma-separated names without percentages for better readability
+- ✅ **Long Item Names**: Proper truncation of lengthy menu item descriptions  
 - ✅ **Assignment Status**: Clear visual indicators for assigned/unassigned items
 - ✅ **Dark Mode Support**: Excellent contrast and readability in both themes
 - ✅ **Touch-Friendly**: Appropriate button sizes and spacing for mobile interaction
