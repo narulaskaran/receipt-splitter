@@ -1,0 +1,19 @@
+Screenshots will be generated here.
+
+To create actual screenshots for PR #27:
+
+1. Start dev server: npm run dev
+2. Navigate to these URLs and take screenshots:
+
+Loading State:
+http://localhost:3000/split?names=Alice&amounts=25.00&total=25.00&note=Test&phone=5551234567
+(capture quickly while loading)
+
+Success State - Full Data:
+http://localhost:3000/split?names=Alice%20Johnson%2CBob%20Smith%2CCharlie%20Brown&amounts=32.50%2C19.50%2C13.00&total=65.00&note=Delicious%20Pizza%20Palace&phone=5551234567&date=2024-01-15
+
+Error State:
+http://localhost:3000/split?invalid=data
+
+Minimal State:
+http://localhost:3000/split?names=Alice&amounts=32.50&total=32.50&note=Coffee&phone=5551234567
