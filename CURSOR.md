@@ -306,7 +306,7 @@ ANTHROPIC_API_KEY=your_api_key_here
 ### 6. Split Payment Page (`/split` Route)
 
 - **Individual View**: Each person sees only their payment amount
-- **Payment Integration**: Direct Venmo payment links
+- **Payment Integration**: Direct Venmo payment links with full functionality
 - **Error Handling**: Graceful fallbacks for invalid or corrupted links
 - **Loading States**: Smooth user experience with visual feedback
 
@@ -316,6 +316,8 @@ ANTHROPIC_API_KEY=your_api_key_here
 - **Phone Number Validation**: US phone number format validation
 - **Note Management**: Automatic note truncation to meet Venmo limits
 - **Amount Validation**: Ensures amounts are within Venmo transaction limits
+- **Split Page Integration**: Full Venmo payment functionality in shared split pages
+- **Individual Payment Cards**: Each person gets their own payment button with Venmo integration
 
 ### 8. Session & State Management
 

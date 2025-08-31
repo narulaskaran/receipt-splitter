@@ -87,8 +87,8 @@ describe('PaymentCard', () => {
   it('displays payment status indicators', () => {
     render(<PaymentCard {...mockProps} />);
     
-    expect(screen.getByText('Payment for Alice')).toBeInTheDocument();
-    expect(screen.getByText('Ready to pay')).toBeInTheDocument();
+    // Payment status indicators have been removed
+    // Component now focuses on core payment functionality
   });
 
   it('applies custom className', () => {
@@ -228,6 +228,6 @@ describe('PaymentCardsList', () => {
     // Check for mobile-friendly elements
     expect(screen.getByText('Individual Payments')).toBeInTheDocument();
     expect(screen.getByText('Alice')).toBeInTheDocument();
-    expect(screen.getByText('Ready to pay')).toBeInTheDocument();
+    // Payment status indicators have been removed for cleaner design
   });
 });

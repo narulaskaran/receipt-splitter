@@ -15,7 +15,7 @@ import {
   generateShareableUrl,
   validateSerializationInput,
 } from "@/lib/split-sharing";
-import { generateVenmoLink, shareVenmoPayment } from "@/lib/venmo-utils";
+
 import { useState } from "react";
 
 interface ResultsSummaryProps {
@@ -89,31 +89,7 @@ export function ResultsSummary({
     }
   };
 
-  // Share or open Venmo link using consolidated venmo-utils
-  const handleVenmoClick = async (person: Person) => {
-    const note = receiptName || "Receipt Split";
-    const cleanPhone = phoneNumber.replace(/\D/g, "");
 
-    if (!cleanPhone) {
-      alert("Please enter a phone number to generate Venmo payment links.");
-      return;
-    }
-
-    try {
-      await shareVenmoPayment(cleanPhone, person.finalTotal, note, person.name);
-    } catch (error) {
-      console.error("Venmo payment error:", error);
-      // Fallback: try to generate link directly
-      const link = generateVenmoLink(cleanPhone, person.finalTotal, note);
-      if (link) {
-        window.open(link, "_blank");
-      } else {
-        alert(
-          "Failed to generate Venmo payment link. Please check the phone number."
-        );
-      }
-    }
-  };
 
   // Share split functionality
   const shareSplit = async () => {
@@ -191,53 +167,44 @@ export function ResultsSummary({
         >
           Your Phone Number (for Venmo):
         </label>
-        <input
-          id="venmo-phone"
-          type="tel"
-          placeholder="e.g. 555-123-4567"
-          value={phoneNumber}
-          onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ""))}
-          className="w-full h-11 sm:h-9 border rounded-lg px-4 py-2 text-base sm:text-sm transition-all duration-200 focus:ring-2 focus:ring-primary/20 focus:border-primary"
-        />
+        <div className="flex gap-3">
+          <input
+            id="venmo-phone"
+            type="tel"
+            placeholder="e.g. 555-123-4567"
+            value={phoneNumber}
+            onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ""))}
+            className="flex-1 h-11 sm:h-9 border rounded-lg px-4 py-2 text-base sm:text-sm transition-all duration-200 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+          />
+          <Button
+            variant={shareStatus === "success" ? "default" : "outline"}
+            className="flex items-center justify-center gap-2 h-11 sm:h-9 text-base sm:text-sm font-medium transition-all duration-200 hover:shadow-md active:scale-95 whitespace-nowrap"
+            onClick={shareSplit}
+            disabled={!canShareSplit || shareStatus === "copying"}
+          >
+            {shareStatus === "copying" && (
+              <div className="h-5 w-5 sm:h-4 sm:w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            )}
+            {shareStatus === "success" && (
+              <Check className="h-5 w-5 sm:h-4 sm:w-4" />
+            )}
+            {shareStatus === "idle" && (
+              <Link2 className="h-5 w-5 sm:h-4 sm:w-4" />
+            )}
+            {shareStatus === "error" && (
+              <Link2 className="h-5 w-5 sm:h-4 sm:w-4" />
+            )}
+            <span>
+              {shareStatus === "copying" && "Copying..."}
+              {shareStatus === "success" && "Copied!"}
+              {(shareStatus === "idle" || shareStatus === "error") &&
+                "Share Split"}
+            </span>
+          </Button>
+        </div>
       </div>
 
-      {/* Sharing instructions */}
-      <div className="text-sm text-muted-foreground mb-4 p-4 bg-blue-50/80 dark:bg-blue-950/30 rounded-xl border border-blue-200/50 dark:border-blue-800/50 transition-all duration-200">
-        <p className="font-medium text-blue-700 dark:text-blue-300 mb-2 flex items-center gap-2">
-          💡 Sharing Options
-        </p>
-        <ul className="text-blue-600 dark:text-blue-400 space-y-2">
-          <li className="flex items-start gap-2">
-            <span className="font-semibold">•</span>
-            <span>
-              <strong>Share Text:</strong> Copy a text summary to send manually
-            </span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="font-semibold">•</span>
-            <span>
-              <strong>Share Split:</strong> Create a link where everyone can pay
-              their own amount directly
-            </span>
-          </li>
-          {phoneNumber && (
-            <li className="flex items-start gap-2">
-              <span className="font-semibold">•</span>
-              <span>
-                <strong>Venmo Links:</strong> Individual payment links for each
-                person
-              </span>
-            </li>
-          )}
-        </ul>
-        {!canShareSplit &&
-          phoneNumber.length > 0 &&
-          phoneNumber.replace(/\D/g, "").length < 10 && (
-            <p className="text-amber-600 dark:text-amber-400 text-xs mt-2">
-              ⚠️ Enter a valid phone number to enable split sharing
-            </p>
-          )}
-      </div>
+
 
       <Card className="w-full">
         <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -251,35 +218,9 @@ export function ResultsSummary({
               <Share className="h-5 w-5 sm:h-4 sm:w-4" />
               <span>Share Text</span>
             </Button>
-
-            <Button
-              variant={shareStatus === "success" ? "default" : "outline"}
-              className="flex items-center justify-center gap-2 h-11 sm:h-9 text-base sm:text-sm font-medium transition-all duration-200 hover:shadow-md active:scale-95"
-              onClick={shareSplit}
-              disabled={!canShareSplit || shareStatus === "copying"}
-            >
-              {shareStatus === "copying" && (
-                <div className="h-5 w-5 sm:h-4 sm:w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              )}
-              {shareStatus === "success" && (
-                <Check className="h-5 w-5 sm:h-4 sm:w-4" />
-              )}
-              {shareStatus === "idle" && (
-                <Link2 className="h-5 w-5 sm:h-4 sm:w-4" />
-              )}
-              {shareStatus === "error" && (
-                <Link2 className="h-5 w-5 sm:h-4 sm:w-4" />
-              )}
-              <span>
-                {shareStatus === "copying" && "Copying..."}
-                {shareStatus === "success" && "Copied!"}
-                {(shareStatus === "idle" || shareStatus === "error") &&
-                  "Share Split"}
-              </span>
-            </Button>
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-6">
           {/* Mobile-friendly responsive table */}
           <div className="overflow-x-auto">
             <Table>
@@ -297,9 +238,6 @@ export function ResultsSummary({
                   </TableHead>
                   <TableHead className="text-right min-w-[80px] font-semibold">
                     Total
-                  </TableHead>
-                  <TableHead className="text-right min-w-[120px]">
-                    Action
                   </TableHead>
                 </TableRow>
               </TableHeader>
@@ -333,19 +271,6 @@ export function ResultsSummary({
                       <span className="font-bold text-lg text-primary">
                         {formatCurrency(person.finalTotal)}
                       </span>
-                    </TableCell>
-                    <TableCell className="text-right py-4">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={!phoneNumber.replace(/\D/g, "")}
-                        onClick={() => handleVenmoClick(person)}
-                        className="w-full sm:w-auto min-w-[100px] h-9 text-sm font-medium transition-all duration-200 hover:bg-primary hover:text-primary-foreground active:scale-95"
-                      >
-                        {phoneNumber.replace(/\D/g, "")
-                          ? "Pay via Venmo"
-                          : "Enter Phone"}
-                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
