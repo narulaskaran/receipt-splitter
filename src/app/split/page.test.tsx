@@ -13,8 +13,8 @@ function renderWithQuery(query: string) {
 }
 
 describe('/split route (client) with query params', () => {
-  it('renders split summary for provided URL parameters', async () => {
-    const query = 'names=I%2CK%2Cp%2Cs&amounts=15.25%2C21.75%2C15.25%2C15.25&total=67.52&note=Love+Mama&phone=4259749530&date=2025-09-05';
+  it('renders split summary when amounts differ from total but within per-person rounding tolerance', async () => {
+    const query = 'names=Jon%2CJane%2CDavid%2CSara&amounts=15.25%2C21.75%2C15.25%2C15.25&total=67.52&note=Love+Mama&phone=4259749530&date=2025-09-05';
     renderWithQuery(query);
 
     // Suspense fallback first
@@ -26,7 +26,7 @@ describe('/split route (client) with query params', () => {
       expect(screen.getByText('$67.52')).toBeInTheDocument();
     });
 
-    for (const name of ['I', 'K', 'p', 's']) {
+    for (const name of ['Jon', 'Jane', 'David', 'Sara']) {
       expect(screen.getByText(name)).toBeInTheDocument();
     }
   });
