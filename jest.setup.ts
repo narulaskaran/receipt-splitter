@@ -3,6 +3,7 @@ import "@testing-library/jest-dom";
 // Avoid opening windows during tests
 Object.defineProperty(window, 'open', {
   writable: true,
+  configurable: true,
   value: jest.fn(() => null),
 });
 
@@ -10,6 +11,7 @@ Object.defineProperty(window, 'open', {
 if (!('share' in navigator)) {
   Object.defineProperty(navigator, 'share', {
     writable: true,
+    configurable: true,
     value: jest.fn().mockResolvedValue(undefined),
   });
 }
