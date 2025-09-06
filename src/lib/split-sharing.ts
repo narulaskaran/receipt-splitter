@@ -50,7 +50,10 @@ export const VALIDATION_LIMITS = {
   MAX_NOTE_LENGTH: 100,
   MAX_PEOPLE_COUNT: 50,
   MAX_AMOUNT: 99999.99,
-  AMOUNT_TOLERANCE: 0.01, // 1 cent tolerance for rounding
+  // Base tolerance for rounding differences when summing individual amounts
+  // We will scale this dynamically by number of people to account for
+  // compounding rounding errors (up to 1 cent per person)
+  AMOUNT_TOLERANCE: 0.01,
 } as const;
 
 /**
@@ -295,10 +298,20 @@ export function validateSplitDataDetailed(splitData: SharedSplitData): SplitVali
       // Only check amount sum if total is valid
       const calculatedTotal = splitData.amounts.reduce((sum, amount) => sum + amount, 0);
       const difference = Math.abs(calculatedTotal - splitData.total);
-      
-      if (difference > VALIDATION_LIMITS.AMOUNT_TOLERANCE) {
+
+      // Allow up to 1 cent rounding difference per person to account for
+      // compounding rounding across many participants
+      const dynamicTolerance = Math.max(
+        VALIDATION_LIMITS.AMOUNT_TOLERANCE,
+        VALIDATION_LIMITS.AMOUNT_TOLERANCE * splitData.names.length
+      );
+
+      if (difference > dynamicTolerance) {
         errors.push(SplitDataError.AMOUNTS_TOTAL_MISMATCH);
-        errorMessages.push(`Individual amounts (${calculatedTotal.toFixed(2)}) do not add up to total (${splitData.total.toFixed(2)})`);
+        errorMessages.push(
+          `Individual amounts (${calculatedTotal.toFixed(2)}) do not add up to total (${splitData.total.toFixed(2)}). ` +
+          `Allowed rounding tolerance: ±${dynamicTolerance.toFixed(2)}`
+        );
       }
     }
 

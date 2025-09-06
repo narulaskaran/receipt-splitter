@@ -401,6 +401,48 @@ describe('validateSplitData', () => {
     
     expect(validateSplitData(dataWithLargeDifference)).toBe(false);
   });
+
+  it('allows up to 1 cent per person rounding difference', () => {
+    const data: SharedSplitData = {
+      names: ['I', 'K', 'p', 's'],
+      amounts: [15.25, 21.75, 15.25, 15.25], // sum = 67.50
+      total: 67.52, // difference = 0.02, people = 4 → tolerance = 0.04
+      note: 'Love Mama',
+      phone: '4259749530',
+      date: '2025-09-05'
+    };
+
+    expect(validateSplitData(data)).toBe(true);
+  });
+
+  it('rejects when difference exceeds per-person tolerance', () => {
+    const names = ['A','B','C','D','E'];
+    const amounts = [10,10,10,10,10]; // 50
+    const data: SharedSplitData = {
+      names,
+      amounts,
+      total: 50.06, // difference 0.06; tolerance = 5 * 0.01 = 0.05 → should fail
+      note: 'Test',
+      phone: '5551234567',
+    };
+
+    expect(validateSplitData(data)).toBe(false);
+  });
+});
+
+describe('deserializeSplitData with provided URL query', () => {
+  it('parses and validates provided example URL params', () => {
+    const params = new URLSearchParams(
+      'names=I%2CK%2Cp%2Cs&amounts=15.25%2C21.75%2C15.25%2C15.25&total=67.52&note=Love+Mama&phone=4259749530&date=2025-09-05'
+    );
+
+    const result = deserializeSplitData(params);
+    expect(result).not.toBeNull();
+    expect(result!.names).toEqual(['I','K','p','s']);
+    expect(result!.amounts).toEqual([15.25,21.75,15.25,15.25]);
+    expect(result!.total).toBe(67.52);
+    expect(validateSplitData(result!)).toBe(true);
+  });
 });
 
 describe('round-trip serialization', () => {
