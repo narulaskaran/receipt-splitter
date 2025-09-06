@@ -408,7 +408,7 @@ describe('validateSplitData', () => {
       amounts: [15.25, 21.75, 15.25, 15.25], // sum = 67.50
       total: 67.52, // difference = 0.02, people = 4 → tolerance = 0.04
       note: 'Love Mama',
-      phone: '4259749530',
+      phone: '5551234567',
       date: '2025-09-05'
     };
 
@@ -433,7 +433,7 @@ describe('validateSplitData', () => {
 describe('deserializeSplitData with provided URL query', () => {
   it('parses and validates provided example URL params', () => {
     const params = new URLSearchParams(
-      'names=I%2CK%2Cp%2Cs&amounts=15.25%2C21.75%2C15.25%2C15.25&total=67.52&note=Love+Mama&phone=4259749530&date=2025-09-05'
+      'names=I%2CK%2Cp%2Cs&amounts=15.25%2C21.75%2C15.25%2C15.25&total=67.52&note=Love+Mama&phone=5551234567&date=2025-09-05'
     );
 
     const result = deserializeSplitData(params);
