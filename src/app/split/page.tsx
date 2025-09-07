@@ -70,7 +70,9 @@ function SplitPageContent() {
           "An unexpected error occurred while processing the split data. Please check the link and try again.",
       });
     }
-  }, [search, searchParams]);
+    // Using the serialized query string keeps dependency stable across renders
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
   // Loading state with enhanced design
   if (state.isLoading) {
