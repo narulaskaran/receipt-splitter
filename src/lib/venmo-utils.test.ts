@@ -13,15 +13,25 @@ const mockWindowOpen = jest.fn();
 Object.defineProperty(window, 'open', {
   value: mockWindowOpen,
   writable: true,
-});
-
-// Mock navigator.share
-const mockNavigatorShare = jest.fn();
-Object.defineProperty(navigator, 'share', {
-  value: mockNavigatorShare,
-  writable: true,
   configurable: true,
 });
+
+// Mock navigator.share if not already mocked by setup
+const mockNavigatorShare = jest.fn();
+if (!('share' in navigator)) {
+  Object.defineProperty(navigator, 'share', {
+    value: mockNavigatorShare,
+    writable: true,
+    configurable: true,
+  });
+} else {
+  // Replace existing with our spy-friendly mock
+  Object.defineProperty(navigator, 'share', {
+    value: mockNavigatorShare,
+    writable: true,
+    configurable: true,
+  });
+}
 
 describe('validateVenmoParams', () => {
   const validParams: VenmoPaymentParams = {

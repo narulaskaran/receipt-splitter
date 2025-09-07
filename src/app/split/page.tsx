@@ -1,14 +1,18 @@
-'use client';
+"use client";
 
-import { useSearchParams } from 'next/navigation';
-import { useEffect, useState, Suspense } from 'react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
-import { deserializeSplitData, validateSplitData, type SharedSplitData } from '@/lib/split-sharing';
+import { useSearchParams } from "next/navigation";
+import { useEffect, useState, Suspense } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { AlertCircle, ArrowLeft, Loader2 } from "lucide-react";
+import {
+  deserializeSplitData,
+  validateSplitDataDetailed,
+  type SharedSplitData,
+} from "@/lib/split-sharing";
 
-import { SplitSummary } from '@/components/split-summary';
-import Link from 'next/link';
+import { SplitSummary } from "@/components/split-summary";
+import Link from "next/link";
 
 interface SplitPageState {
   splitData: SharedSplitData | null;
@@ -18,6 +22,8 @@ interface SplitPageState {
 
 function SplitPageContent() {
   const searchParams = useSearchParams();
+  // Stabilize effect dependencies to avoid reruns from changing object identity
+  const search = searchParams.toString();
   const [state, setState] = useState<SplitPageState>({
     splitData: null,
     isLoading: true,
@@ -28,22 +34,24 @@ function SplitPageContent() {
     try {
       // Parse URL parameters using split-sharing utilities
       const splitData = deserializeSplitData(searchParams);
-      
+
       if (!splitData) {
         setState({
           splitData: null,
           isLoading: false,
-          error: 'Invalid or missing split data in URL. The link may be corrupted or incomplete.',
+          error:
+            "Invalid or missing split data in URL. The link may be corrupted or incomplete.",
         });
         return;
       }
 
       // Validate the parsed data using enhanced validation
-      if (!validateSplitData(splitData)) {
+      const validation = validateSplitDataDetailed(splitData);
+      if (!validation.isValid) {
         setState({
           splitData: null,
           isLoading: false,
-          error: 'The split data is invalid. The amounts may not add up correctly or contain invalid values.',
+          error: validation.errorMessages.join(" "),
         });
         return;
       }
@@ -58,10 +66,11 @@ function SplitPageContent() {
       setState({
         splitData: null,
         isLoading: false,
-        error: 'An unexpected error occurred while processing the split data. Please check the link and try again.',
+        error:
+          "An unexpected error occurred while processing the split data. Please check the link and try again.",
       });
     }
-  }, [searchParams]);
+  }, [search]);
 
   // Loading state with enhanced design
   if (state.isLoading) {
@@ -73,12 +82,17 @@ function SplitPageContent() {
               <Loader2 className="h-12 w-12 animate-spin text-primary" />
               <div className="absolute inset-0 h-12 w-12 animate-ping rounded-full bg-primary/20" />
             </div>
-            <h2 className="text-xl font-semibold mb-3 text-center">Loading Split Details</h2>
+            <h2 className="text-xl font-semibold mb-3 text-center">
+              Loading Split Details
+            </h2>
             <p className="text-sm text-muted-foreground text-center leading-relaxed">
               Processing your receipt split and payment information...
             </p>
             <div className="mt-4 w-full bg-muted/50 rounded-full h-1">
-              <div className="bg-primary h-1 rounded-full animate-pulse" style={{ width: '60%' }} />
+              <div
+                className="bg-primary h-1 rounded-full animate-pulse"
+                style={{ width: "60%" }}
+              />
             </div>
           </CardContent>
         </Card>
@@ -102,21 +116,23 @@ function SplitPageContent() {
             <p className="text-sm text-muted-foreground text-center mb-6 leading-relaxed">
               {state.error}
             </p>
-            
+
             {/* Help Tips */}
             <div className="w-full mb-6 p-4 bg-muted/50 rounded-lg">
-              <p className="text-xs font-medium text-muted-foreground mb-2">Common solutions:</p>
+              <p className="text-xs font-medium text-muted-foreground mb-2">
+                Common solutions:
+              </p>
               <ul className="text-xs text-muted-foreground space-y-1">
                 <li>• Check if the URL was copied completely</li>
                 <li>• Ensure the original split was created successfully</li>
                 <li>• Try refreshing the page</li>
               </ul>
             </div>
-            
+
             <div className="flex flex-col gap-3 w-full">
-              <Button 
-                variant="outline" 
-                asChild 
+              <Button
+                variant="outline"
+                asChild
                 className="w-full h-11 text-base transition-all duration-200 hover:bg-muted active:scale-95"
               >
                 <Link href="/">
@@ -124,9 +140,9 @@ function SplitPageContent() {
                   Create New Split
                 </Link>
               </Button>
-              
-              <Button 
-                variant="ghost" 
+
+              <Button
+                variant="ghost"
                 size="sm"
                 onClick={() => window.location.reload()}
                 className="w-full transition-all duration-200"
@@ -151,10 +167,10 @@ function SplitPageContent() {
       <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 max-w-4xl">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-8">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            asChild 
+          <Button
+            variant="ghost"
+            size="sm"
+            asChild
             className="self-start h-10 px-3 transition-all duration-200 hover:bg-muted active:scale-95"
           >
             <Link href="/">
@@ -163,7 +179,9 @@ function SplitPageContent() {
             </Link>
           </Button>
           <div className="flex-1">
-            <h1 className="text-2xl sm:text-3xl font-bold mb-1">Receipt Split</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold mb-1">
+              Receipt Split
+            </h1>
             <p className="text-sm sm:text-base text-muted-foreground">
               Review the split details and pay your amount
             </p>
@@ -172,8 +190,6 @@ function SplitPageContent() {
 
         {/* Split Summary */}
         <SplitSummary splitData={splitData} phoneNumber={splitData.phone} />
-
-
       </div>
     </div>
   );
@@ -181,19 +197,23 @@ function SplitPageContent() {
 
 export default function SplitPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <Card className="w-full max-w-md mx-4">
-          <CardContent className="flex flex-col items-center justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-            <h2 className="text-lg font-semibold mb-2">Loading Split Details</h2>
-            <p className="text-sm text-muted-foreground text-center">
-              Processing your receipt split...
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <Card className="w-full max-w-md mx-4">
+            <CardContent className="flex flex-col items-center justify-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+              <h2 className="text-lg font-semibold mb-2">
+                Loading Split Details
+              </h2>
+              <p className="text-sm text-muted-foreground text-center">
+                Processing your receipt split...
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      }
+    >
       <SplitPageContent />
     </Suspense>
   );
