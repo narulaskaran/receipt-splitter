@@ -9,7 +9,6 @@ const config: Config = {
     "^next/image$": "<rootDir>/__mocks__/next-image.js",
   },
   setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
-  testTimeout: 20000,
   testPathIgnorePatterns: ["/node_modules/", "/.next/", "babel.config.test.js"],
   transform: {
     "^.+\\.(ts|tsx)$": ["babel-jest", { configFile: "./babel.config.test.js" }],
