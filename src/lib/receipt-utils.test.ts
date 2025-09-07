@@ -6,6 +6,7 @@ import {
 } from "./receipt-utils";
 import { mockPeople, mockReceipt, mockAssignedItems } from "@/test/test-utils";
 import { type PersonItemAssignment } from "@/types";
+import { formatAmount } from "./utils";
 
 describe("receipt-utils", () => {
   it("calculatePersonTotals splits tax and tip proportionally", () => {
@@ -38,5 +39,12 @@ describe("receipt-utils", () => {
       [0, [{ personId: "a", sharePercentage: 50 }]],
     ]);
     expect(getUnassignedItems(mockReceipt, incomplete)).toContain(0);
+  });
+});
+
+describe("minor-unit formatting (pre-implementation tests)", () => {
+  it("formats 303 cents as $3.03", () => {
+    // formatAmount takes minor units (cents)
+    expect(formatAmount(303)).toBe("$3.03");
   });
 });

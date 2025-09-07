@@ -1,4 +1,5 @@
 import { type Person } from "@/types";
+import { toCents, fromCents } from "./utils";
 
 /**
  * Interface representing the minimal data needed for a shared split
@@ -83,15 +84,16 @@ export function serializeSplitData(
   const sortedPeople = [...people].sort((a, b) => a.name.localeCompare(b.name));
 
   const names = sortedPeople.map((person) => person.name);
-  const amounts = sortedPeople.map((person) => person.finalTotal);
-  const total = amounts.reduce((sum, amount) => sum + amount, 0);
+  const amountsCents = sortedPeople.map((person) => toCents(person.finalTotal));
+  const totalCents = amountsCents.reduce((sum, amount) => sum + amount, 0);
 
   const params = new URLSearchParams();
 
   // Required parameters
   params.set("names", names.join(","));
-  params.set("amounts", amounts.map((amount) => amount.toFixed(2)).join(","));
-  params.set("total", total.toFixed(2));
+  // Emit minor units (cents)
+  params.set("amounts", amountsCents.join(","));
+  params.set("total", String(totalCents));
   params.set("note", note.trim());
   params.set("phone", phone.trim());
 
@@ -137,7 +139,13 @@ export function deserializeSplitData(
     const amountStrings = amountsParam
       .split(",")
       .map((amount) => amount.trim());
-    const total = parseFloat(totalParam);
+    // Back-compat: support both cents (integers) and dollars strings
+    const parsedTotalRaw = Number(totalParam);
+    const isTotalInCents =
+      Number.isInteger(parsedTotalRaw) && !totalParam.includes(".");
+    const total = isTotalInCents
+      ? fromCents(parsedTotalRaw)
+      : parseFloat(totalParam);
     const note = noteParam.trim();
     const phone = phoneParam.trim();
 
@@ -154,7 +162,9 @@ export function deserializeSplitData(
     // Parse and validate amounts
     const amounts: number[] = [];
     for (const amountStr of amountStrings) {
-      const amount = parseFloat(amountStr);
+      const raw = Number(amountStr);
+      const isCents = Number.isInteger(raw) && !amountStr.includes(".");
+      const amount = isCents ? fromCents(raw) : parseFloat(amountStr);
       if (isNaN(amount) || amount < 0) {
         return null;
       }

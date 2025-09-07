@@ -70,7 +70,7 @@ function SplitPageContent() {
           "An unexpected error occurred while processing the split data. Please check the link and try again.",
       });
     }
-  }, [search]);
+  }, [search, searchParams]);
 
   // Loading state with enhanced design
   if (state.isLoading) {
