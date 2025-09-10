@@ -106,6 +106,7 @@ export function SplitSummary({ splitData, phoneNumber }: SplitSummaryProps) {
                           );
                         }
                       }}
+                      variant="venmo"
                       size="sm"
                       className="h-8 px-3 text-xs font-medium transition-all duration-200 hover:shadow-md active:scale-95"
                     >
