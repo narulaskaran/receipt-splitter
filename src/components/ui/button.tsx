@@ -21,7 +21,7 @@ const buttonVariants = cva(
           "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
         venmo:
-          "bg-[#3D95CE] text-white shadow-xs hover:bg-[#3D95CE]/90 dark:bg-[#3D95CE] dark:text-white dark:hover:bg-[#3D95CE]/90",
+          "bg-gray-300 text-gray-800 shadow-xs hover:bg-gray-400 dark:bg-[#3D95CE] dark:text-white dark:hover:bg-[#3D95CE]/90",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
