@@ -7,12 +7,12 @@ A web application for easily splitting receipts among friends and groups. No app
 - **AI-Powered Receipt Parsing**: Upload a receipt image to automatically parse items, subtotal, tax, and tip using Claude AI
 - **Advanced People Management**: Add people who shared the receipt with unique names and IDs
 - **Group Organization**: Create named groups with emoji identifiers for better organization
-- **Flexible Item Assignment**: 
+- **Flexible Item Assignment**:
   - Assign items to individuals
   - Split items among multiple people with percentage-based splitting
   - Assign items to entire groups
 - **Intelligent Calculations**: Calculate tax and tip proportionally based on item costs
-- **Enhanced Receipt Sharing**: 
+- **Enhanced Receipt Sharing**:
   - Generate shareable URLs with comprehensive split data
   - Include names, amounts, totals, notes, phone numbers, and dates
   - Advanced validation with detailed error reporting
@@ -97,20 +97,23 @@ npm run build
 ## Key Components
 
 ### Core Application
+
 - **Main Page**: Tabbed interface with session management and responsive design
 - **Receipt Uploader**: Drag & drop image upload with AI parsing
 - **People Manager**: Add/remove people with validation
 - **Group Manager**: Create and manage groups with emoji identifiers
-- **Item Assignment**: Flexible assignment with drag & drop and touch support
+- **Item Assignment**: Flexible assignment with an intuitive touch-friendly interface
 - **Results Summary**: Final calculations with sharing and Venmo integration
 
 ### Split Sharing
+
 - **URL Generation**: Create shareable links from the results page
 - **Split Page**: Dedicated route for recipients to view their amounts
 - **Payment Cards**: Individual payment display with Venmo integration
 - **Validation**: Comprehensive data validation and error handling
 
 ### Utilities
+
 - **Receipt Utils**: Tax/tip calculations and person totals
 - **Split Sharing**: URL serialization/deserialization with validation
 - **Venmo Utils**: Payment link generation and validation
