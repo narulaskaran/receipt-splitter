@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
-import { UploadCloud, Loader2 } from "lucide-react";
+import { UploadCloud, Loader2, FileText } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { type Receipt } from "@/types";
@@ -50,20 +50,26 @@ export function ReceiptUploader({
       const file = acceptedFiles[0];
 
       // Check file type
-      if (!file.type.startsWith("image/")) {
-        toast.error("Please upload an image file");
+      if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
+        toast.error("Please upload an image or PDF file");
         return;
       }
 
-      // Convert image to Base64 and store in localStorage
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (reader.result) {
-          localStorage.setItem(IMAGE_STORAGE_KEY, reader.result as string);
-          setPreviewUrl(reader.result as string);
-        }
-      };
-      reader.readAsDataURL(file);
+      // Convert image to Base64 and store in localStorage (skip for PDFs)
+      if (file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (reader.result) {
+            localStorage.setItem(IMAGE_STORAGE_KEY, reader.result as string);
+            setPreviewUrl(reader.result as string);
+          }
+        };
+        reader.readAsDataURL(file);
+      } else {
+        // For PDFs, just set a placeholder preview
+        setPreviewUrl("pdf-placeholder");
+        localStorage.removeItem(IMAGE_STORAGE_KEY);
+      }
 
       // Parse receipt
       try {
@@ -98,6 +104,7 @@ export function ReceiptUploader({
     onDrop,
     accept: {
       "image/*": [".jpeg", ".jpg", ".png", ".heif", ".heic", ".webp"],
+      "application/pdf": [".pdf"],
     },
     maxFiles: 1,
     disabled: isLoading,
@@ -116,12 +123,16 @@ export function ReceiptUploader({
 
           {previewUrl ? (
             <div className="flex flex-col items-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={previewUrl}
-                alt="Receipt preview"
-                className="max-h-64 max-w-full mb-4 rounded-md"
-              />
+              {previewUrl === "pdf-placeholder" ? (
+                <FileText className="h-32 w-32 mb-4 text-muted-foreground" />
+              ) : (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={previewUrl}
+                  alt="Receipt preview"
+                  className="max-h-64 max-w-full mb-4 rounded-md"
+                />
+              )}
               {isLoading ? (
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-5 w-5 animate-spin" />
