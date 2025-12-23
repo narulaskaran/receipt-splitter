@@ -9,6 +9,7 @@ const anthropic = new Anthropic({
 
 // Valid media types for Anthropic API
 type ValidMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+type ValidDocumentType = "application/pdf";
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,35 +41,22 @@ export async function POST(request: NextRequest) {
       "image/gif",
       "image/webp",
     ];
-    if (!validMediaTypes.includes(mimeType as ValidMediaType)) {
+    const validDocumentTypes: ValidDocumentType[] = ["application/pdf"];
+    const isImage = validMediaTypes.includes(mimeType as ValidMediaType);
+    const isPDF = validDocumentTypes.includes(mimeType as ValidDocumentType);
+
+    if (!isImage && !isPDF) {
       return NextResponse.json(
         {
           error:
-            "Unsupported image format. Please use JPEG, PNG, GIF, or WebP.",
+            "Unsupported file format. Please use JPEG, PNG, GIF, WebP, or PDF.",
         },
         { status: 400 }
       );
     }
 
-    // Call Anthropic with the image
-    const message = await anthropic.messages.create({
-      model: "claude-3-5-haiku-20241022",
-      max_tokens: 4096,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: mimeType as ValidMediaType,
-                data: base64,
-              },
-            },
-            {
-              type: "text",
-              text: `Parse this receipt image and return a JSON object with the following structure:
+    // Prepare content based on file type
+    const promptText = `Parse this receipt and return a JSON object with the following structure:
               {
                 "restaurant": "Name of the restaurant or store",
                 "date": "Date of purchase in YYYY-MM-DD format",
@@ -84,9 +72,61 @@ export async function POST(request: NextRequest) {
                   }
                 ]
               }
-              \nInstructions for items:\n- If the receipt lists a line item with a quantity greater than 1, and shows a total price for that line, divide the total price by the quantity to get the per-unit price, and use that value for the 'price' field.\n- Do NOT multiply the price by the quantity in the output.\n- The 'price' field should always be the price for a single unit, even if the receipt shows a total for multiple units.\n- Only include items that were actually purchased.\n- If you can't determine any field, use null.\n- Keep the item names exactly as they appear on the receipt.\n- Return ONLY the JSON with no explanations or additional text.`,
-            },
-          ],
+              \nInstructions for items:\n- If the receipt lists a line item with a quantity greater than 1, and shows a total price for that line, divide the total price by the quantity to get the per-unit price, and use that value for the 'price' field.\n- Do NOT multiply the price by the quantity in the output.\n- The 'price' field should always be the price for a single unit, even if the receipt shows a total for multiple units.\n- Only include items that were actually purchased.\n- If you can't determine any field, use null.\n- Keep the item names exactly as they appear on the receipt.\n- Return ONLY the JSON with no explanations or additional text.`;
+
+    const content: Array<
+      | {
+          type: "image";
+          source: {
+            type: "base64";
+            media_type: ValidMediaType;
+            data: string;
+          };
+        }
+      | {
+          type: "document";
+          source: {
+            type: "base64";
+            media_type: ValidDocumentType;
+            data: string;
+          };
+        }
+      | { type: "text"; text: string }
+    > = [];
+
+    if (isImage) {
+      content.push({
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: mimeType as ValidMediaType,
+          data: base64,
+        },
+      });
+    } else if (isPDF) {
+      content.push({
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: mimeType as ValidDocumentType,
+          data: base64,
+        },
+      });
+    }
+
+    content.push({
+      type: "text",
+      text: promptText,
+    });
+
+    // Call Anthropic with the file
+    const message = await anthropic.messages.create({
+      model: "claude-3-5-haiku-20241022",
+      max_tokens: 4096,
+      messages: [
+        {
+          role: "user",
+          content,
         },
       ],
     });
