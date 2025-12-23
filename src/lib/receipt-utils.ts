@@ -32,9 +32,12 @@ export function calculatePersonTotals(
       const itemPrice = new Decimal(item.price);
       const itemQuantity = new Decimal(item.quantity || 1);
       const totalItemPrice = itemPrice.mul(itemQuantity);
-      
+
       // Calculate this person's share of this item
-      const personShare = totalItemPrice.mul(sharePercentage).div(100);
+      // For $0 items, explicitly assign $0 without calculation
+      const personShare = totalItemPrice.isZero()
+        ? new Decimal(0)
+        : totalItemPrice.mul(sharePercentage).div(100);
       totalBeforeTax = totalBeforeTax.add(personShare);
       
       // Add to person's items
