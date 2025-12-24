@@ -226,12 +226,48 @@ export default function Home() {
     setState((prevState) => {
       // If items were deleted, we need to update the assignment indices
       let newAssignedItems = prevState.assignedItems;
+      let assignmentsCleared = false;
 
       if (updatedReceipt.items.length < (prevState.originalReceipt?.items.length || 0)) {
-        // Items were deleted - clear ALL assignments to avoid index mismatch
-        // This is the safest approach since item indices change when items are deleted
-        newAssignedItems = new Map();
-        toast.info("Item assignments have been cleared due to item deletion");
+        // Items were deleted - preserve assignments for items that still exist
+        // Only clear assignments if we can't match items reliably
+        const oldItems = prevState.originalReceipt?.items || [];
+        const newItems = updatedReceipt.items;
+
+        // Try to match items by name and price to preserve assignments
+        const itemMapping = new Map<number, number>(); // old index -> new index
+
+        newItems.forEach((newItem, newIndex) => {
+          const matchingOldIndex = oldItems.findIndex(
+            (oldItem, oldIndex) =>
+              oldItem.name === newItem.name &&
+              oldItem.price === newItem.price &&
+              !Array.from(itemMapping.values()).includes(oldIndex)
+          );
+
+          if (matchingOldIndex !== -1) {
+            itemMapping.set(matchingOldIndex, newIndex);
+          }
+        });
+
+        // Build new assignments map based on item mapping
+        const preservedAssignments = new Map<number, PersonItemAssignment[]>();
+        prevState.assignedItems.forEach((assignments, oldIndex) => {
+          const newIndex = itemMapping.get(oldIndex);
+          if (newIndex !== undefined) {
+            preservedAssignments.set(newIndex, assignments);
+          }
+        });
+
+        // Check if we lost any assignments
+        if (preservedAssignments.size < prevState.assignedItems.size) {
+          assignmentsCleared = true;
+          toast.info(
+            `${prevState.assignedItems.size - preservedAssignments.size} item assignment(s) cleared due to item deletion`
+          );
+        }
+
+        newAssignedItems = preservedAssignments;
       } else if (updatedReceipt.items.length > (prevState.originalReceipt?.items.length || 0)) {
         // Items were added, no need to update assignments (new items are unassigned)
         newAssignedItems = prevState.assignedItems;

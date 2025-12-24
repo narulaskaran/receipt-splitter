@@ -163,8 +163,8 @@ export function validateReceiptItem(item: {
     errors.push("Item name is required");
   }
 
-  if (item.price <= 0) {
-    errors.push("Item price must be greater than 0");
+  if (item.price < 0) {
+    errors.push("Item price cannot be negative");
   }
 
   if (item.quantity <= 0) {

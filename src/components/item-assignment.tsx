@@ -383,6 +383,19 @@ export function ItemAssignment({
   const saveItemEdit = () => {
     if (currentEditItemIndex === null || !editedItem) return;
 
+    // Validate edited item
+    const itemToValidate = {
+      name: receipt.items[currentEditItemIndex].name,
+      price: editedItem.price,
+      quantity: editedItem.quantity,
+    };
+
+    const errors = validateReceiptItem(itemToValidate);
+    if (errors.length > 0) {
+      toast.error(errors[0]);
+      return;
+    }
+
     const updatedReceipt = { ...receipt };
     updatedReceipt.items = [...receipt.items];
     updatedReceipt.items[currentEditItemIndex] = {
@@ -991,9 +1004,9 @@ export function ItemAssignment({
                   <Input
                     id="item-price"
                     type="number"
-                    min="0.01"
+                    min="0"
                     step="0.01"
-                    value={editedItem?.price || ""}
+                    value={editedItem?.price ?? ""}
                     onChange={(e) => {
                       const value = e.target.value;
                       setEditedItem({
@@ -1080,9 +1093,9 @@ export function ItemAssignment({
                   <Input
                     id="new-item-price"
                     type="number"
-                    min="0.01"
+                    min="0"
                     step="0.01"
-                    value={newItem.price || ""}
+                    value={newItem.price ?? ""}
                     onChange={(e) => {
                       const value = e.target.value;
                       setNewItem({

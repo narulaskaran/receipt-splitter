@@ -213,4 +213,123 @@ describe("ItemAssignment", () => {
     // Should not call onReceiptUpdate
     expect(onReceiptUpdate).not.toHaveBeenCalled();
   });
+
+  it("allows adding items with $0 price", async () => {
+    const onReceiptUpdate = jest.fn();
+    const user = userEvent.setup();
+
+    render(
+      <ItemAssignment
+        receipt={mockReceipt}
+        people={mockPeople}
+        assignedItems={mockAssignedItems}
+        unassignedItems={[]}
+        onAssignItems={() => {}}
+        onReceiptUpdate={onReceiptUpdate}
+      />
+    );
+
+    // Click add item button
+    const addButton = screen.getByText(/Add Item/);
+    await user.click(addButton);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Item Name/)).toBeInTheDocument();
+    });
+
+    // Fill in the form with $0 item
+    const nameInput = screen.getByLabelText(/Item Name/);
+    await user.clear(nameInput);
+    await user.type(nameInput, "Free Sample");
+
+    // Submit the form (price is already 0 by default)
+    const submitButton = screen.getByText(/^Add Item$/);
+    await user.click(submitButton);
+
+    // Should call onReceiptUpdate with $0 item
+    await waitFor(() => {
+      expect(onReceiptUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          items: expect.arrayContaining([
+            expect.objectContaining({
+              name: "Free Sample",
+              price: 0,
+            }),
+          ]),
+        })
+      );
+    });
+  });
+
+  it("validates price and quantity when editing items", async () => {
+    const onReceiptUpdate = jest.fn();
+    const user = userEvent.setup();
+
+    render(
+      <ItemAssignment
+        receipt={mockReceipt}
+        people={mockPeople}
+        assignedItems={mockAssignedItems}
+        unassignedItems={[]}
+        onAssignItems={() => {}}
+        onReceiptUpdate={onReceiptUpdate}
+      />
+    );
+
+    // Click edit button for first item (desktop view)
+    const editButtons = screen.getAllByTitle(/Click to edit price and quantity/);
+    await user.click(editButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Item Price/)).toBeInTheDocument();
+    });
+
+    // Try to set negative price
+    const priceInput = screen.getByLabelText(/Item Price/);
+    await user.clear(priceInput);
+    await user.type(priceInput, "-5");
+
+    // Try to submit
+    const submitButton = screen.getByText(/Save Changes/);
+    await user.click(submitButton);
+
+    // Should not call onReceiptUpdate due to validation error
+    expect(onReceiptUpdate).not.toHaveBeenCalled();
+  });
+
+  it("validates quantity cannot be zero when editing items", async () => {
+    const onReceiptUpdate = jest.fn();
+    const user = userEvent.setup();
+
+    render(
+      <ItemAssignment
+        receipt={mockReceipt}
+        people={mockPeople}
+        assignedItems={mockAssignedItems}
+        unassignedItems={[]}
+        onAssignItems={() => {}}
+        onReceiptUpdate={onReceiptUpdate}
+      />
+    );
+
+    // Click edit button for first item (desktop view)
+    const editButtons = screen.getAllByTitle(/Click to edit price and quantity/);
+    await user.click(editButtons[0]);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Quantity/)).toBeInTheDocument();
+    });
+
+    // Try to set quantity to 0
+    const quantityInput = screen.getByLabelText(/Quantity/);
+    await user.clear(quantityInput);
+    await user.type(quantityInput, "0");
+
+    // Try to submit
+    const submitButton = screen.getByText(/Save Changes/);
+    await user.click(submitButton);
+
+    // Should not call onReceiptUpdate due to validation error
+    expect(onReceiptUpdate).not.toHaveBeenCalled();
+  });
 });
