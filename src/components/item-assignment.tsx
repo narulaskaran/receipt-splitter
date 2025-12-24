@@ -33,7 +33,11 @@ import {
   type PersonItemAssignment,
   type Group,
 } from "@/types";
-import { formatCurrency } from "@/lib/receipt-utils";
+import {
+  formatCurrency,
+  calculateSubtotal,
+  validateReceiptItem,
+} from "@/lib/receipt-utils";
 
 interface ItemAssignmentProps {
   receipt: Receipt;
@@ -60,6 +64,8 @@ export function ItemAssignment({
   const [open, setOpen] = useState(false);
   const [editItemDialogOpen, setEditItemDialogOpen] = useState(false);
   const [addItemDialogOpen, setAddItemDialogOpen] = useState(false);
+  const [deleteConfirmDialogOpen, setDeleteConfirmDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<number | null>(null);
   const [currentItemIndex, setCurrentItemIndex] = useState<number | null>(null);
   const [currentEditItemIndex, setCurrentEditItemIndex] = useState<
     number | null
@@ -385,11 +391,8 @@ export function ItemAssignment({
       quantity: editedItem.quantity,
     };
 
-    // Recalculate subtotal
-    updatedReceipt.subtotal = updatedReceipt.items.reduce(
-      (sum, item) => sum + item.price * (item.quantity || 1),
-      0
-    );
+    // Recalculate subtotal using utility
+    updatedReceipt.subtotal = calculateSubtotal(updatedReceipt.items);
 
     // Update the receipt
     onReceiptUpdate(updatedReceipt);
@@ -411,29 +414,17 @@ export function ItemAssignment({
 
   // Save new item
   const saveNewItem = () => {
-    if (!newItem.name.trim()) {
-      toast.error("Item name is required");
-      return;
-    }
-
-    if (newItem.price <= 0) {
-      toast.error("Item price must be greater than 0");
-      return;
-    }
-
-    if (newItem.quantity <= 0) {
-      toast.error("Quantity must be greater than 0");
+    const errors = validateReceiptItem(newItem);
+    if (errors.length > 0) {
+      toast.error(errors[0]);
       return;
     }
 
     const updatedReceipt = { ...receipt };
     updatedReceipt.items = [...receipt.items, { ...newItem }];
 
-    // Recalculate subtotal
-    updatedReceipt.subtotal = updatedReceipt.items.reduce(
-      (sum, item) => sum + item.price * (item.quantity || 1),
-      0
-    );
+    // Recalculate subtotal using utility
+    updatedReceipt.subtotal = calculateSubtotal(updatedReceipt.items);
 
     // Update the receipt
     onReceiptUpdate(updatedReceipt);
@@ -446,19 +437,26 @@ export function ItemAssignment({
     toast.success("Item added successfully");
   };
 
-  // Handle delete item
+  // Handle delete item - show confirmation
   const handleDeleteItem = (index: number) => {
+    setItemToDelete(index);
+    setDeleteConfirmDialogOpen(true);
+  };
+
+  // Confirm delete item
+  const confirmDeleteItem = () => {
+    if (itemToDelete === null) return;
+
     const updatedReceipt = { ...receipt };
-    updatedReceipt.items = receipt.items.filter((_, i) => i !== index);
+    updatedReceipt.items = receipt.items.filter((_, i) => i !== itemToDelete);
 
-    // Recalculate subtotal
-    updatedReceipt.subtotal = updatedReceipt.items.reduce(
-      (sum, item) => sum + item.price * (item.quantity || 1),
-      0
-    );
+    // Recalculate subtotal using utility
+    updatedReceipt.subtotal = calculateSubtotal(updatedReceipt.items);
 
-    // Update the receipt
+    // Update the receipt (which will clear assignments via parent component)
     onReceiptUpdate(updatedReceipt);
+    setDeleteConfirmDialogOpen(false);
+    setItemToDelete(null);
     toast.success("Item deleted successfully");
   };
 
@@ -993,15 +991,16 @@ export function ItemAssignment({
                   <Input
                     id="item-price"
                     type="number"
-                    min="0"
+                    min="0.01"
                     step="0.01"
                     value={editedItem?.price || ""}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const value = e.target.value;
                       setEditedItem({
                         ...editedItem!,
-                        price: parseFloat(e.target.value) || 0,
-                      })
-                    }
+                        price: value === "" ? 0 : parseFloat(value) || 0,
+                      });
+                    }}
                   />
                 </div>
 
@@ -1013,12 +1012,13 @@ export function ItemAssignment({
                     min="1"
                     step="1"
                     value={editedItem?.quantity || ""}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const value = e.target.value;
                       setEditedItem({
                         ...editedItem!,
-                        quantity: parseInt(e.target.value) || 1,
-                      })
-                    }
+                        quantity: value === "" ? 1 : parseInt(value) || 1,
+                      });
+                    }}
                   />
                 </div>
 
@@ -1080,15 +1080,16 @@ export function ItemAssignment({
                   <Input
                     id="new-item-price"
                     type="number"
-                    min="0"
+                    min="0.01"
                     step="0.01"
                     value={newItem.price || ""}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const value = e.target.value;
                       setNewItem({
                         ...newItem,
-                        price: parseFloat(e.target.value) || 0,
-                      })
-                    }
+                        price: value === "" ? 0 : parseFloat(value) || 0,
+                      });
+                    }}
                   />
                 </div>
 
@@ -1100,12 +1101,13 @@ export function ItemAssignment({
                     min="1"
                     step="1"
                     value={newItem.quantity || ""}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const value = e.target.value;
                       setNewItem({
                         ...newItem,
-                        quantity: parseInt(e.target.value) || 1,
-                      })
-                    }
+                        quantity: value === "" ? 1 : parseInt(value) || 1,
+                      });
+                    }}
                   />
                 </div>
 
@@ -1126,6 +1128,43 @@ export function ItemAssignment({
                 <Button type="submit">Add Item</Button>
               </DialogFooter>
             </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete confirmation dialog */}
+        <Dialog open={deleteConfirmDialogOpen} onOpenChange={setDeleteConfirmDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Item</DialogTitle>
+            </DialogHeader>
+
+            <div className="py-4">
+              <p className="text-sm text-muted-foreground">
+                Are you sure you want to delete{" "}
+                <span className="font-medium text-foreground">
+                  {itemToDelete !== null ? receipt.items[itemToDelete]?.name : ""}
+                </span>
+                ?
+              </p>
+              <p className="text-sm text-muted-foreground mt-2">
+                This will remove the item and clear all assignments for it.
+              </p>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDeleteConfirmDialogOpen(false);
+                  setItemToDelete(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button variant="destructive" onClick={confirmDeleteItem}>
+                Delete
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </CardContent>

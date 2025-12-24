@@ -228,15 +228,10 @@ export default function Home() {
       let newAssignedItems = prevState.assignedItems;
 
       if (updatedReceipt.items.length < (prevState.originalReceipt?.items.length || 0)) {
-        // Items were deleted, need to reindex assignments
+        // Items were deleted - clear ALL assignments to avoid index mismatch
+        // This is the safest approach since item indices change when items are deleted
         newAssignedItems = new Map();
-
-        // Only keep assignments for items that still exist
-        prevState.assignedItems.forEach((assignments, itemIndex) => {
-          if (itemIndex < updatedReceipt.items.length) {
-            newAssignedItems.set(itemIndex, assignments);
-          }
-        });
+        toast.info("Item assignments have been cleared due to item deletion");
       } else if (updatedReceipt.items.length > (prevState.originalReceipt?.items.length || 0)) {
         // Items were added, no need to update assignments (new items are unassigned)
         newAssignedItems = prevState.assignedItems;
@@ -626,6 +621,13 @@ export default function Home() {
         </TabsContent>
 
         <TabsContent value="results" className="space-y-6">
+          {state.originalReceipt && (
+            <ReceiptDetails
+              receipt={state.originalReceipt}
+              onReceiptUpdate={handleReceiptUpdate}
+            />
+          )}
+
           <ResultsSummary
             people={state.people}
             receiptName={state.originalReceipt?.restaurant || null}

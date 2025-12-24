@@ -140,6 +140,7 @@ describe("ItemAssignment", () => {
 
   it("calls onReceiptUpdate when deleting an item", async () => {
     const onReceiptUpdate = jest.fn();
+    const user = userEvent.setup();
 
     render(
       <ItemAssignment
@@ -154,7 +155,16 @@ describe("ItemAssignment", () => {
 
     // Get the first delete button and click it
     const deleteButtons = screen.getAllByTitle(/Delete item/);
-    fireEvent.click(deleteButtons[0]);
+    await user.click(deleteButtons[0]);
+
+    // Wait for confirmation dialog
+    await waitFor(() => {
+      expect(screen.getByText(/Are you sure you want to delete/)).toBeInTheDocument();
+    });
+
+    // Confirm deletion
+    const confirmButton = screen.getByRole("button", { name: /^Delete$/i });
+    await user.click(confirmButton);
 
     // Verify onReceiptUpdate was called with one less item
     await waitFor(() => {

@@ -121,23 +121,55 @@ export function getUnassignedItems(
   assignedItems: Map<number, PersonItemAssignment[]>
 ): number[] {
   if (!receipt?.items?.length) return [];
-  
+
   const unassignedItems: number[] = [];
-  
+
   for (let i = 0; i < receipt.items.length; i++) {
     const assignments = assignedItems.get(i) || [];
-    
+
     // Sum up all share percentages for this item
     const totalPercentage = assignments.reduce(
-      (sum, assignment) => sum + assignment.sharePercentage, 
+      (sum, assignment) => sum + assignment.sharePercentage,
       0
     );
-    
+
     // If not fully assigned, add to unassigned list
     if (Math.abs(totalPercentage - 100) > 0.01) {
       unassignedItems.push(i);
     }
   }
-  
+
   return unassignedItems;
+}
+
+/**
+ * Calculates the subtotal from receipt items
+ */
+export function calculateSubtotal(items: { price: number; quantity?: number }[]): number {
+  return items.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
+}
+
+/**
+ * Validates a new or edited receipt item
+ */
+export function validateReceiptItem(item: {
+  name: string;
+  price: number;
+  quantity: number;
+}): string[] {
+  const errors: string[] = [];
+
+  if (!item.name.trim()) {
+    errors.push("Item name is required");
+  }
+
+  if (item.price <= 0) {
+    errors.push("Item price must be greater than 0");
+  }
+
+  if (item.quantity <= 0) {
+    errors.push("Quantity must be greater than 0");
+  }
+
+  return errors;
 }
