@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Check, AlertCircle, Pencil } from "lucide-react";
+import { Check, AlertCircle, Pencil, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -59,6 +59,7 @@ export function ItemAssignment({
 }: ItemAssignmentProps) {
   const [open, setOpen] = useState(false);
   const [editItemDialogOpen, setEditItemDialogOpen] = useState(false);
+  const [addItemDialogOpen, setAddItemDialogOpen] = useState(false);
   const [currentItemIndex, setCurrentItemIndex] = useState<number | null>(null);
   const [currentEditItemIndex, setCurrentEditItemIndex] = useState<
     number | null
@@ -67,6 +68,15 @@ export function ItemAssignment({
     price: number;
     quantity: number;
   } | null>(null);
+  const [newItem, setNewItem] = useState<{
+    name: string;
+    price: number;
+    quantity: number;
+  }>({
+    name: "",
+    price: 0,
+    quantity: 1,
+  });
   const [assignments, setAssignments] = useState<Map<string, number>>(
     new Map()
   );
@@ -389,10 +399,77 @@ export function ItemAssignment({
     toast.success("Item updated successfully");
   };
 
+  // Handle add item
+  const handleAddItem = () => {
+    setNewItem({
+      name: "",
+      price: 0,
+      quantity: 1,
+    });
+    setAddItemDialogOpen(true);
+  };
+
+  // Save new item
+  const saveNewItem = () => {
+    if (!newItem.name.trim()) {
+      toast.error("Item name is required");
+      return;
+    }
+
+    if (newItem.price <= 0) {
+      toast.error("Item price must be greater than 0");
+      return;
+    }
+
+    if (newItem.quantity <= 0) {
+      toast.error("Quantity must be greater than 0");
+      return;
+    }
+
+    const updatedReceipt = { ...receipt };
+    updatedReceipt.items = [...receipt.items, { ...newItem }];
+
+    // Recalculate subtotal
+    updatedReceipt.subtotal = updatedReceipt.items.reduce(
+      (sum, item) => sum + item.price * (item.quantity || 1),
+      0
+    );
+
+    // Update the receipt
+    onReceiptUpdate(updatedReceipt);
+    setAddItemDialogOpen(false);
+    setNewItem({
+      name: "",
+      price: 0,
+      quantity: 1,
+    });
+    toast.success("Item added successfully");
+  };
+
+  // Handle delete item
+  const handleDeleteItem = (index: number) => {
+    const updatedReceipt = { ...receipt };
+    updatedReceipt.items = receipt.items.filter((_, i) => i !== index);
+
+    // Recalculate subtotal
+    updatedReceipt.subtotal = updatedReceipt.items.reduce(
+      (sum, item) => sum + item.price * (item.quantity || 1),
+      0
+    );
+
+    // Update the receipt
+    onReceiptUpdate(updatedReceipt);
+    toast.success("Item deleted successfully");
+  };
+
   return (
     <Card className="w-full">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-xl">Assign Items</CardTitle>
+        <Button variant="outline" size="sm" onClick={handleAddItem}>
+          <Plus className="h-4 w-4 mr-1" />
+          Add Item
+        </Button>
       </CardHeader>
 
       <CardContent>
@@ -573,10 +650,18 @@ export function ItemAssignment({
                           >
                             <Pencil className="h-4 w-4" />
                           </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteItem(index)}
+                            title="Delete item"
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </div>
@@ -734,17 +819,28 @@ export function ItemAssignment({
                             </PopoverContent>
                           </Popover>
                         </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-shrink-0"
-                          onClick={() => {
-                            setCurrentItemIndex(index);
-                            setOpen(true);
-                          }}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-shrink-0"
+                            onClick={() => {
+                              setCurrentItemIndex(index);
+                              setOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-shrink-0"
+                            onClick={() => handleDeleteItem(index)}
+                            title="Delete item"
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -945,6 +1041,89 @@ export function ItemAssignment({
                   Cancel
                 </Button>
                 <Button type="submit">Save Changes</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add item dialog */}
+        <Dialog open={addItemDialogOpen} onOpenChange={setAddItemDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add New Item</DialogTitle>
+            </DialogHeader>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                saveNewItem();
+              }}
+            >
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="new-item-name">Item Name</Label>
+                  <Input
+                    id="new-item-name"
+                    value={newItem.name}
+                    onChange={(e) =>
+                      setNewItem({
+                        ...newItem,
+                        name: e.target.value,
+                      })
+                    }
+                    placeholder="e.g., Burger, Pizza, etc."
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="new-item-price">Item Price</Label>
+                  <Input
+                    id="new-item-price"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={newItem.price || ""}
+                    onChange={(e) =>
+                      setNewItem({
+                        ...newItem,
+                        price: parseFloat(e.target.value) || 0,
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="new-item-quantity">Quantity</Label>
+                  <Input
+                    id="new-item-quantity"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={newItem.quantity || ""}
+                    onChange={(e) =>
+                      setNewItem({
+                        ...newItem,
+                        quantity: parseInt(e.target.value) || 1,
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">Total:</span>
+                  <span>{formatCurrency(newItem.price * newItem.quantity)}</span>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setAddItemDialogOpen(false)}
+                  type="button"
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">Add Item</Button>
               </DialogFooter>
             </form>
           </DialogContent>

@@ -224,17 +224,40 @@ export default function Home() {
   // Handle receipt updates
   const handleReceiptUpdate = (updatedReceipt: Receipt) => {
     setState((prevState) => {
+      // If items were deleted, we need to update the assignment indices
+      let newAssignedItems = prevState.assignedItems;
+
+      if (updatedReceipt.items.length < (prevState.originalReceipt?.items.length || 0)) {
+        // Items were deleted, need to reindex assignments
+        newAssignedItems = new Map();
+
+        // Only keep assignments for items that still exist
+        prevState.assignedItems.forEach((assignments, itemIndex) => {
+          if (itemIndex < updatedReceipt.items.length) {
+            newAssignedItems.set(itemIndex, assignments);
+          }
+        });
+      } else if (updatedReceipt.items.length > (prevState.originalReceipt?.items.length || 0)) {
+        // Items were added, no need to update assignments (new items are unassigned)
+        newAssignedItems = prevState.assignedItems;
+      }
+
+      // Recalculate unassigned items
+      const unassignedItems = getUnassignedItems(updatedReceipt, newAssignedItems);
+
       // Recalculate people totals with the updated receipt
       const updatedPeople = calculatePersonTotals(
         updatedReceipt,
         prevState.people,
-        prevState.assignedItems
+        newAssignedItems
       );
 
       return {
         ...prevState,
         originalReceipt: updatedReceipt,
         people: updatedPeople,
+        assignedItems: newAssignedItems,
+        unassignedItems,
       };
     });
   };
