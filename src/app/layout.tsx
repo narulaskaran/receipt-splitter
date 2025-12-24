@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Receipt Splitter",
-  description: "Upload a receipt, add people, and split the bill",
+  description: "Upload a receipt, add people, and easily split items. No downloads or account creation required.",
 };
 
 export const viewport = {
