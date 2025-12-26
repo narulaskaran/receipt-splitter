@@ -10,7 +10,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { type Person } from "@/types";
-import { formatCurrency } from "@/lib/receipt-utils";
+import { formatCurrency, type ReceiptValidationResult } from "@/lib/receipt-utils";
 import {
   generateShareableUrl,
   validateSerializationInput,
@@ -23,6 +23,7 @@ interface ResultsSummaryProps {
   receiptName: string | null;
   receiptDate: string | null;
   currencyCode?: string;
+  validationResult?: ReceiptValidationResult;
 }
 
 export function ResultsSummary({
@@ -30,6 +31,7 @@ export function ResultsSummary({
   receiptName,
   receiptDate,
   currencyCode,
+  validationResult,
 }: ResultsSummaryProps) {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [shareStatus, setShareStatus] = useState<
@@ -101,6 +103,16 @@ export function ResultsSummary({
     setShareStatus("copying");
 
     try {
+      // Check validation errors first
+      if (validationResult && !validationResult.isValid) {
+        setShareStatus("error");
+        alert(
+          "Cannot share split with validation errors. Please fix the issues shown above before sharing."
+        );
+        setTimeout(() => setShareStatus("idle"), 2000);
+        return;
+      }
+
       // Validate that we have required data to share
       if (!cleanPhone) {
         setShareStatus("error");
@@ -155,7 +167,8 @@ export function ResultsSummary({
   const canShareSplit =
     people.length > 0 &&
     people.every((person) => person.finalTotal > 0) &&
-    phoneNumber.replace(/\D/g, "").length >= 10;
+    phoneNumber.replace(/\D/g, "").length >= 10 &&
+    (!validationResult || validationResult.isValid);
 
   if (people.length === 0) {
     return null;
