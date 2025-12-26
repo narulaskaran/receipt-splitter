@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { TextBlock } from "@anthropic-ai/sdk/resources";
+import { z } from "zod";
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -10,6 +11,28 @@ const anthropic = new Anthropic({
 // Valid media types for Anthropic API
 type ValidMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
 type ValidDocumentType = "application/pdf";
+
+// Helper function to format file size in MB
+function formatFileSizeMB(bytes: number): number {
+  return bytes / (1024 * 1024);
+}
+
+// Zod schema for receipt validation
+const receiptItemSchema = z.object({
+  name: z.string(),
+  price: z.number(),
+  quantity: z.number().optional(),
+});
+
+const receiptSchema = z.object({
+  restaurant: z.string().nullable(),
+  date: z.string().nullable(),
+  total: z.number().nullable(),
+  subtotal: z.number().nullable(),
+  tax: z.number().nullable(),
+  tip: z.number().nullable(),
+  items: z.array(receiptItemSchema),
+});
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,7 +61,7 @@ export async function POST(request: NextRequest) {
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
         {
-          error: `File size exceeds the maximum limit of ${MAX_FILE_SIZE / 1024 / 1024}MB`,
+          error: `File size exceeds the maximum limit of ${formatFileSizeMB(MAX_FILE_SIZE)}MB`,
         },
         { status: 400 }
       );
@@ -157,35 +180,37 @@ export async function POST(request: NextRequest) {
         ],
       });
     } catch (apiError: unknown) {
-      const errorMessage =
-        apiError instanceof Error ? apiError.message : "Unknown API error";
-      console.error("Anthropic API error:", errorMessage);
+      console.error("Anthropic API error:", apiError);
 
-      // Check for specific API errors
-      if (errorMessage.includes("rate_limit")) {
-        return NextResponse.json(
-          {
-            error:
-              "Rate limit exceeded. Please try again in a few moments.",
-          },
-          { status: 429 }
-        );
-      }
+      // Use API status codes for error detection
+      if (apiError instanceof Anthropic.APIError) {
+        if (apiError.status === 429) {
+          return NextResponse.json(
+            {
+              error:
+                "Rate limit exceeded. Please try again in a few moments.",
+            },
+            { status: 429 }
+          );
+        }
 
-      if (errorMessage.includes("invalid_request")) {
-        return NextResponse.json(
-          {
-            error:
-              "Invalid request format. Please ensure your file is a valid receipt image or PDF.",
-          },
-          { status: 400 }
-        );
+        if (apiError.status === 400) {
+          return NextResponse.json(
+            {
+              error:
+                "Invalid request format. Please ensure your file is a valid receipt image or PDF.",
+            },
+            { status: 400 }
+          );
+        }
+
+        console.error("Anthropic API error details:", apiError.message, apiError.status);
       }
 
       return NextResponse.json(
         {
           error:
-            "Failed to communicate with AI service. Please try again later.",
+            "Failed to process receipt. Please try again later.",
         },
         { status: 503 }
       );
@@ -203,9 +228,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (!jsonText) {
-      console.error("No text content in Claude response");
+      console.error("No text content in response");
       return NextResponse.json(
-        { error: "No text response received from AI service" },
+        { error: "Failed to parse receipt. Please try again later." },
         { status: 500 }
       );
     }
@@ -214,26 +239,27 @@ export async function POST(request: NextRequest) {
     try {
       const parsedData = JSON.parse(jsonText);
 
-      // Validate that parsed data has expected structure
-      if (typeof parsedData !== "object" || parsedData === null) {
-        console.error("Parsed data is not a valid object");
+      // Validate receipt data structure using Zod
+      const validationResult = receiptSchema.safeParse(parsedData);
+
+      if (!validationResult.success) {
+        console.error("Receipt validation failed:", validationResult.error);
         return NextResponse.json(
-          { error: "Invalid receipt data format received" },
+          { error: "Failed to parse receipt. Please try again later." },
           { status: 500 }
         );
       }
 
       console.log("Successfully parsed receipt data");
-      return NextResponse.json(parsedData);
+      return NextResponse.json(validationResult.data);
     } catch (parseError) {
       const errorMsg =
         parseError instanceof Error ? parseError.message : "Unknown parse error";
-      console.error("Failed to parse JSON from Claude response:", errorMsg);
+      console.error("Failed to parse JSON response:", errorMsg);
       console.error("Response text:", jsonText.substring(0, 200)); // Log first 200 chars
       return NextResponse.json(
         {
-          error:
-            "The AI service returned an unexpected format. Please try with a clearer receipt image.",
+          error: "Failed to parse receipt. Please try again later.",
         },
         { status: 500 }
       );
