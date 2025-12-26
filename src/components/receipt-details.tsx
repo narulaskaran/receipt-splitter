@@ -89,22 +89,27 @@ export function ReceiptDetails({
 
           <div>
             <p className="text-sm text-muted-foreground">Subtotal</p>
-            <p className="font-medium">{formatCurrency(receipt.subtotal)}</p>
+            <p className="font-medium">{formatCurrency(receipt.subtotal, receipt.currency)}</p>
           </div>
 
           <div>
             <p className="text-sm text-muted-foreground">Tax</p>
-            <p className="font-medium">{formatCurrency(receipt.tax)}</p>
+            <p className="font-medium">{formatCurrency(receipt.tax, receipt.currency)}</p>
           </div>
 
           <div>
             <p className="text-sm text-muted-foreground">Tip</p>
-            <p className="font-medium">{formatCurrency(receipt.tip || 0)}</p>
+            <p className="font-medium">{formatCurrency(receipt.tip || 0, receipt.currency)}</p>
           </div>
 
           <div>
             <p className="text-sm text-muted-foreground">Total</p>
-            <p className="font-bold">{formatCurrency(receipt.total)}</p>
+            <p className="font-bold">{formatCurrency(receipt.total, receipt.currency)}</p>
+          </div>
+
+          <div className="col-span-2">
+            <p className="text-sm text-muted-foreground">Currency</p>
+            <p className="font-medium">{receipt.currency || 'USD'}</p>
           </div>
         </div>
       </CardContent>

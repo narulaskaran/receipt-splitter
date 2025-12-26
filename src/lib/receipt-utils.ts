@@ -1,5 +1,6 @@
 import Decimal from 'decimal.js';
 import { type Person, type Receipt, type PersonItem, type PersonItemAssignment } from '@/types';
+import { formatCurrency as formatCurrencyNew } from './currency';
 
 /**
  * Calculates the proportion of tax and tip each person should pay based on their items
@@ -105,12 +106,11 @@ export function validateItemAssignments(
 
 /**
  * Formats a currency value for display
+ * @param amount - The amount to format
+ * @param currencyCode - ISO 4217 currency code (e.g., 'USD', 'EUR', 'GBP'). Defaults to 'USD'
  */
-export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(amount);
+export function formatCurrency(amount: number, currencyCode: string = 'USD'): string {
+  return formatCurrencyNew(amount, currencyCode);
 }
 
 /**

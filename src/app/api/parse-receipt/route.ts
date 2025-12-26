@@ -32,6 +32,7 @@ const receiptSchema = z.object({
   tax: z.number().nullable(),
   tip: z.number().nullable(),
   items: z.array(receiptItemSchema),
+  currency: z.string().optional().default('USD'),
 });
 
 export async function POST(request: NextRequest) {
@@ -111,6 +112,7 @@ export async function POST(request: NextRequest) {
                 "subtotal": "Subtotal amount as number",
                 "tax": "Tax amount as number",
                 "tip": "Tip amount as number (if included)",
+                "currency": "ISO 4217 currency code (e.g., USD, EUR, GBP, JPY, CAD, AUD, etc.)",
                 "items": [
                   {
                     "name": "Item name",
@@ -119,7 +121,7 @@ export async function POST(request: NextRequest) {
                   }
                 ]
               }
-              \nInstructions for items:\n- If the receipt lists a line item with a quantity greater than 1, and shows a total price for that line, divide the total price by the quantity to get the per-unit price, and use that value for the 'price' field.\n- Do NOT multiply the price by the quantity in the output.\n- The 'price' field should always be the price for a single unit, even if the receipt shows a total for multiple units.\n- Only include items that were actually purchased.\n- If you can't determine any field, use null.\n- Keep the item names exactly as they appear on the receipt.\n- Return ONLY the JSON with no explanations or additional text.`;
+              \nInstructions:\n- Detect the currency from currency symbols, country context, or language on the receipt. Common currencies: USD ($), EUR (€), GBP (£), JPY (¥), CAD (C$), AUD (A$), INR (₹), etc.\n- If the currency cannot be determined, default to 'USD'.\n- If the receipt lists a line item with a quantity greater than 1, and shows a total price for that line, divide the total price by the quantity to get the per-unit price, and use that value for the 'price' field.\n- Do NOT multiply the price by the quantity in the output.\n- The 'price' field should always be the price for a single unit, even if the receipt shows a total for multiple units.\n- Only include items that were actually purchased.\n- If you can't determine any field, use null.\n- Keep the item names exactly as they appear on the receipt.\n- Return ONLY the JSON with no explanations or additional text.`;
 
     const content: Array<
       | {
