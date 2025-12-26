@@ -134,6 +134,7 @@ export function ResultsSummary({
         people,
         note,
         cleanPhone,
+        currencyCode,
         receiptDate
       );
 
