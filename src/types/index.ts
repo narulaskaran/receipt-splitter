@@ -13,6 +13,7 @@ export interface Receipt {
   tip: number | null;
   total: number;
   items: ReceiptItem[];
+  currency: string; // ISO 4217 currency code (e.g., 'USD', 'EUR', 'GBP')
 }
 
 // Person types
