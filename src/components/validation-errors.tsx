@@ -24,7 +24,11 @@ export function ValidationErrors({ errors, className = "" }: ValidationErrorsPro
   return (
     <Card className={`border-yellow-500/50 bg-yellow-50 dark:bg-yellow-900/10 ${className}`}>
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2 text-yellow-800 dark:text-yellow-300">
+        <CardTitle 
+          className="text-lg flex items-center gap-2 text-yellow-800 dark:text-yellow-300"
+          role="alert"
+          aria-live="polite"
+        >
           <AlertTriangle className="h-5 w-5" />
           Split Validation Issues ({errors.length})
         </CardTitle>
@@ -108,9 +112,18 @@ export function ValidationErrors({ errors, className = "" }: ValidationErrorsPro
 
         {/* Help text */}
         <div className="text-xs text-gray-600 dark:text-gray-400 pt-2 border-t border-yellow-200 dark:border-yellow-800">
-          <strong>How to fix:</strong> Check that all items are correctly assigned
-          and that receipt amounts (subtotal, tax, tip) match the original receipt.
-          Small rounding differences are automatically tolerated.
+          <strong>How to fix:</strong>
+          <ul className="list-disc list-inside mt-1 space-y-1">
+            {negativeErrors.length > 0 && (
+              <li>Check for data entry errors in receipt amounts (negative values are not allowed).</li>
+            )}
+            {mismatchErrors.length > 0 && (
+              <li>Verify all items are assigned to exactly 100% and that receipt subtotal matches item prices.</li>
+            )}
+          </ul>
+          <div className="mt-1 italic">
+            Small rounding differences are automatically tolerated.
+          </div>
         </div>
       </CardContent>
     </Card>

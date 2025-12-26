@@ -29,7 +29,6 @@ import {
   validateItemAssignments,
   getUnassignedItems,
   validateReceiptInvariants,
-  type ReceiptValidationResult,
 } from "@/lib/receipt-utils";
 import {
   getUniqueGroupEmoji,
@@ -51,10 +50,14 @@ export default function Home() {
   const [hasSession, setHasSession] = useState(false);
   const isFirstLoad = useRef(true);
   const [resetImageTrigger, setResetImageTrigger] = useState(0);
-  const [validationResult, setValidationResult] = useState<ReceiptValidationResult>({
-    isValid: true,
-    errors: [],
-  });
+  
+  const validationResult = useMemo(() => {
+    return validateReceiptInvariants(
+      state.originalReceipt,
+      state.assignedItems,
+      state.people
+    );
+  }, [state.originalReceipt, state.assignedItems, state.people]);
 
   const defaultSession = useMemo(
     () => ({
@@ -116,16 +119,6 @@ export default function Home() {
       setHasSession(!isDefault);
     }
   }, [state, activeTab, defaultSession]);
-
-  // Run validation whenever state changes
-  useEffect(() => {
-    const result = validateReceiptInvariants(
-      state.originalReceipt,
-      state.assignedItems,
-      state.people
-    );
-    setValidationResult(result);
-  }, [state.originalReceipt, state.assignedItems, state.people]);
 
   // Handler for New Split button
   const handleNewSplit = () => {
