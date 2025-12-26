@@ -22,12 +22,14 @@ interface ResultsSummaryProps {
   people: Person[];
   receiptName: string | null;
   receiptDate: string | null;
+  currencyCode?: string;
 }
 
 export function ResultsSummary({
   people,
   receiptName,
   receiptDate,
+  currencyCode,
 }: ResultsSummaryProps) {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [shareStatus, setShareStatus] = useState<
@@ -53,7 +55,7 @@ export function ResultsSummary({
 
     // Add each person's total
     sortedPeople.forEach((person) => {
-      text += `${person.name}: ${formatCurrency(person.finalTotal)}\n`;
+      text += `${person.name}: ${formatCurrency(person.finalTotal, currencyCode)}\n`;
     });
 
     return text;
@@ -252,24 +254,24 @@ export function ResultsSummary({
                         <span className="font-semibold">{person.name}</span>
                         {/* Mobile-only breakdown */}
                         <div className="text-xs text-muted-foreground mt-1 sm:hidden">
-                          Subtotal: {formatCurrency(person.totalBeforeTax)} •
-                          Tax: {formatCurrency(person.tax)} • Tip:{" "}
-                          {formatCurrency(person.tip)}
+                          Subtotal: {formatCurrency(person.totalBeforeTax, currencyCode)} •
+                          Tax: {formatCurrency(person.tax, currencyCode)} • Tip:{" "}
+                          {formatCurrency(person.tip, currencyCode)}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell className="text-right py-4 hidden sm:table-cell">
-                      {formatCurrency(person.totalBeforeTax)}
+                      {formatCurrency(person.totalBeforeTax, currencyCode)}
                     </TableCell>
                     <TableCell className="text-right py-4 hidden sm:table-cell">
-                      {formatCurrency(person.tax)}
+                      {formatCurrency(person.tax, currencyCode)}
                     </TableCell>
                     <TableCell className="text-right py-4 hidden sm:table-cell">
-                      {formatCurrency(person.tip)}
+                      {formatCurrency(person.tip, currencyCode)}
                     </TableCell>
                     <TableCell className="text-right py-4">
                       <span className="font-bold text-lg text-primary">
-                        {formatCurrency(person.finalTotal)}
+                        {formatCurrency(person.finalTotal, currencyCode)}
                       </span>
                     </TableCell>
                   </TableRow>
