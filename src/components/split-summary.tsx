@@ -65,7 +65,7 @@ export function SplitSummary({ splitData, phoneNumber }: SplitSummaryProps) {
                   Total Bill
                 </p>
                 <p className="font-extrabold text-2xl sm:text-3xl text-primary mt-1">
-                  {formatCurrency(splitData.total)}
+                  {formatCurrency(splitData.total, splitData.currency)}
                 </p>
               </div>
             </div>
@@ -116,7 +116,7 @@ export function SplitSummary({ splitData, phoneNumber }: SplitSummaryProps) {
                         height={12}
                         className="mr-1"
                       />
-                      {formatCurrency(splitData.amounts[index])}
+                      {formatCurrency(splitData.amounts[index], splitData.currency)}
                     </Button>
                   )}
                 </div>
