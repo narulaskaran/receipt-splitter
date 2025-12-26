@@ -15,6 +15,7 @@ import { ReceiptDetails } from "@/components/receipt-details";
 import { ResultsSummary } from "@/components/results-summary";
 import { PersonItems } from "@/components/person-items";
 import { KofiButton } from "@/components/kofi-button";
+import { ValidationErrors } from "@/components/validation-errors";
 
 import {
   type Receipt,
@@ -27,6 +28,8 @@ import {
   calculatePersonTotals,
   validateItemAssignments,
   getUnassignedItems,
+  validateReceiptInvariants,
+  type ReceiptValidationResult,
 } from "@/lib/receipt-utils";
 import {
   getUniqueGroupEmoji,
@@ -48,6 +51,10 @@ export default function Home() {
   const [hasSession, setHasSession] = useState(false);
   const isFirstLoad = useRef(true);
   const [resetImageTrigger, setResetImageTrigger] = useState(0);
+  const [validationResult, setValidationResult] = useState<ReceiptValidationResult>({
+    isValid: true,
+    errors: [],
+  });
 
   const defaultSession = useMemo(
     () => ({
@@ -109,6 +116,16 @@ export default function Home() {
       setHasSession(!isDefault);
     }
   }, [state, activeTab, defaultSession]);
+
+  // Run validation whenever state changes
+  useEffect(() => {
+    const result = validateReceiptInvariants(
+      state.originalReceipt,
+      state.assignedItems,
+      state.people
+    );
+    setValidationResult(result);
+  }, [state.originalReceipt, state.assignedItems, state.people]);
 
   // Handler for New Split button
   const handleNewSplit = () => {
@@ -603,10 +620,13 @@ export default function Home() {
         </TabsContent>
 
         <TabsContent value="results" className="space-y-6">
+          <ValidationErrors errors={validationResult.errors} />
+
           <ResultsSummary
             people={state.people}
             receiptName={state.originalReceipt?.restaurant || null}
             receiptDate={state.originalReceipt?.date || null}
+            validationResult={validationResult}
           />
 
           <PersonItems people={state.people} />
