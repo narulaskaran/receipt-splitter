@@ -265,7 +265,7 @@ export function validateReceiptInvariants(
     const subtotal = new Decimal(receipt.subtotal);
     const difference = itemsTotal.sub(subtotal).abs();
 
-    // Dynamic tolerance: 1 cent per item to account for rounding
+    // Dynamic tolerance: SPLIT_AMOUNT_DEVIATION_PER_PERSON (0.01) per item
     const dynamicTolerance = VALIDATION_LIMITS.SPLIT_AMOUNT_DEVIATION_PER_PERSON * receipt.items.length;
     const toleranceDecimal = new Decimal(dynamicTolerance);
 
@@ -309,7 +309,7 @@ export function validateReceiptInvariants(
 
     const difference = splitsTotal.sub(totalItemPrice).abs();
 
-    // Dynamic tolerance: 1 cent per person assigned to this item
+    // Dynamic tolerance: SPLIT_AMOUNT_DEVIATION_PER_PERSON (0.01) per person assigned to this item
     const participantCount = assignments.length;
     const dynamicTolerance = VALIDATION_LIMITS.SPLIT_AMOUNT_DEVIATION_PER_PERSON * participantCount;
     const toleranceDecimal = new Decimal(dynamicTolerance);

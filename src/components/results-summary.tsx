@@ -1,4 +1,5 @@
 import { Share, Link2, Check } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -84,10 +85,10 @@ export function ResultsSummary({
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      alert("Results copied to clipboard!");
+      toast.success("Results copied to clipboard!");
     } catch (error) {
       console.error("Failed to copy to clipboard:", error);
-      alert("Failed to copy results. Please try again.");
+      toast.error("Failed to copy results. Please try again.");
     }
   };
 
@@ -104,7 +105,7 @@ export function ResultsSummary({
       // Check validation errors first
       if (validationResult && !validationResult.isValid) {
         setShareStatus("error");
-        alert(
+        toast.error(
           "Cannot share split with validation errors. Please fix the issues shown above before sharing."
         );
         setTimeout(() => setShareStatus("idle"), 2000);
@@ -114,7 +115,7 @@ export function ResultsSummary({
       // Validate that we have required data to share
       if (!cleanPhone) {
         setShareStatus("error");
-        alert(
+        toast.error(
           "Phone number is required to share splits with Venmo payment functionality."
         );
         setTimeout(() => setShareStatus("idle"), 2000);
@@ -129,7 +130,7 @@ export function ResultsSummary({
       );
       if (!validation.isValid) {
         setShareStatus("error");
-        alert(`Cannot share split: ${validation.errorMessages.join(", ")}`);
+        toast.error(`Cannot share split: ${validation.errorMessages.join(", ")}`);
         setTimeout(() => setShareStatus("idle"), 2000);
         return;
       }
@@ -155,7 +156,7 @@ export function ResultsSummary({
     } catch (error) {
       console.error("Error sharing split:", error);
       setShareStatus("error");
-      alert("Failed to copy share link. Please try again.");
+      toast.error("Failed to copy share link. Please try again.");
       setTimeout(() => setShareStatus("idle"), 2000);
     }
   };
