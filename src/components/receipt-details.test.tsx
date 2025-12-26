@@ -1,9 +1,8 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ReceiptDetails } from "./receipt-details";
-import { mockReceipt } from "@/test/test-utils";
+import { mockReceipt, setupGlobalMocks } from "@/test/test-utils";
 import { toast } from "sonner";
 
-// Mock sonner
 jest.mock("sonner", () => ({
   toast: {
     success: jest.fn(),
@@ -11,12 +10,16 @@ jest.mock("sonner", () => ({
   },
 }));
 
+beforeAll(() => {
+  setupGlobalMocks();
+});
+
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+
 describe("ReceiptDetails", () => {
   const mockOnReceiptUpdate = jest.fn();
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
 
   describe("Display Mode", () => {
     it("renders receipt name and formatted date", () => {
