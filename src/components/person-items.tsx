@@ -15,9 +15,10 @@ import { formatCurrency } from '@/lib/receipt-utils';
 
 interface PersonItemsProps {
   people: Person[];
+  currencyCode?: string;
 }
 
-export function PersonItems({ people }: PersonItemsProps) {
+export function PersonItems({ people, currencyCode }: PersonItemsProps) {
   const [expandedPerson, setExpandedPerson] = useState<string | null>(null);
   
   // Toggle the expanded/collapsed state
@@ -49,7 +50,7 @@ export function PersonItems({ people }: PersonItemsProps) {
               >
                 <div className="font-medium">{person.name}</div>
                 <div className="flex items-center gap-3">
-                  <span className="font-bold">{formatCurrency(person.finalTotal)}</span>
+                  <span className="font-bold">{formatCurrency(person.finalTotal, currencyCode)}</span>
                   <Button 
                     variant="ghost" 
                     size="sm" 
@@ -86,24 +87,24 @@ export function PersonItems({ people }: PersonItemsProps) {
                           <TableRow key={index}>
                             <TableCell>{item.itemName}</TableCell>
                             <TableCell className="text-right">{item.sharePercentage}%</TableCell>
-                            <TableCell className="text-right">{formatCurrency(item.amount)}</TableCell>
+                            <TableCell className="text-right">{formatCurrency(item.amount, currencyCode)}</TableCell>
                           </TableRow>
                         ))}
                         <TableRow>
                           <TableCell colSpan={2} className="font-medium">Subtotal</TableCell>
-                          <TableCell className="text-right">{formatCurrency(person.totalBeforeTax)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(person.totalBeforeTax, currencyCode)}</TableCell>
                         </TableRow>
                         <TableRow>
                           <TableCell colSpan={2} className="font-medium">Tax</TableCell>
-                          <TableCell className="text-right">{formatCurrency(person.tax)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(person.tax, currencyCode)}</TableCell>
                         </TableRow>
                         <TableRow>
                           <TableCell colSpan={2} className="font-medium">Tip</TableCell>
-                          <TableCell className="text-right">{formatCurrency(person.tip)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(person.tip, currencyCode)}</TableCell>
                         </TableRow>
                         <TableRow>
                           <TableCell colSpan={2} className="font-medium">Total</TableCell>
-                          <TableCell className="text-right font-bold">{formatCurrency(person.finalTotal)}</TableCell>
+                          <TableCell className="text-right font-bold">{formatCurrency(person.finalTotal, currencyCode)}</TableCell>
                         </TableRow>
                       </TableBody>
                     </Table>

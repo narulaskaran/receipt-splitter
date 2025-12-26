@@ -607,9 +607,10 @@ export default function Home() {
             people={state.people}
             receiptName={state.originalReceipt?.restaurant || null}
             receiptDate={state.originalReceipt?.date || null}
+            currencyCode={state.originalReceipt?.currency}
           />
 
-          <PersonItems people={state.people} />
+          <PersonItems people={state.people} currencyCode={state.originalReceipt?.currency} />
         </TabsContent>
       </Tabs>
 

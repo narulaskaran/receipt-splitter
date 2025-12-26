@@ -26,7 +26,7 @@ export const SUPPORTED_CURRENCIES: Record<string, CurrencyInfo> = {
     code: 'EUR',
     name: 'Euro',
     symbol: '€',
-    locale: 'en-EU',
+    locale: 'de-DE',
     minorUnits: 2,
   },
   GBP: {
