@@ -214,6 +214,61 @@ describe("GroupManager", () => {
       const createButton = buttons.find(b => b.textContent?.includes("Create Group"));
       expect(createButton).toBeDisabled();
     });
+
+    it("shows error when trying to create group with less than 2 members", () => {
+      render(
+        <GroupManager
+          people={mockPeople}
+          groups={[]}
+          onGroupCreate={jest.fn()}
+          onGroupUpdate={jest.fn()}
+          onGroupDelete={jest.fn()}
+          onGroupEmojiRegenerate={jest.fn()}
+        />
+      );
+      fireEvent.click(screen.getByRole("button", { name: /create group/i }));
+
+      const dialog = screen.getByRole("dialog");
+      const input = within(dialog).getByRole("textbox");
+      fireEvent.change(input, { target: { value: "Solo Group" } });
+
+      const checkboxes = within(dialog).getAllByRole("checkbox");
+      fireEvent.click(checkboxes[0]); // Only 1 member
+
+      const buttons = within(dialog).getAllByRole("button");
+      const createButton = buttons.find(b => b.textContent?.includes("Create Group"));
+      fireEvent.click(createButton!);
+
+      expect(toast.error).toHaveBeenCalledWith("Please select at least 2 members for a group");
+    });
+
+    it("disables create button when fewer than 2 members selected", () => {
+      render(
+        <GroupManager
+          people={mockPeople}
+          groups={[]}
+          onGroupCreate={jest.fn()}
+          onGroupUpdate={jest.fn()}
+          onGroupDelete={jest.fn()}
+          onGroupEmojiRegenerate={jest.fn()}
+        />
+      );
+      fireEvent.click(screen.getByRole("button", { name: /create group/i }));
+
+      const dialog = screen.getByRole("dialog");
+      const input = within(dialog).getByRole("textbox");
+      fireEvent.change(input, { target: { value: "Valid Name" } });
+
+      // Don't select any members
+      const buttons = within(dialog).getAllByRole("button");
+      const createButton = buttons.find(b => b.textContent?.includes("Create Group"));
+      expect(createButton).toBeDisabled();
+
+      // Select only 1 member
+      const checkboxes = within(dialog).getAllByRole("checkbox");
+      fireEvent.click(checkboxes[0]);
+      expect(createButton).toBeDisabled();
+    });
   });
 
   describe("Editing Groups", () => {
