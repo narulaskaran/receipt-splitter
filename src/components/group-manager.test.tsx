@@ -1,8 +1,9 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { GroupManager } from "./group-manager";
-import { type Person, type Group } from "@/types";
+import { type Group } from "@/types";
 import { toast } from "sonner";
+import { setupGlobalMocks } from "@/test/test-utils";
 
 // Mock sonner toast
 jest.mock("sonner", () => ({
@@ -12,8 +13,17 @@ jest.mock("sonner", () => ({
   },
 }));
 
+beforeAll(() => {
+  setupGlobalMocks();
+});
+
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+
 describe("GroupManager", () => {
-  const mockPeople: Person[] = [
+  // Extended mock people with Charlie for more comprehensive tests
+  const mockPeople = [
     {
       id: "1",
       name: "Alice",
@@ -56,10 +66,6 @@ describe("GroupManager", () => {
   const mockOnGroupUpdate = jest.fn();
   const mockOnGroupDelete = jest.fn();
   const mockOnGroupEmojiRegenerate = jest.fn();
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
 
   describe("Rendering", () => {
     it("renders nothing when there are no people", () => {
@@ -195,7 +201,7 @@ describe("GroupManager", () => {
       expect(toast.success).toHaveBeenCalledWith('Group "Friends" created!');
     });
 
-    it("shows error when group name is empty", async () => {
+    it("disables create button when group name is empty", async () => {
       const user = userEvent.setup();
       render(
         <GroupManager
@@ -223,7 +229,7 @@ describe("GroupManager", () => {
       expect(createButtonInDialog).toBeDisabled();
     });
 
-    it("shows error when fewer than 2 members are selected", async () => {
+    it("disables create button when fewer than 2 members are selected", async () => {
       const user = userEvent.setup();
       render(
         <GroupManager
@@ -325,11 +331,8 @@ describe("GroupManager", () => {
         />
       );
 
-      const editButtons = screen.getAllByRole("button");
-      const editButton = editButtons.find(
-        (btn) => btn.querySelector('svg.lucide-pencil')
-      );
-      await user.click(editButton!);
+      const editButton = screen.getByRole("button", { name: /edit couple/i });
+      await user.click(editButton);
 
       await waitFor(() => {
         expect(screen.getByText("Edit Group")).toBeInTheDocument();
@@ -349,11 +352,8 @@ describe("GroupManager", () => {
         />
       );
 
-      const editButtons = screen.getAllByRole("button");
-      const editButton = editButtons.find(
-        (btn) => btn.querySelector('svg.lucide-pencil')
-      );
-      await user.click(editButton!);
+      const editButton = screen.getByRole("button", { name: /edit couple/i });
+      await user.click(editButton);
 
       await waitFor(() => {
         const nameInput = screen.getByLabelText("Group Name");
@@ -374,11 +374,8 @@ describe("GroupManager", () => {
         />
       );
 
-      const editButtons = screen.getAllByRole("button");
-      const editButton = editButtons.find(
-        (btn) => btn.querySelector('svg.lucide-pencil')
-      );
-      await user.click(editButton!);
+      const editButton = screen.getByRole("button", { name: /edit couple/i });
+      await user.click(editButton);
 
       await waitFor(() => {
         expect(screen.getByText("Edit Group")).toBeInTheDocument();
@@ -415,11 +412,8 @@ describe("GroupManager", () => {
         />
       );
 
-      const editButtons = screen.getAllByRole("button");
-      const editButton = editButtons.find(
-        (btn) => btn.querySelector('svg.lucide-pencil')
-      );
-      await user.click(editButton!);
+      const editButton = screen.getByRole("button", { name: /edit couple/i });
+      await user.click(editButton);
 
       await waitFor(() => {
         expect(screen.getByText("Edit Group")).toBeInTheDocument();
@@ -449,11 +443,10 @@ describe("GroupManager", () => {
         />
       );
 
-      const allButtons = screen.getAllByRole("button");
-      const deleteButton = allButtons.find(
-        (btn) => btn.querySelector('svg.lucide-x')
-      );
-      await user.click(deleteButton!);
+      const deleteButton = screen.getByRole("button", {
+        name: /delete couple/i,
+      });
+      await user.click(deleteButton);
 
       expect(mockOnGroupDelete).toHaveBeenCalledWith("g1");
       expect(toast.success).toHaveBeenCalledWith('Group "Couple" deleted');
@@ -474,11 +467,10 @@ describe("GroupManager", () => {
         />
       );
 
-      const allButtons = screen.getAllByRole("button");
-      const emojiButton = allButtons.find(
-        (btn) => btn.querySelector('svg.lucide-refresh-cw')
-      );
-      await user.click(emojiButton!);
+      const emojiButton = screen.getByRole("button", {
+        name: /change emoji for couple/i,
+      });
+      await user.click(emojiButton);
 
       expect(mockOnGroupEmojiRegenerate).toHaveBeenCalledWith("g1");
     });
@@ -500,18 +492,18 @@ describe("GroupManager", () => {
 
       await user.click(screen.getByText("Create Group"));
 
-      // Get checkbox by role instead of label
-      const aliceLabel = screen.getByText("Alice");
-      const aliceCheckbox = aliceLabel.previousElementSibling as HTMLInputElement;
+      const aliceCheckbox = screen.getByLabelText("Alice");
 
       // Initially unchecked
-      expect(aliceCheckbox).toBeInTheDocument();
+      expect(aliceCheckbox).not.toBeChecked();
 
       // Click to check
       await user.click(aliceCheckbox);
+      expect(aliceCheckbox).toBeChecked();
 
       // Click again to uncheck
       await user.click(aliceCheckbox);
+      expect(aliceCheckbox).not.toBeChecked();
     });
   });
 
