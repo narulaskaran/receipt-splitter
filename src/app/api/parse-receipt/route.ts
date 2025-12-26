@@ -15,8 +15,9 @@ export async function POST(request: NextRequest) {
   try {
     // Validate API key exists
     if (!process.env.ANTHROPIC_API_KEY) {
+      console.error("ANTHROPIC_API_KEY environment variable is not set");
       return NextResponse.json(
-        { error: "Anthropic API key is not configured" },
+        { error: "Server configuration error: API key not found" },
         { status: 500 }
       );
     }
@@ -26,13 +27,36 @@ export async function POST(request: NextRequest) {
     const file = formData.get("file") as File | null;
 
     if (!file) {
-      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+      return NextResponse.json(
+        { error: "No file provided in the request" },
+        { status: 400 }
+      );
+    }
+
+    // Validate file size (limit to 20MB)
+    const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json(
+        {
+          error: `File size exceeds the maximum limit of ${MAX_FILE_SIZE / 1024 / 1024}MB`,
+        },
+        { status: 400 }
+      );
+    }
+
+    if (file.size === 0) {
+      return NextResponse.json(
+        { error: "Uploaded file is empty" },
+        { status: 400 }
+      );
     }
 
     // Convert file to base64
     const buffer = await file.arrayBuffer();
     const base64 = Buffer.from(buffer).toString("base64");
     const mimeType = file.type;
+
+    console.log(`Processing file: ${file.name}, type: ${mimeType}, size: ${file.size} bytes`);
 
     // Validate mime type
     const validMediaTypes: ValidMediaType[] = [
@@ -120,16 +144,52 @@ export async function POST(request: NextRequest) {
     });
 
     // Call Anthropic with the file
-    const message = await anthropic.messages.create({
-      model: "claude-3-5-haiku-20241022",
-      max_tokens: 4096,
-      messages: [
+    let message;
+    try {
+      message = await anthropic.messages.create({
+        model: "claude-3-5-haiku-20241022",
+        max_tokens: 4096,
+        messages: [
+          {
+            role: "user",
+            content,
+          },
+        ],
+      });
+    } catch (apiError: unknown) {
+      const errorMessage =
+        apiError instanceof Error ? apiError.message : "Unknown API error";
+      console.error("Anthropic API error:", errorMessage);
+
+      // Check for specific API errors
+      if (errorMessage.includes("rate_limit")) {
+        return NextResponse.json(
+          {
+            error:
+              "Rate limit exceeded. Please try again in a few moments.",
+          },
+          { status: 429 }
+        );
+      }
+
+      if (errorMessage.includes("invalid_request")) {
+        return NextResponse.json(
+          {
+            error:
+              "Invalid request format. Please ensure your file is a valid receipt image or PDF.",
+          },
+          { status: 400 }
+        );
+      }
+
+      return NextResponse.json(
         {
-          role: "user",
-          content,
+          error:
+            "Failed to communicate with AI service. Please try again later.",
         },
-      ],
-    });
+        { status: 503 }
+      );
+    }
 
     // Extract the JSON from the response and handle potential type issues
     let jsonText = "";
@@ -143,8 +203,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (!jsonText) {
+      console.error("No text content in Claude response");
       return NextResponse.json(
-        { error: "No text response received from Claude" },
+        { error: "No text response received from AI service" },
         { status: 500 }
       );
     }
@@ -152,18 +213,49 @@ export async function POST(request: NextRequest) {
     // Try to parse the JSON
     try {
       const parsedData = JSON.parse(jsonText);
+
+      // Validate that parsed data has expected structure
+      if (typeof parsedData !== "object" || parsedData === null) {
+        console.error("Parsed data is not a valid object");
+        return NextResponse.json(
+          { error: "Invalid receipt data format received" },
+          { status: 500 }
+        );
+      }
+
+      console.log("Successfully parsed receipt data");
       return NextResponse.json(parsedData);
-    } catch {
-      console.error("Failed to parse JSON from Claude response:", jsonText);
+    } catch (parseError) {
+      const errorMsg =
+        parseError instanceof Error ? parseError.message : "Unknown parse error";
+      console.error("Failed to parse JSON from Claude response:", errorMsg);
+      console.error("Response text:", jsonText.substring(0, 200)); // Log first 200 chars
       return NextResponse.json(
-        { error: "Failed to parse receipt data" },
+        {
+          error:
+            "The AI service returned an unexpected format. Please try with a clearer receipt image.",
+        },
         { status: 500 }
       );
     }
   } catch (error) {
-    console.error("Error processing receipt:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error occurred";
+    console.error("Error processing receipt:", errorMessage);
+
+    // Handle specific error types
+    if (error instanceof TypeError && errorMessage.includes("FormData")) {
+      return NextResponse.json(
+        { error: "Invalid request format. Please upload a valid file." },
+        { status: 400 }
+      );
+    }
+
     return NextResponse.json(
-      { error: "Failed to process receipt" },
+      {
+        error:
+          "An unexpected error occurred while processing your receipt. Please try again.",
+      },
       { status: 500 }
     );
   }
