@@ -59,6 +59,7 @@ export const mockReceipt: Receipt = {
   tax: 10,
   tip: 15,
   total: 125,
+  currency: "USD",
   items: [
     { name: "Burger", price: 50, quantity: 1 },
     { name: "Fries", price: 25, quantity: 2 },
