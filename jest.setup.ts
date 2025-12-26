@@ -1,14 +1,18 @@
 import "@testing-library/jest-dom";
 
-// Avoid opening windows during tests
-Object.defineProperty(window, "open", {
-  writable: true,
-  configurable: true,
-  value: jest.fn(() => null),
-});
+// Only setup window-related mocks if in jsdom environment
+if (typeof window !== "undefined") {
+  // Avoid opening windows during tests
+  Object.defineProperty(window, "open", {
+    writable: true,
+    configurable: true,
+    value: jest.fn(() => null),
+  });
+}
 
-// Stub navigator.share if not present
-if (!("share" in navigator)) {
+// Only setup navigator-related mocks if in jsdom environment
+if (typeof navigator !== "undefined" && !("share" in navigator)) {
+  // Stub navigator.share if not present
   Object.defineProperty(navigator, "share", {
     writable: true,
     configurable: true,
