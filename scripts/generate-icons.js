@@ -10,7 +10,7 @@ const sizes = [
 ];
 
 const publicDir = path.join(__dirname, '..', 'public');
-const iconSvg = path.join(publicDir, 'icon.svg');
+const sourceIcon = path.join(__dirname, '..', 'src', 'app', 'favicon.ico');
 
 async function generateIcons() {
   console.log('Generating PWA icons...');
@@ -21,7 +21,7 @@ async function generateIcons() {
     if (background) {
       // For maskable icons, add padding (safe zone)
       const paddedSize = Math.floor(size * 0.8);
-      await sharp(iconSvg)
+      await sharp(sourceIcon)
         .resize(paddedSize, paddedSize)
         .extend({
           top: Math.floor((size - paddedSize) / 2),
@@ -33,7 +33,7 @@ async function generateIcons() {
         .png()
         .toFile(outputPath);
     } else {
-      await sharp(iconSvg)
+      await sharp(sourceIcon)
         .resize(size, size)
         .png()
         .toFile(outputPath);
