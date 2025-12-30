@@ -144,30 +144,20 @@ export function getUnassignedItems(
 }
 
 /**
- * Enum for receipt validation error types
+ * Enum for amount validation error types
  */
-export enum ReceiptValidationErrorType {
-  NEGATIVE_SUBTOTAL = 'NEGATIVE_SUBTOTAL',
-  NEGATIVE_TAX = 'NEGATIVE_TAX',
-  NEGATIVE_TIP = 'NEGATIVE_TIP',
-  NEGATIVE_TOTAL = 'NEGATIVE_TOTAL',
+export enum AmountValidationError {
+  NEGATIVE_AMOUNT = 'NEGATIVE_AMOUNT',
   RECEIPT_TOTAL_MISMATCH = 'RECEIPT_TOTAL_MISMATCH',
-  NEGATIVE_ITEM_PRICE = 'NEGATIVE_ITEM_PRICE',
-  NEGATIVE_ITEM_QUANTITY = 'NEGATIVE_ITEM_QUANTITY',
   ITEMS_SUBTOTAL_MISMATCH = 'ITEMS_SUBTOTAL_MISMATCH',
   ITEM_SPLITS_MISMATCH = 'ITEM_SPLITS_MISMATCH',
-  NEGATIVE_PERSON_TOTAL = 'NEGATIVE_PERSON_TOTAL',
-  NEGATIVE_PERSON_TAX = 'NEGATIVE_PERSON_TAX',
-  NEGATIVE_PERSON_TIP = 'NEGATIVE_PERSON_TIP',
-  NEGATIVE_PERSON_FINAL_TOTAL = 'NEGATIVE_PERSON_FINAL_TOTAL',
-  NEGATIVE_PERSON_ITEM_AMOUNT = 'NEGATIVE_PERSON_ITEM_AMOUNT',
 }
 
 /**
  * Error information for receipt validation
  */
 export interface ReceiptValidationError {
-  type: ReceiptValidationErrorType;
+  type: AmountValidationError;
   message: string;
   itemId?: string;
   itemName?: string;
@@ -213,7 +203,7 @@ export function validateReceiptInvariants(
   // 1. Validate no negative amounts in receipt
   if (receipt.subtotal < 0) {
     errors.push({
-      type: ReceiptValidationErrorType.NEGATIVE_SUBTOTAL,
+      type: AmountValidationError.NEGATIVE_AMOUNT,
       message: 'Receipt subtotal cannot be negative',
       expected: 0,
       actual: receipt.subtotal,
@@ -222,7 +212,7 @@ export function validateReceiptInvariants(
 
   if (receipt.tax < 0) {
     errors.push({
-      type: ReceiptValidationErrorType.NEGATIVE_TAX,
+      type: AmountValidationError.NEGATIVE_AMOUNT,
       message: 'Receipt tax cannot be negative',
       expected: 0,
       actual: receipt.tax,
@@ -231,7 +221,7 @@ export function validateReceiptInvariants(
 
   if (receipt.tip !== null && receipt.tip < 0) {
     errors.push({
-      type: ReceiptValidationErrorType.NEGATIVE_TIP,
+      type: AmountValidationError.NEGATIVE_AMOUNT,
       message: 'Receipt tip cannot be negative',
       expected: 0,
       actual: receipt.tip,
@@ -240,7 +230,7 @@ export function validateReceiptInvariants(
 
   if (receipt.total < 0) {
     errors.push({
-      type: ReceiptValidationErrorType.NEGATIVE_TOTAL,
+      type: AmountValidationError.NEGATIVE_AMOUNT,
       message: 'Receipt total cannot be negative',
       expected: 0,
       actual: receipt.total,
@@ -260,7 +250,7 @@ export function validateReceiptInvariants(
 
   if (totalDifference.toDecimalPlaces(2).toNumber() > tolerance.toDecimalPlaces(2).toNumber()) {
     errors.push({
-      type: ReceiptValidationErrorType.RECEIPT_TOTAL_MISMATCH,
+      type: AmountValidationError.RECEIPT_TOTAL_MISMATCH,
       message: 'Receipt total does not equal subtotal + tax + tip',
       expected: expectedTotal.toNumber(),
       actual: actualTotal.toNumber(),
@@ -273,7 +263,7 @@ export function validateReceiptInvariants(
   receipt.items.forEach((item, index) => {
     if (item.price < 0) {
       errors.push({
-        type: ReceiptValidationErrorType.NEGATIVE_ITEM_PRICE,
+        type: AmountValidationError.NEGATIVE_AMOUNT,
         message: `Item "${item.name}" has negative price`,
         itemId: String(index),
         itemName: item.name,
@@ -284,7 +274,7 @@ export function validateReceiptInvariants(
 
     if (item.quantity < 0) {
       errors.push({
-        type: ReceiptValidationErrorType.NEGATIVE_ITEM_QUANTITY,
+        type: AmountValidationError.NEGATIVE_AMOUNT,
         message: `Item "${item.name}" has negative quantity`,
         itemId: String(index),
         itemName: item.name,
@@ -317,7 +307,7 @@ export function validateReceiptInvariants(
 
     if (roundedDifference > roundedTolerance) {
       errors.push({
-        type: ReceiptValidationErrorType.ITEMS_SUBTOTAL_MISMATCH,
+        type: AmountValidationError.ITEMS_SUBTOTAL_MISMATCH,
         message: 'Sum of item prices does not match subtotal',
         expected: subtotal.toNumber(),
         actual: itemsTotal.toNumber(),
@@ -362,7 +352,7 @@ export function validateReceiptInvariants(
 
     if (roundedDifference > roundedTolerance) {
       errors.push({
-        type: ReceiptValidationErrorType.ITEM_SPLITS_MISMATCH,
+        type: AmountValidationError.ITEM_SPLITS_MISMATCH,
         message: `Sum of splits for item "${item.name}" does not match item price`,
         itemId: String(itemIndex),
         itemName: item.name,
@@ -378,7 +368,7 @@ export function validateReceiptInvariants(
   people.forEach((person) => {
     if (person.totalBeforeTax < 0) {
       errors.push({
-        type: ReceiptValidationErrorType.NEGATIVE_PERSON_TOTAL,
+        type: AmountValidationError.NEGATIVE_AMOUNT,
         message: `Person "${person.name}" has negative total before tax`,
         expected: 0,
         actual: person.totalBeforeTax,
@@ -387,7 +377,7 @@ export function validateReceiptInvariants(
 
     if (person.tax < 0) {
       errors.push({
-        type: ReceiptValidationErrorType.NEGATIVE_PERSON_TAX,
+        type: AmountValidationError.NEGATIVE_AMOUNT,
         message: `Person "${person.name}" has negative tax`,
         expected: 0,
         actual: person.tax,
@@ -396,7 +386,7 @@ export function validateReceiptInvariants(
 
     if (person.tip < 0) {
       errors.push({
-        type: ReceiptValidationErrorType.NEGATIVE_PERSON_TIP,
+        type: AmountValidationError.NEGATIVE_AMOUNT,
         message: `Person "${person.name}" has negative tip`,
         expected: 0,
         actual: person.tip,
@@ -405,7 +395,7 @@ export function validateReceiptInvariants(
 
     if (person.finalTotal < 0) {
       errors.push({
-        type: ReceiptValidationErrorType.NEGATIVE_PERSON_FINAL_TOTAL,
+        type: AmountValidationError.NEGATIVE_AMOUNT,
         message: `Person "${person.name}" has negative final total`,
         expected: 0,
         actual: person.finalTotal,
@@ -415,7 +405,7 @@ export function validateReceiptInvariants(
     person.items.forEach((item) => {
       if (item.amount < 0) {
         errors.push({
-          type: ReceiptValidationErrorType.NEGATIVE_PERSON_ITEM_AMOUNT,
+          type: AmountValidationError.NEGATIVE_AMOUNT,
           message: `Person "${person.name}" has negative amount for item "${item.itemName}"`,
           itemId: String(item.itemId),
           itemName: item.itemName,

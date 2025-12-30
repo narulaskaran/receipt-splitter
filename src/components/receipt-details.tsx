@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { type Receipt } from "@/types";
-import { formatCurrency, validateReceiptInvariants, ReceiptValidationErrorType } from "@/lib/receipt-utils";
+import { formatCurrency, validateReceiptInvariants, AmountValidationError } from "@/lib/receipt-utils";
 
 interface ReceiptDetailsProps {
   receipt: Receipt;
@@ -69,7 +69,7 @@ export function ReceiptDetails({
 
     // Check specifically for total mismatch errors
     const totalMismatchError = validation.errors.find(
-      err => err.type === ReceiptValidationErrorType.RECEIPT_TOTAL_MISMATCH
+      err => err.type === AmountValidationError.RECEIPT_TOTAL_MISMATCH
     );
 
     if (totalMismatchError) {

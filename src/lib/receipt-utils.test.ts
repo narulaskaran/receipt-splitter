@@ -4,7 +4,7 @@ import {
   formatCurrency,
   getUnassignedItems,
   validateReceiptInvariants,
-  ReceiptValidationErrorType,
+  AmountValidationError,
 } from "./receipt-utils";
 import { mockPeople, mockReceipt, mockAssignedItems } from "@/test/test-utils";
 import { type PersonItemAssignment, type Receipt, type Person } from "@/types";
@@ -285,7 +285,7 @@ describe("validateReceiptInvariants", () => {
       expect(result.isValid).toBe(false);
       expect(result.errors).toContainEqual(
         expect.objectContaining({
-          type: ReceiptValidationErrorType.NEGATIVE_SUBTOTAL,
+          type: AmountValidationError.NEGATIVE_AMOUNT,
           message: 'Receipt subtotal cannot be negative',
         })
       );
@@ -300,7 +300,7 @@ describe("validateReceiptInvariants", () => {
       expect(result.isValid).toBe(false);
       expect(result.errors).toContainEqual(
         expect.objectContaining({
-          type: ReceiptValidationErrorType.NEGATIVE_TAX,
+          type: AmountValidationError.NEGATIVE_AMOUNT,
           message: 'Receipt tax cannot be negative',
         })
       );
@@ -315,7 +315,7 @@ describe("validateReceiptInvariants", () => {
       expect(result.isValid).toBe(false);
       expect(result.errors).toContainEqual(
         expect.objectContaining({
-          type: ReceiptValidationErrorType.NEGATIVE_TIP,
+          type: AmountValidationError.NEGATIVE_AMOUNT,
           message: 'Receipt tip cannot be negative',
         })
       );
@@ -330,7 +330,7 @@ describe("validateReceiptInvariants", () => {
       expect(result.isValid).toBe(false);
       expect(result.errors).toContainEqual(
         expect.objectContaining({
-          type: ReceiptValidationErrorType.NEGATIVE_TOTAL,
+          type: AmountValidationError.NEGATIVE_AMOUNT,
           message: 'Receipt total cannot be negative',
         })
       );
@@ -347,7 +347,7 @@ describe("validateReceiptInvariants", () => {
       expect(result.isValid).toBe(false);
       expect(result.errors).toContainEqual(
         expect.objectContaining({
-          type: ReceiptValidationErrorType.NEGATIVE_ITEM_PRICE,
+          type: AmountValidationError.NEGATIVE_AMOUNT,
           message: 'Item "Bad Item" has negative price',
           itemName: 'Bad Item',
         })
@@ -363,7 +363,7 @@ describe("validateReceiptInvariants", () => {
       expect(result.isValid).toBe(false);
       expect(result.errors).toContainEqual(
         expect.objectContaining({
-          type: ReceiptValidationErrorType.NEGATIVE_ITEM_QUANTITY,
+          type: AmountValidationError.NEGATIVE_AMOUNT,
           message: 'Item "Bad Quantity" has negative quantity',
           itemName: 'Bad Quantity',
         })
@@ -389,7 +389,7 @@ describe("validateReceiptInvariants", () => {
       expect(result.isValid).toBe(false);
       expect(result.errors).toContainEqual(
         expect.objectContaining({
-          type: ReceiptValidationErrorType.ITEMS_SUBTOTAL_MISMATCH,
+          type: AmountValidationError.ITEMS_SUBTOTAL_MISMATCH,
           message: 'Sum of item prices does not match subtotal',
           expected: 100.00,
           actual: 50.00,
@@ -442,7 +442,7 @@ describe("validateReceiptInvariants", () => {
       expect(result.isValid).toBe(false);
       expect(result.errors).toContainEqual(
         expect.objectContaining({
-          type: ReceiptValidationErrorType.ITEM_SPLITS_MISMATCH,
+          type: AmountValidationError.ITEM_SPLITS_MISMATCH,
           message: 'Sum of splits for item "Shared Item" does not match item price',
           itemName: 'Shared Item',
         })
@@ -491,7 +491,7 @@ describe("validateReceiptInvariants", () => {
       // Should not fail on splits mismatch for unassigned items
       expect(result.errors).not.toContainEqual(
         expect.objectContaining({
-          type: ReceiptValidationErrorType.ITEM_SPLITS_MISMATCH,
+          type: AmountValidationError.ITEM_SPLITS_MISMATCH,
         })
       );
     });
@@ -512,7 +512,7 @@ describe("validateReceiptInvariants", () => {
       expect(result.isValid).toBe(false);
       expect(result.errors).toContainEqual(
         expect.objectContaining({
-          type: ReceiptValidationErrorType.NEGATIVE_PERSON_TOTAL,
+          type: AmountValidationError.NEGATIVE_AMOUNT,
           message: 'Person "Test Person" has negative total before tax',
         })
       );
@@ -532,7 +532,7 @@ describe("validateReceiptInvariants", () => {
       expect(result.isValid).toBe(false);
       expect(result.errors).toContainEqual(
         expect.objectContaining({
-          type: ReceiptValidationErrorType.NEGATIVE_PERSON_TAX,
+          type: AmountValidationError.NEGATIVE_AMOUNT,
           message: 'Person "Test Person" has negative tax',
         })
       );
@@ -552,7 +552,7 @@ describe("validateReceiptInvariants", () => {
       expect(result.isValid).toBe(false);
       expect(result.errors).toContainEqual(
         expect.objectContaining({
-          type: ReceiptValidationErrorType.NEGATIVE_PERSON_TIP,
+          type: AmountValidationError.NEGATIVE_AMOUNT,
           message: 'Person "Test Person" has negative tip',
         })
       );
@@ -572,7 +572,7 @@ describe("validateReceiptInvariants", () => {
       expect(result.isValid).toBe(false);
       expect(result.errors).toContainEqual(
         expect.objectContaining({
-          type: ReceiptValidationErrorType.NEGATIVE_PERSON_FINAL_TOTAL,
+          type: AmountValidationError.NEGATIVE_AMOUNT,
           message: 'Person "Test Person" has negative final total',
         })
       );
@@ -601,7 +601,7 @@ describe("validateReceiptInvariants", () => {
       expect(result.isValid).toBe(false);
       expect(result.errors).toContainEqual(
         expect.objectContaining({
-          type: ReceiptValidationErrorType.NEGATIVE_PERSON_ITEM_AMOUNT,
+          type: AmountValidationError.NEGATIVE_AMOUNT,
           message: 'Person "Test Person" has negative amount for item "Bad Item"',
           itemName: 'Bad Item',
         })
@@ -625,12 +625,7 @@ describe("validateReceiptInvariants", () => {
       const result = validateReceiptInvariants(receipt, new Map(), []);
       expect(result.isValid).toBe(false);
       expect(result.errors.length).toBeGreaterThanOrEqual(6);
-      expect(result.errors).toContainEqual(expect.objectContaining({ type: ReceiptValidationErrorType.NEGATIVE_SUBTOTAL }));
-      expect(result.errors).toContainEqual(expect.objectContaining({ type: ReceiptValidationErrorType.NEGATIVE_TAX }));
-      expect(result.errors).toContainEqual(expect.objectContaining({ type: ReceiptValidationErrorType.NEGATIVE_TIP }));
-      expect(result.errors).toContainEqual(expect.objectContaining({ type: ReceiptValidationErrorType.NEGATIVE_TOTAL }));
-      expect(result.errors).toContainEqual(expect.objectContaining({ type: ReceiptValidationErrorType.NEGATIVE_ITEM_PRICE }));
-      expect(result.errors).toContainEqual(expect.objectContaining({ type: ReceiptValidationErrorType.NEGATIVE_ITEM_QUANTITY }));
+      expect(result.errors).toContainEqual(expect.objectContaining({ type: AmountValidationError.NEGATIVE_AMOUNT }));
     });
   });
 
@@ -649,7 +644,7 @@ describe("validateReceiptInvariants", () => {
       expect(result.isValid).toBe(false);
       expect(result.errors).toContainEqual(
         expect.objectContaining({
-          type: ReceiptValidationErrorType.RECEIPT_TOTAL_MISMATCH,
+          type: AmountValidationError.RECEIPT_TOTAL_MISMATCH,
           expected: 125,
           actual: 200,
         })
