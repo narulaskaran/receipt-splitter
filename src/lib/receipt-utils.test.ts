@@ -632,4 +632,55 @@ describe("validateReceiptInvariants", () => {
       expect(result.errors).toContainEqual(expect.objectContaining({ type: 'NEGATIVE_ITEM_QUANTITY' }));
     });
   });
+
+  describe("receipt total validation", () => {
+    it("detects when total does not equal subtotal + tax + tip", () => {
+      const receipt: Receipt = {
+        restaurant: "Test",
+        date: "2024-01-01",
+        subtotal: 100,
+        tax: 10,
+        tip: 15,
+        total: 200,  // Should be 125
+        items: [],
+      };
+      const result = validateReceiptInvariants(receipt, new Map(), []);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          type: 'RECEIPT_TOTAL_MISMATCH',
+          expected: 125,
+          actual: 200,
+        })
+      );
+    });
+
+    it("allows total that equals subtotal + tax + tip", () => {
+      const receipt: Receipt = {
+        restaurant: "Test",
+        date: "2024-01-01",
+        subtotal: 100,
+        tax: 10,
+        tip: 15,
+        total: 125,  // Correct
+        items: [],
+      };
+      const result = validateReceiptInvariants(receipt, new Map(), []);
+      expect(result.isValid).toBe(true);
+    });
+
+    it("allows small rounding differences in total within tolerance", () => {
+      const receipt: Receipt = {
+        restaurant: "Test",
+        date: "2024-01-01",
+        subtotal: 10.00,
+        tax: 1.50,
+        tip: 2.25,
+        total: 13.75,  // Correct sum
+        items: [],
+      };
+      const result = validateReceiptInvariants(receipt, new Map(), []);
+      expect(result.isValid).toBe(true);
+    });
+  });
 });

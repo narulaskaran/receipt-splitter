@@ -1,5 +1,6 @@
 import { Edit, Calculator } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import Decimal from "decimal.js";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { type Receipt } from "@/types";
-import { formatCurrency } from "@/lib/receipt-utils";
+import { formatCurrency, validateReceiptInvariants } from "@/lib/receipt-utils";
 
 interface ReceiptDetailsProps {
   receipt: Receipt;
@@ -33,6 +34,23 @@ export function ReceiptDetails({
     setIsEditing(true);
   };
 
+  // Auto-calculate total whenever subtotal, tax, or tip changes
+  useEffect(() => {
+    const subtotal = new Decimal(editedReceipt.subtotal || 0);
+    const tax = new Decimal(editedReceipt.tax || 0);
+    const tip = new Decimal(editedReceipt.tip || 0);
+
+    const calculatedTotal = subtotal.add(tax).add(tip).toNumber();
+
+    // Only update if different to avoid infinite loops
+    if (calculatedTotal !== editedReceipt.total) {
+      setEditedReceipt((prev) => ({
+        ...prev,
+        total: calculatedTotal,
+      }));
+    }
+  }, [editedReceipt.subtotal, editedReceipt.tax, editedReceipt.tip]);
+
   // Handles the save operation
   const handleSave = () => {
     // Validate the numbers
@@ -46,18 +64,23 @@ export function ReceiptDetails({
       return;
     }
 
-    // Calculate missing fields if needed
-    const updatedReceipt = { ...editedReceipt };
+    // Validate receipt invariants (including total balance)
+    const validation = validateReceiptInvariants(editedReceipt, new Map(), []);
 
-    // If tip is null, calculate it
-    if (updatedReceipt.tip === null) {
-      updatedReceipt.tip = Math.max(
-        0,
-        updatedReceipt.total - updatedReceipt.subtotal - updatedReceipt.tax
+    // Check specifically for total mismatch errors
+    const totalMismatchError = validation.errors.find(
+      err => err.type === 'RECEIPT_TOTAL_MISMATCH'
+    );
+
+    if (totalMismatchError) {
+      toast.error(
+        `Total ($${editedReceipt.total.toFixed(2)}) doesn't match ` +
+        `subtotal + tax + tip ($${totalMismatchError.expected?.toFixed(2)})`
       );
+      return;
     }
 
-    onReceiptUpdate(updatedReceipt);
+    onReceiptUpdate(editedReceipt);
     setIsEditing(false);
     toast.success("Receipt details updated");
   };
@@ -199,7 +222,7 @@ export function ReceiptDetails({
                   onChange={(e) => {
                     const value =
                       e.target.value.trim() === ""
-                        ? null
+                        ? 0
                         : parseFloat(e.target.value) || 0;
 
                     setEditedReceipt({
@@ -207,24 +230,20 @@ export function ReceiptDetails({
                       tip: value,
                     });
                   }}
-                  placeholder="Calculate from total"
+                  placeholder="Leave empty for $0 tip"
                 />
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="total">Total</Label>
+                <Label htmlFor="total">Total (Auto-calculated)</Label>
                 <Input
                   id="total"
                   type="number"
-                  min="0"
                   step="0.01"
                   value={editedReceipt.total}
-                  onChange={(e) =>
-                    setEditedReceipt({
-                      ...editedReceipt,
-                      total: parseFloat(e.target.value) || 0,
-                    })
-                  }
+                  readOnly
+                  disabled
+                  className="bg-muted cursor-not-allowed"
                 />
               </div>
             </div>

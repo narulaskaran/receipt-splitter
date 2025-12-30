@@ -227,7 +227,29 @@ export function validateReceiptInvariants(
     });
   }
 
-  // 2. Validate no negative amounts in items
+  // 2. Validate that total equals subtotal + tax + tip
+  const subtotalDecimal = new Decimal(receipt.subtotal || 0);
+  const taxDecimal = new Decimal(receipt.tax || 0);
+  const tipDecimal = new Decimal(receipt.tip || 0);
+  const expectedTotal = subtotalDecimal.add(taxDecimal).add(tipDecimal);
+  const actualTotal = new Decimal(receipt.total);
+  const totalDifference = expectedTotal.sub(actualTotal).abs();
+
+  // Use same tolerance as other validations (1 cent)
+  const tolerance = new Decimal(VALIDATION_LIMITS.SPLIT_AMOUNT_DEVIATION_PER_PERSON);
+
+  if (totalDifference.toDecimalPlaces(2).toNumber() > tolerance.toDecimalPlaces(2).toNumber()) {
+    errors.push({
+      type: 'RECEIPT_TOTAL_MISMATCH',
+      message: 'Receipt total does not equal subtotal + tax + tip',
+      expected: expectedTotal.toNumber(),
+      actual: actualTotal.toNumber(),
+      diff: totalDifference.toNumber(),
+      tolerance: VALIDATION_LIMITS.SPLIT_AMOUNT_DEVIATION_PER_PERSON,
+    });
+  }
+
+  // 3. Validate no negative amounts in items
   receipt.items.forEach((item, index) => {
     if (item.price < 0) {
       errors.push({
