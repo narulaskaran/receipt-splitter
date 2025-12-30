@@ -3,9 +3,10 @@ import {
   validateItemAssignments,
   formatCurrency,
   getUnassignedItems,
+  validateReceiptInvariants,
 } from "./receipt-utils";
 import { mockPeople, mockReceipt, mockAssignedItems } from "@/test/test-utils";
-import { type PersonItemAssignment } from "@/types";
+import { type PersonItemAssignment, type Receipt, type Person } from "@/types";
 import { formatAmount } from "./utils";
 
 describe("receipt-utils", () => {
@@ -206,5 +207,480 @@ describe("$0 item handling", () => {
     ]);
 
     expect(validateItemAssignments(receiptWithZeroItem, incompleteAssignments)).toBe(false);
+  });
+});
+
+describe("validateReceiptInvariants", () => {
+  describe("valid receipts", () => {
+    it("returns valid for null receipt", () => {
+      const result = validateReceiptInvariants(null, new Map(), []);
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("returns valid for properly structured receipt with valid splits", () => {
+      const people = calculatePersonTotals(mockReceipt, mockPeople, mockAssignedItems);
+      const result = validateReceiptInvariants(mockReceipt, mockAssignedItems, people);
+      expect(result.isValid).toBe(true);
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it("returns valid for receipt with items that sum to subtotal within tolerance", () => {
+      const receipt: Receipt = {
+        restaurant: "Test Restaurant",
+        date: "2024-01-01",
+        subtotal: 10.00,
+        tax: 1.00,
+        tip: 2.00,
+        total: 13.00,
+        items: [
+          { name: "Item 1", price: 3.33, quantity: 1 },
+          { name: "Item 2", price: 3.33, quantity: 1 },
+          { name: "Item 3", price: 3.34, quantity: 1 },
+        ],
+      };
+      const assignments = new Map<number, PersonItemAssignment[]>([
+        [0, [{ personId: "a", sharePercentage: 100 }]],
+        [1, [{ personId: "b", sharePercentage: 100 }]],
+        [2, [{ personId: "a", sharePercentage: 100 }]],
+      ]);
+      const people = calculatePersonTotals(receipt, mockPeople, assignments);
+      const result = validateReceiptInvariants(receipt, assignments, people);
+      expect(result.isValid).toBe(true);
+    });
+
+    it("returns valid for items with splits that sum to item price within tolerance", () => {
+      const receipt: Receipt = {
+        restaurant: "Test Restaurant",
+        date: "2024-01-01",
+        subtotal: 10.00,
+        tax: 1.00,
+        tip: 2.00,
+        total: 13.00,
+        items: [
+          { name: "Shared Item", price: 10.00, quantity: 1 },
+        ],
+      };
+      const assignments = new Map<number, PersonItemAssignment[]>([
+        [0, [
+          { personId: "a", sharePercentage: 33.33 },
+          { personId: "b", sharePercentage: 33.33 },
+          { personId: "c", sharePercentage: 33.34 },
+        ]],
+      ]);
+      const people = calculatePersonTotals(receipt, mockPeople, assignments);
+      const result = validateReceiptInvariants(receipt, assignments, people);
+      expect(result.isValid).toBe(true);
+    });
+  });
+
+  describe("negative amounts in receipt", () => {
+    it("detects negative subtotal", () => {
+      const receipt: Receipt = {
+        ...mockReceipt,
+        subtotal: -10,
+      };
+      const result = validateReceiptInvariants(receipt, new Map(), []);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          type: 'NEGATIVE_SUBTOTAL',
+          message: 'Receipt subtotal cannot be negative',
+        })
+      );
+    });
+
+    it("detects negative tax", () => {
+      const receipt: Receipt = {
+        ...mockReceipt,
+        tax: -5,
+      };
+      const result = validateReceiptInvariants(receipt, new Map(), []);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          type: 'NEGATIVE_TAX',
+          message: 'Receipt tax cannot be negative',
+        })
+      );
+    });
+
+    it("detects negative tip", () => {
+      const receipt: Receipt = {
+        ...mockReceipt,
+        tip: -2,
+      };
+      const result = validateReceiptInvariants(receipt, new Map(), []);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          type: 'NEGATIVE_TIP',
+          message: 'Receipt tip cannot be negative',
+        })
+      );
+    });
+
+    it("detects negative total", () => {
+      const receipt: Receipt = {
+        ...mockReceipt,
+        total: -100,
+      };
+      const result = validateReceiptInvariants(receipt, new Map(), []);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          type: 'NEGATIVE_TOTAL',
+          message: 'Receipt total cannot be negative',
+        })
+      );
+    });
+  });
+
+  describe("negative amounts in items", () => {
+    it("detects negative item price", () => {
+      const receipt: Receipt = {
+        ...mockReceipt,
+        items: [{ name: "Bad Item", price: -10, quantity: 1 }],
+      };
+      const result = validateReceiptInvariants(receipt, new Map(), []);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          type: 'NEGATIVE_ITEM_PRICE',
+          message: 'Item "Bad Item" has negative price',
+          itemName: 'Bad Item',
+        })
+      );
+    });
+
+    it("detects negative item quantity", () => {
+      const receipt: Receipt = {
+        ...mockReceipt,
+        items: [{ name: "Bad Quantity", price: 10, quantity: -2 }],
+      };
+      const result = validateReceiptInvariants(receipt, new Map(), []);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          type: 'NEGATIVE_ITEM_QUANTITY',
+          message: 'Item "Bad Quantity" has negative quantity',
+          itemName: 'Bad Quantity',
+        })
+      );
+    });
+  });
+
+  describe("items sum validation", () => {
+    it("detects when items do not sum to subtotal", () => {
+      const receipt: Receipt = {
+        restaurant: "Test Restaurant",
+        date: "2024-01-01",
+        subtotal: 100.00, // Items sum to 50, but subtotal says 100
+        tax: 10.00,
+        tip: 15.00,
+        total: 125.00,
+        items: [
+          { name: "Item 1", price: 25, quantity: 1 },
+          { name: "Item 2", price: 25, quantity: 1 },
+        ],
+      };
+      const result = validateReceiptInvariants(receipt, new Map(), []);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          type: 'ITEMS_SUBTOTAL_MISMATCH',
+          message: 'Sum of item prices does not match subtotal',
+          expected: 100.00,
+          actual: 50.00,
+        })
+      );
+    });
+
+    it("allows small rounding differences within tolerance", () => {
+      const receipt: Receipt = {
+        restaurant: "Test Restaurant",
+        date: "2024-01-01",
+        subtotal: 10.00,
+        tax: 1.00,
+        tip: 2.00,
+        total: 13.00,
+        items: [
+          { name: "Item 1", price: 3.33, quantity: 1 },
+          { name: "Item 2", price: 3.34, quantity: 1 },
+          { name: "Item 3", price: 3.33, quantity: 1 },
+        ],
+      };
+      // Items sum to 10.00, subtotal is 10.00 - should be valid
+      const result = validateReceiptInvariants(receipt, new Map(), []);
+      expect(result.isValid).toBe(true);
+    });
+  });
+
+  describe("item splits validation", () => {
+    it("detects when splits do not sum to item price", () => {
+      const receipt: Receipt = {
+        restaurant: "Test Restaurant",
+        date: "2024-01-01",
+        subtotal: 100.00,
+        tax: 10.00,
+        tip: 15.00,
+        total: 125.00,
+        items: [
+          { name: "Shared Item", price: 100, quantity: 1 },
+        ],
+      };
+      // Assignments only add up to 90%, not 100%
+      const assignments = new Map<number, PersonItemAssignment[]>([
+        [0, [
+          { personId: "a", sharePercentage: 45 },
+          { personId: "b", sharePercentage: 45 },
+        ]],
+      ]);
+      const people = calculatePersonTotals(receipt, mockPeople, assignments);
+      const result = validateReceiptInvariants(receipt, assignments, people);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          type: 'ITEM_SPLITS_MISMATCH',
+          message: 'Sum of splits for item "Shared Item" does not match item price',
+          itemName: 'Shared Item',
+        })
+      );
+    });
+
+    it("allows small rounding differences in splits within tolerance", () => {
+      const receipt: Receipt = {
+        restaurant: "Test Restaurant",
+        date: "2024-01-01",
+        subtotal: 10.00,
+        tax: 1.00,
+        tip: 2.00,
+        total: 13.00,
+        items: [
+          { name: "Shared Item", price: 10.00, quantity: 1 },
+        ],
+      };
+      // 33.33 + 33.33 + 33.34 = 100%, should be within tolerance
+      const assignments = new Map<number, PersonItemAssignment[]>([
+        [0, [
+          { personId: "a", sharePercentage: 33.33 },
+          { personId: "b", sharePercentage: 33.33 },
+          { personId: "c", sharePercentage: 33.34 },
+        ]],
+      ]);
+      const people = calculatePersonTotals(receipt, mockPeople, assignments);
+      const result = validateReceiptInvariants(receipt, assignments, people);
+      expect(result.isValid).toBe(true);
+    });
+
+    it("skips validation for unassigned items", () => {
+      const receipt: Receipt = {
+        restaurant: "Test Restaurant",
+        date: "2024-01-01",
+        subtotal: 100.00,
+        tax: 10.00,
+        tip: 15.00,
+        total: 125.00,
+        items: [
+          { name: "Unassigned Item", price: 100, quantity: 1 },
+        ],
+      };
+      const assignments = new Map<number, PersonItemAssignment[]>();
+      const result = validateReceiptInvariants(receipt, assignments, []);
+      // Should not fail on splits mismatch for unassigned items
+      expect(result.errors).not.toContainEqual(
+        expect.objectContaining({
+          type: 'ITEM_SPLITS_MISMATCH',
+        })
+      );
+    });
+  });
+
+  describe("negative amounts in person data", () => {
+    it("detects negative person totalBeforeTax", () => {
+      const person: Person = {
+        id: "test",
+        name: "Test Person",
+        items: [],
+        totalBeforeTax: -10,
+        tax: 0,
+        tip: 0,
+        finalTotal: 0,
+      };
+      const result = validateReceiptInvariants(mockReceipt, new Map(), [person]);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          type: 'NEGATIVE_PERSON_TOTAL',
+          message: 'Person "Test Person" has negative total before tax',
+        })
+      );
+    });
+
+    it("detects negative person tax", () => {
+      const person: Person = {
+        id: "test",
+        name: "Test Person",
+        items: [],
+        totalBeforeTax: 10,
+        tax: -1,
+        tip: 0,
+        finalTotal: 9,
+      };
+      const result = validateReceiptInvariants(mockReceipt, new Map(), [person]);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          type: 'NEGATIVE_PERSON_TAX',
+          message: 'Person "Test Person" has negative tax',
+        })
+      );
+    });
+
+    it("detects negative person tip", () => {
+      const person: Person = {
+        id: "test",
+        name: "Test Person",
+        items: [],
+        totalBeforeTax: 10,
+        tax: 1,
+        tip: -2,
+        finalTotal: 9,
+      };
+      const result = validateReceiptInvariants(mockReceipt, new Map(), [person]);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          type: 'NEGATIVE_PERSON_TIP',
+          message: 'Person "Test Person" has negative tip',
+        })
+      );
+    });
+
+    it("detects negative person finalTotal", () => {
+      const person: Person = {
+        id: "test",
+        name: "Test Person",
+        items: [],
+        totalBeforeTax: 0,
+        tax: 0,
+        tip: 0,
+        finalTotal: -10,
+      };
+      const result = validateReceiptInvariants(mockReceipt, new Map(), [person]);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          type: 'NEGATIVE_PERSON_FINAL_TOTAL',
+          message: 'Person "Test Person" has negative final total',
+        })
+      );
+    });
+
+    it("detects negative person item amount", () => {
+      const person: Person = {
+        id: "test",
+        name: "Test Person",
+        items: [
+          {
+            itemId: 0,
+            itemName: "Bad Item",
+            originalPrice: 10,
+            quantity: 1,
+            sharePercentage: 100,
+            amount: -10,
+          },
+        ],
+        totalBeforeTax: 0,
+        tax: 0,
+        tip: 0,
+        finalTotal: 0,
+      };
+      const result = validateReceiptInvariants(mockReceipt, new Map(), [person]);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          type: 'NEGATIVE_PERSON_ITEM_AMOUNT',
+          message: 'Person "Test Person" has negative amount for item "Bad Item"',
+          itemName: 'Bad Item',
+        })
+      );
+    });
+  });
+
+  describe("multiple errors", () => {
+    it("reports all validation errors found", () => {
+      const receipt: Receipt = {
+        restaurant: "Test Restaurant",
+        date: "2024-01-01",
+        subtotal: -10, // Negative
+        tax: -1, // Negative
+        tip: -2, // Negative
+        total: -13, // Negative
+        items: [
+          { name: "Bad Item", price: -5, quantity: -1 }, // Both negative
+        ],
+      };
+      const result = validateReceiptInvariants(receipt, new Map(), []);
+      expect(result.isValid).toBe(false);
+      expect(result.errors.length).toBeGreaterThanOrEqual(6);
+      expect(result.errors).toContainEqual(expect.objectContaining({ type: 'NEGATIVE_SUBTOTAL' }));
+      expect(result.errors).toContainEqual(expect.objectContaining({ type: 'NEGATIVE_TAX' }));
+      expect(result.errors).toContainEqual(expect.objectContaining({ type: 'NEGATIVE_TIP' }));
+      expect(result.errors).toContainEqual(expect.objectContaining({ type: 'NEGATIVE_TOTAL' }));
+      expect(result.errors).toContainEqual(expect.objectContaining({ type: 'NEGATIVE_ITEM_PRICE' }));
+      expect(result.errors).toContainEqual(expect.objectContaining({ type: 'NEGATIVE_ITEM_QUANTITY' }));
+    });
+  });
+
+  describe("receipt total validation", () => {
+    it("detects when total does not equal subtotal + tax + tip", () => {
+      const receipt: Receipt = {
+        restaurant: "Test",
+        date: "2024-01-01",
+        subtotal: 100,
+        tax: 10,
+        tip: 15,
+        total: 200,  // Should be 125
+        items: [],
+      };
+      const result = validateReceiptInvariants(receipt, new Map(), []);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          type: 'RECEIPT_TOTAL_MISMATCH',
+          expected: 125,
+          actual: 200,
+        })
+      );
+    });
+
+    it("allows total that equals subtotal + tax + tip", () => {
+      const receipt: Receipt = {
+        restaurant: "Test",
+        date: "2024-01-01",
+        subtotal: 100,
+        tax: 10,
+        tip: 15,
+        total: 125,  // Correct
+        items: [],
+      };
+      const result = validateReceiptInvariants(receipt, new Map(), []);
+      expect(result.isValid).toBe(true);
+    });
+
+    it("allows small rounding differences in total within tolerance", () => {
+      const receipt: Receipt = {
+        restaurant: "Test",
+        date: "2024-01-01",
+        subtotal: 10.00,
+        tax: 1.50,
+        tip: 2.25,
+        total: 13.75,  // Correct sum
+        items: [],
+      };
+      const result = validateReceiptInvariants(receipt, new Map(), []);
+      expect(result.isValid).toBe(true);
+    });
   });
 });
