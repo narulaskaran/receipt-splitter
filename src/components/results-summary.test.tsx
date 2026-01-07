@@ -25,12 +25,12 @@ beforeEach(() => {
   (global.alert as jest.Mock).mockClear();
   // Suppress console errors during tests
   jest.spyOn(console, "error").mockImplementation(() => {});
-  // Ensure navigator.share is undefined by default
-  delete (navigator as { share?: unknown }).share;
 });
 
 afterEach(() => {
   jest.restoreAllMocks();
+  // Ensure navigator.share is cleaned up after each test
+  delete (navigator as { share?: unknown }).share;
 });
 
 describe("ResultsSummary", () => {
