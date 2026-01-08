@@ -201,6 +201,47 @@ describe("ReceiptDetails", () => {
 
       expect(tipInput).toHaveValue(null);
     });
+
+    it("clears tip field and calculates from total on save", async () => {
+      render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+
+      const tipInput = screen.getByLabelText("Tip");
+      fireEvent.change(tipInput, { target: { value: "" } });
+      expect(tipInput).toHaveValue(null);
+
+      fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(mockOnReceiptUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            tip: 15, // Calculated from 125 - 100 - 10 = 15
+          })
+        );
+      });
+    });
+
+    it("edits total and calculates tip from it when tip is null", async () => {
+      const receiptWithNullTip = { ...mockReceipt, tip: null };
+      render(<ReceiptDetails receipt={receiptWithNullTip} onReceiptUpdate={mockOnReceiptUpdate} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+
+      const totalInput = screen.getByLabelText("Total");
+      fireEvent.change(totalInput, { target: { value: "150" } });
+
+      fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(mockOnReceiptUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            total: 150,
+            tip: 40, // Calculated from 150 - 100 - 10 = 40
+          })
+        );
+      });
+    });
   });
 
   describe("Save Functionality", () => {
