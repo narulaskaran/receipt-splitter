@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, Upload, Users, ListChecks, DollarSign } from "lucide-react";
+import { ArrowLeft, ArrowRight, UploadCloud, Users, ListChecks, DollarSign } from "lucide-react";
 
 import { ReceiptUploader } from "@/components/receipt-uploader";
 import { PeopleManager } from "@/components/people-manager";
@@ -508,7 +508,7 @@ export default function Home() {
         <div className="flex flex-col gap-4 mb-2">
           <TabsList className="w-full overflow-x-auto scrollbar-hide">
             <TabsTrigger value="upload" className="gap-1.5 sm:gap-2">
-              <Upload className="h-4 w-4 flex-shrink-0" />
+              <UploadCloud className="h-4 w-4 flex-shrink-0" />
               <span className="hidden xs:inline sm:hidden">Upload</span>
               <span className="hidden sm:inline">Upload Receipt</span>
             </TabsTrigger>
