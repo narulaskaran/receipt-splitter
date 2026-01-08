@@ -431,7 +431,7 @@ describe("ResultsSummary", () => {
       await waitFor(() => {
         const clipboardContent = mockClipboard.writeText.mock.calls[0][0];
         expect(clipboardContent).toContain("Date:");
-        expect(clipboardContent).toMatch(/1\/15\/2024/); // toLocaleDateString format
+        expect(clipboardContent).toMatch(/1\/(14|15)\/2024/); // toLocaleDateString format (timezone dependent)
       });
     });
 
