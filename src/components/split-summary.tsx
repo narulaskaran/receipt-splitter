@@ -107,7 +107,7 @@ export function SplitSummary({ splitData, phoneNumber }: SplitSummaryProps) {
                         }
                       }}
                       size="sm"
-                      className="h-8 px-3 text-xs font-medium transition-all duration-200 hover:shadow-md active:scale-95 bg-[#008CFF] hover:bg-[#0074D9] text-white dark:bg-[#008CFF] dark:hover:bg-[#0074D9]"
+                      className="px-3 text-xs font-medium transition-all duration-200 hover:shadow-md active:scale-95 bg-[#008CFF] hover:bg-[#0074D9] text-white dark:bg-[#008CFF] dark:hover:bg-[#0074D9]"
                     >
                       <Image
                         src="/venmo.png"

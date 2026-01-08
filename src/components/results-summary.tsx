@@ -174,11 +174,11 @@ export function ResultsSummary({
             placeholder="e.g. 555-123-4567"
             value={phoneNumber}
             onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ""))}
-            className="flex-1 h-11 sm:h-9 border rounded-lg px-4 py-2 text-base sm:text-sm transition-all duration-200 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+            className="flex-1 min-h-[44px] border rounded-lg px-4 py-2 text-base sm:text-sm transition-all duration-200 focus:ring-2 focus:ring-primary/20 focus:border-primary"
           />
           <Button
             variant={shareStatus === "success" ? "default" : "outline"}
-            className="flex items-center justify-center gap-2 h-11 sm:h-9 text-base sm:text-sm font-medium transition-all duration-200 hover:shadow-md active:scale-95 whitespace-nowrap"
+            className="flex items-center justify-center gap-2 text-base sm:text-sm font-medium transition-all duration-200 hover:shadow-md active:scale-95 whitespace-nowrap"
             onClick={shareSplit}
             disabled={!canShareSplit || shareStatus === "copying"}
           >
@@ -212,7 +212,7 @@ export function ResultsSummary({
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
             <Button
               variant="outline"
-              className="flex items-center justify-center gap-2 h-11 sm:h-9 text-base sm:text-sm font-medium transition-all duration-200 hover:bg-muted active:scale-95"
+              className="flex items-center justify-center gap-2 text-base sm:text-sm font-medium transition-all duration-200 hover:bg-muted active:scale-95"
               onClick={shareResults}
             >
               <Share className="h-5 w-5 sm:h-4 sm:w-4" />
