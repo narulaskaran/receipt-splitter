@@ -101,6 +101,15 @@ describe("ReceiptDetails", () => {
       expect(screen.getByLabelText("Total")).toHaveValue(125);
     });
 
+    it("populates form with empty tip when tip is null", () => {
+      const receiptWithNullTip = { ...mockReceipt, tip: null };
+      render(<ReceiptDetails receipt={receiptWithNullTip} onReceiptUpdate={mockOnReceiptUpdate} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+
+      expect(screen.getByLabelText("Tip")).toHaveValue(null);
+    });
+
     it("closes dialog when Cancel button is clicked", async () => {
       render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
 
@@ -238,6 +247,7 @@ describe("ReceiptDetails", () => {
 
       await waitFor(() => {
         expect(toast.success).toHaveBeenCalledWith("Receipt details updated");
+        expect(toast.error).not.toHaveBeenCalled();
       });
     });
 
@@ -338,7 +348,7 @@ describe("ReceiptDetails", () => {
   });
 
   describe("Edge Cases", () => {
-    it("handles invalid number input by defaulting to 0", () => {
+    it("defaults to 0 when number input is cleared or invalid", () => {
       render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
 
       fireEvent.click(screen.getByRole("button", { name: /edit/i }));
@@ -347,6 +357,26 @@ describe("ReceiptDetails", () => {
       fireEvent.change(subtotalInput, { target: { value: "abc" } });
 
       expect(subtotalInput).toHaveValue(0);
+    });
+
+    it("saves successfully after invalid input is normalized to zero", async () => {
+      render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+
+      const subtotalInput = screen.getByLabelText("Subtotal");
+      fireEvent.change(subtotalInput, { target: { value: "abc" } });
+      expect(subtotalInput).toHaveValue(0);
+
+      fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(mockOnReceiptUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({ subtotal: 0 })
+        );
+        expect(toast.success).toHaveBeenCalled();
+        expect(toast.error).not.toHaveBeenCalled();
+      });
     });
 
     it("handles empty restaurant name", () => {
@@ -394,6 +424,73 @@ describe("ReceiptDetails", () => {
           expect.objectContaining({
             tip: 0, // Math.max(0, 50 - 100 - 8) = 0
           })
+        );
+      });
+    });
+
+    it("handles very large numbers correctly", async () => {
+      render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+
+      const subtotalInput = screen.getByLabelText("Subtotal");
+      fireEvent.change(subtotalInput, { target: { value: "999999999.99" } });
+
+      expect(subtotalInput).toHaveValue(999999999.99);
+
+      fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(mockOnReceiptUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({ subtotal: 999999999.99 })
+        );
+      });
+    });
+
+    it("handles numbers with many decimal places by rounding", async () => {
+      render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+
+      const taxInput = screen.getByLabelText("Tax");
+      fireEvent.change(taxInput, { target: { value: "10.12345" } });
+
+      fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(mockOnReceiptUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({ tax: 10.12345 })
+        );
+      });
+    });
+
+    it("handles invalid date gracefully", () => {
+      render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+
+      const dateInput = screen.getByLabelText("Date");
+      // HTML5 date inputs prevent invalid dates, but we can clear it
+      fireEvent.change(dateInput, { target: { value: "" } });
+
+      expect(dateInput).toHaveValue("");
+    });
+
+    it("handles future dates correctly", async () => {
+      render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+
+      const dateInput = screen.getByLabelText("Date");
+      fireEvent.change(dateInput, { target: { value: "2030-12-31" } });
+
+      expect(dateInput).toHaveValue("2030-12-31");
+
+      fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(mockOnReceiptUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({ date: "2030-12-31" })
         );
       });
     });
