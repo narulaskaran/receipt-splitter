@@ -110,6 +110,20 @@ describe("ReceiptDetails", () => {
       expect(screen.getByLabelText("Tip")).toHaveValue(null);
     });
 
+    it("converts null tip to 0 when opening dialog", async () => {
+      // Due to auto-calculation, a null tip becomes 0 when the dialog is opened
+      const receiptWithNullTip = { ...mockReceipt, tip: null, total: 110 };
+      render(<ReceiptDetails receipt={receiptWithNullTip} onReceiptUpdate={mockOnReceiptUpdate} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+
+      await waitFor(() => {
+        const totalInput = screen.getByLabelText("Total (Auto-calculated)");
+        // Auto-calculation: 100 + 10 + 0 = 110 (tip becomes 0)
+        expect(totalInput).toHaveValue(110);
+      });
+    });
+
     it("closes dialog when Cancel button is clicked", async () => {
       render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
 
@@ -377,8 +391,10 @@ describe("ReceiptDetails", () => {
     });
 
     it("validates that total matches subtotal + tax + tip", async () => {
-      // This test verifies the validation logic is in place
-      // In normal use, auto-calculation prevents mismatches, but validation provides a safety check
+      // NOTE: This test verifies the validation logic exists as a defensive safety check.
+      // In normal UI flow, auto-calculation makes this validation unreachable since the
+      // total field is read-only. However, the validation provides data integrity protection
+      // against potential bugs or direct data manipulation.
       render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
 
       fireEvent.click(screen.getByRole("button", { name: /edit/i }));
@@ -406,6 +422,41 @@ describe("ReceiptDetails", () => {
         );
       });
       expect(toast.error).not.toHaveBeenCalled();
+      expect(toast.success).toHaveBeenCalledWith("Receipt details updated");
+    });
+
+    it("successfully saves when multiple fields are changed", async () => {
+      render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
+
+      fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+
+      // Change multiple fields simultaneously
+      const subtotalInput = screen.getByLabelText("Subtotal");
+      const taxInput = screen.getByLabelText("Tax");
+      const tipInput = screen.getByLabelText("Tip");
+
+      fireEvent.change(subtotalInput, { target: { value: "200" } });
+      fireEvent.change(taxInput, { target: { value: "20" } });
+      fireEvent.change(tipInput, { target: { value: "30" } });
+
+      await waitFor(() => {
+        const totalInput = screen.getByLabelText("Total (Auto-calculated)");
+        // Should be 200 + 20 + 30 = 250
+        expect(totalInput).toHaveValue(250);
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(mockOnReceiptUpdate).toHaveBeenCalledWith(
+          expect.objectContaining({
+            subtotal: 200,
+            tax: 20,
+            tip: 30,
+            total: 250,
+          })
+        );
+      });
       expect(toast.success).toHaveBeenCalledWith("Receipt details updated");
     });
   });
