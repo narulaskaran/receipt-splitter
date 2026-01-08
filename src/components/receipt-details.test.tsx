@@ -21,6 +21,22 @@ beforeEach(() => {
 describe("ReceiptDetails", () => {
   const mockOnReceiptUpdate = jest.fn();
 
+  // Helper function to reduce repetition: open dialog, make changes, and optionally save
+  const openDialogAndEdit = (receipt = mockReceipt, edits: Record<string, string> = {}) => {
+    render(<ReceiptDetails receipt={receipt} onReceiptUpdate={mockOnReceiptUpdate} />);
+    fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+
+    Object.entries(edits).forEach(([label, value]) => {
+      const input = screen.getByLabelText(label);
+      fireEvent.change(input, { target: { value } });
+    });
+
+    return {
+      save: () => fireEvent.click(screen.getByRole("button", { name: /save changes/i })),
+      cancel: () => fireEvent.click(screen.getByRole("button", { name: /cancel/i })),
+    };
+  };
+
   describe("Display Mode", () => {
     it("renders receipt name and formatted date", () => {
       render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
@@ -101,13 +117,15 @@ describe("ReceiptDetails", () => {
       expect(screen.getByLabelText("Total (Auto-calculated)")).toHaveValue(125);
     });
 
-    it("populates form with empty tip when tip is null", () => {
+    it("displays empty string in tip field when tip is null", () => {
       const receiptWithNullTip = { ...mockReceipt, tip: null };
       render(<ReceiptDetails receipt={receiptWithNullTip} onReceiptUpdate={mockOnReceiptUpdate} />);
 
       fireEvent.click(screen.getByRole("button", { name: /edit/i }));
 
-      expect(screen.getByLabelText("Tip")).toHaveValue(null);
+      // Component shows empty string ("") when tip is null, per receipt-details.tsx:221
+      const tipInput = screen.getByLabelText("Tip");
+      expect(tipInput).toHaveValue(null); // HTML number input with empty string value reports as null
     });
 
     it("converts null tip to 0 when opening dialog", async () => {
@@ -281,14 +299,8 @@ describe("ReceiptDetails", () => {
 
   describe("Save Functionality", () => {
     it("saves changes and calls onReceiptUpdate", async () => {
-      render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
-
-      fireEvent.click(screen.getByRole("button", { name: /edit/i }));
-
-      const restaurantInput = screen.getByLabelText("Restaurant");
-      fireEvent.change(restaurantInput, { target: { value: "New Restaurant" } });
-
-      fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+      const { save } = openDialogAndEdit(mockReceipt, { Restaurant: "New Restaurant" });
+      save();
 
       await waitFor(() => {
         expect(mockOnReceiptUpdate).toHaveBeenCalledWith(
@@ -300,10 +312,8 @@ describe("ReceiptDetails", () => {
     });
 
     it("shows success toast after saving", async () => {
-      render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
-
-      fireEvent.click(screen.getByRole("button", { name: /edit/i }));
-      fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+      const { save } = openDialogAndEdit();
+      save();
 
       await waitFor(() => {
         expect(toast.success).toHaveBeenCalledWith("Receipt details updated");
@@ -327,14 +337,8 @@ describe("ReceiptDetails", () => {
 
   describe("Validation", () => {
     it("shows error for negative subtotal", async () => {
-      render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
-
-      fireEvent.click(screen.getByRole("button", { name: /edit/i }));
-
-      const subtotalInput = screen.getByLabelText("Subtotal");
-      fireEvent.change(subtotalInput, { target: { value: "-10" } });
-
-      fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+      const { save } = openDialogAndEdit(mockReceipt, { Subtotal: "-10" });
+      save();
 
       await waitFor(() => {
         expect(toast.error).toHaveBeenCalledWith("All amounts must be positive");
@@ -374,7 +378,7 @@ describe("ReceiptDetails", () => {
       expect(mockOnReceiptUpdate).not.toHaveBeenCalled();
     });
 
-    it("allows zero values", async () => {
+    it("allows zero tip without validation error", async () => {
       render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
 
       fireEvent.click(screen.getByRole("button", { name: /edit/i }));
@@ -504,7 +508,7 @@ describe("ReceiptDetails", () => {
       expect(restaurantInput).toHaveValue("");
     });
 
-    it("handles empty date", () => {
+    it("allows clearing date field", () => {
       render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
 
       fireEvent.click(screen.getByRole("button", { name: /edit/i }));
