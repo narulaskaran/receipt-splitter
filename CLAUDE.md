@@ -50,12 +50,43 @@ src/
 ## Common Commands
 
 ```bash
-npm run dev       # Start development server
-npm run build     # Build for production
-npm run lint      # Run ESLint
-npm test          # Run Jest tests
-npm run test:watch # Run tests in watch mode
+npm run dev           # Start development server
+npm run build         # Build for production
+npm run lint          # Run ESLint
+npm test              # Run Jest tests
+npm run test:watch    # Run tests in watch mode
+npm run screenshots   # Take screenshots at multiple viewports
 ```
+
+### Screenshot Harness
+
+The project includes a Playwright-based screenshot tool for visual testing and documentation:
+
+```bash
+# Basic usage (requires dev server running: npm run dev)
+npm run screenshots -- --mock-data
+
+# Screenshot all tabs (upload, people, assign, results)
+npm run screenshots -- --mock-data --tab all
+
+# Screenshot specific tab
+npm run screenshots -- --mock-data --tab people
+
+# Screenshot /split route
+npm run screenshots -- --route /split --mock-data
+
+# Custom output directory
+npm run screenshots -- --mock-data --output ./my-screenshots
+```
+
+Options:
+- `--route <path>`: Route to screenshot (default: `/`)
+- `--tab <name>`: Which tab to show: `upload`, `people`, `assign`, `results`, or `all` (default: `results`)
+- `--mock-data`: Inject synthetic localStorage data
+- `--params <query>`: URL query parameters
+- `--output <dir>`: Output directory (default: `screenshots`)
+
+Screenshots are saved in the `/screenshots` directory (gitignored) and include 7 viewport sizes from mobile to desktop.
 
 ## Key Types
 
@@ -90,6 +121,8 @@ import { calculateTotals } from '@/lib/receipt-utils';
 - Use `@testing-library/react` for component tests
 - Mock external dependencies (localStorage, fetch, etc.)
 - Test utilities are in `src/test/test-utils.ts`
+- Playwright configuration in `playwright.config.ts` for e2e tests
+- Screenshot harness in `scripts/screenshot-harness.js` for visual testing
 
 ## Environment Variables
 
