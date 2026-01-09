@@ -95,6 +95,24 @@ const MOCK_GROUPS = [
   }
 ];
 
+// Generate URL params for /split route from mock data
+function generateSplitParams() {
+  const names = MOCK_PEOPLE.map(p => p.name).join(',');
+  // Amounts in cents
+  const amounts = MOCK_PEOPLE.map(p => Math.round(p.finalTotal * 100)).join(',');
+  const total = MOCK_PEOPLE.reduce((sum, p) => sum + Math.round(p.finalTotal * 100), 0);
+
+  const params = new URLSearchParams();
+  params.set('names', names);
+  params.set('amounts', amounts);
+  params.set('total', String(total));
+  params.set('note', 'Test Restaurant');
+  params.set('phone', '5551234567');
+  params.set('date', '2024-01-15');
+
+  return params.toString();
+}
+
 function parseArgs() {
   const args = process.argv.slice(2);
   const options = {
@@ -160,15 +178,21 @@ async function takeScreenshots(options) {
       });
       const page = await context.newPage();
 
-      // Navigate to the base URL first to set localStorage
-      if (options.mockData) {
-        await page.goto(baseUrl);
-        await injectMockData(page);
-      }
-
       // Build the full URL
       let url = `${baseUrl}${options.route}`;
-      if (options.params) {
+
+      // Handle mock data injection based on route
+      if (options.mockData) {
+        if (options.route === '/split') {
+          // For /split route, use URL params
+          const splitParams = generateSplitParams();
+          url += `?${splitParams}`;
+        } else {
+          // For other routes, inject localStorage data
+          await page.goto(baseUrl);
+          await injectMockData(page);
+        }
+      } else if (options.params) {
         url += `?${options.params}`;
       }
 
