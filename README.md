@@ -33,7 +33,7 @@ A web application for easily splitting receipts among friends and groups. No app
 - **State Management**: React hooks with localStorage persistence
 - **Validation**: Custom validation with detailed error reporting
 - **Payment Integration**: Venmo payment link generation
-- **Testing**: Jest with React Testing Library
+- **Testing**: Jest with React Testing Library, Playwright for visual testing
 - **Deployment**: Vercel with automatic deployments
 - **Analytics**: Vercel Web Analytics and SpeedInsights
 
@@ -93,6 +93,25 @@ Build for production:
 ```bash
 npm run build
 ```
+
+### Visual Testing
+
+The project includes a screenshot harness for capturing UI states across multiple viewports:
+
+```bash
+# Requires dev server running (npm run dev)
+
+# Screenshot all tabs with mock data
+npm run screenshots -- --mock-data --tab all
+
+# Screenshot specific tab
+npm run screenshots -- --mock-data --tab results
+
+# Screenshot /split route
+npm run screenshots -- --route /split --mock-data
+```
+
+Screenshots are saved to the `/screenshots` directory (gitignored) and include 7 viewport sizes: mobile-small (320px), mobile (375px), mobile-large (414px), tablet (768px), tablet-landscape (1024px), desktop (1280px), and desktop-large (1920px).
 
 ## Key Components
 
