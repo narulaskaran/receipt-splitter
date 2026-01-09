@@ -10,7 +10,8 @@
     "lint": "next lint",
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
-    "generate-icons": "node scripts/generate-icons.js"
+    "generate-icons": "node scripts/generate-icons.js",
+    "screenshots": "node scripts/screenshot-harness.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.40.1",

@@ -1,0 +1,318 @@
+#!/usr/bin/env node
+/**
+ * Screenshot Harness Script
+ *
+ * Takes screenshots of the application at various viewports.
+ *
+ * Usage:
+ *   npm run screenshots                          # Screenshots of / at all viewports
+ *   npm run screenshots -- --route /split        # Screenshots of /split route
+ *   npm run screenshots -- --params "data=abc"   # With URL params
+ *   npm run screenshots -- --mock-data           # Inject data, show results tab
+ *   npm run screenshots -- --mock-data --tab all # Screenshot all tabs with mock data
+ *   npm run screenshots -- --mock-data --tab people # Screenshot just people tab
+ *
+ * Options:
+ *   --route <path>      Route to screenshot (default: /)
+ *   --params <query>    URL query parameters (without leading ?)
+ *   --mock-data         Inject synthetic receipt data into localStorage
+ *   --tab <name>        Which tab to show: upload, people, assign, results, or all (default: results)
+ *   --output <dir>      Output directory (default: screenshots)
+ *
+ * Note: The dev server must be running on localhost:3000 before running this script.
+ *       Start it with: npm run dev
+ */
+
+const { chromium } = require('playwright');
+const path = require('path');
+const fs = require('fs');
+
+// Define viewport configurations
+const VIEWPORTS = [
+  { name: 'mobile-small', width: 320, height: 568 },   // iPhone SE
+  { name: 'mobile', width: 375, height: 667 },         // iPhone 8
+  { name: 'mobile-large', width: 414, height: 896 },   // iPhone 11 Pro Max
+  { name: 'tablet', width: 768, height: 1024 },        // iPad
+  { name: 'tablet-landscape', width: 1024, height: 768 }, // iPad Landscape
+  { name: 'desktop', width: 1280, height: 800 },       // Small desktop
+  { name: 'desktop-large', width: 1920, height: 1080 }, // Full HD
+];
+
+// localStorage key used by the app (must match src/app/page.tsx)
+const LOCAL_STORAGE_KEY = 'receiptSplitterSession';
+
+// Synthetic mock data matching the app's ReceiptState structure
+const MOCK_RECEIPT = {
+  restaurant: "Test Restaurant",
+  date: "2024-01-15",
+  subtotal: 45.00,
+  tax: 4.50,
+  tip: 9.00,
+  total: 58.50,
+  items: [
+    { name: "Burger", price: 15.00, quantity: 1 },
+    { name: "Fries", price: 5.00, quantity: 2 },
+    { name: "Soda", price: 3.00, quantity: 2 },
+    { name: "Salad", price: 12.00, quantity: 1 },
+  ]
+};
+
+const MOCK_PEOPLE = [
+  {
+    id: "person-1",
+    name: "Alice",
+    items: [
+      { itemId: 0, itemName: "Burger", originalPrice: 15.00, quantity: 1, sharePercentage: 100, amount: 15.00 },
+      { itemId: 1, itemName: "Fries", originalPrice: 5.00, quantity: 1, sharePercentage: 50, amount: 2.50 }
+    ],
+    totalBeforeTax: 17.50,
+    tax: 1.75,
+    tip: 3.50,
+    finalTotal: 22.75
+  },
+  {
+    id: "person-2",
+    name: "Bob",
+    items: [
+      { itemId: 1, itemName: "Fries", originalPrice: 5.00, quantity: 1, sharePercentage: 50, amount: 2.50 },
+      { itemId: 2, itemName: "Soda", originalPrice: 3.00, quantity: 2, sharePercentage: 100, amount: 6.00 }
+    ],
+    totalBeforeTax: 8.50,
+    tax: 0.85,
+    tip: 1.70,
+    finalTotal: 11.05
+  },
+  {
+    id: "person-3",
+    name: "Charlie",
+    items: [
+      { itemId: 3, itemName: "Salad", originalPrice: 12.00, quantity: 1, sharePercentage: 100, amount: 12.00 }
+    ],
+    totalBeforeTax: 12.00,
+    tax: 1.20,
+    tip: 2.40,
+    finalTotal: 15.60
+  }
+];
+
+const MOCK_GROUPS = [
+  {
+    id: "group-1",
+    name: "Friends",
+    memberIds: ["person-1", "person-2"],
+    emoji: "1f3c8"
+  }
+];
+
+// assignedItems stored as array of [itemIndex, assignments[]] entries (serialized Map)
+const MOCK_ASSIGNED_ITEMS = [
+  [0, [{ personId: "person-1", sharePercentage: 100 }]],
+  [1, [{ personId: "person-1", sharePercentage: 50 }, { personId: "person-2", sharePercentage: 50 }]],
+  [2, [{ personId: "person-2", sharePercentage: 100 }]],
+  [3, [{ personId: "person-3", sharePercentage: 100 }]],
+];
+
+/**
+ * Build the session object matching the app's expected localStorage structure
+ * @param {string} activeTab - Which tab to show (upload, people, assign, results)
+ */
+function buildMockSession(activeTab = 'results') {
+  return {
+    state: {
+      originalReceipt: MOCK_RECEIPT,
+      people: MOCK_PEOPLE,
+      assignedItems: MOCK_ASSIGNED_ITEMS,
+      unassignedItems: [],
+      groups: MOCK_GROUPS,
+      isLoading: false,
+      error: null,
+    },
+    activeTab,
+  };
+}
+
+/**
+ * Generate URL params for /split route from mock data
+ */
+function generateSplitParams() {
+  const names = MOCK_PEOPLE.map(p => p.name).join(',');
+  // Amounts in cents
+  const amounts = MOCK_PEOPLE.map(p => Math.round(p.finalTotal * 100)).join(',');
+  const total = MOCK_PEOPLE.reduce((sum, p) => sum + Math.round(p.finalTotal * 100), 0);
+
+  const params = new URLSearchParams();
+  params.set('names', names);
+  params.set('amounts', amounts);
+  params.set('total', String(total));
+  params.set('note', 'Test Restaurant');
+  params.set('phone', '5551234567');
+  params.set('date', '2024-01-15');
+
+  return params.toString();
+}
+
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const options = {
+    route: '/',
+    params: '',
+    mockData: false,
+    tab: 'results',
+    outputDir: 'screenshots',
+  };
+
+  for (let i = 0; i < args.length; i++) {
+    switch (args[i]) {
+      case '--route':
+        options.route = args[++i] || '/';
+        break;
+      case '--params':
+        options.params = args[++i] || '';
+        break;
+      case '--mock-data':
+        options.mockData = true;
+        break;
+      case '--tab':
+        options.tab = args[++i] || 'results';
+        break;
+      case '--output':
+        options.outputDir = args[++i] || 'screenshots';
+        break;
+    }
+  }
+
+  return options;
+}
+
+/**
+ * Check if the dev server is running
+ */
+async function checkServerRunning(baseUrl) {
+  try {
+    const response = await fetch(baseUrl, { method: 'HEAD' });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function takeScreenshots(options) {
+  const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+  const outputPath = path.resolve(process.cwd(), options.outputDir);
+
+  // Check if server is running
+  const serverRunning = await checkServerRunning(baseUrl);
+  if (!serverRunning) {
+    console.error(`\nError: Could not connect to ${baseUrl}`);
+    console.error('Make sure the dev server is running: npm run dev\n');
+    process.exit(1);
+  }
+
+  // Create output directory if it doesn't exist
+  if (!fs.existsSync(outputPath)) {
+    fs.mkdirSync(outputPath, { recursive: true });
+  }
+
+  // Determine which tabs to screenshot
+  const ALL_TABS = ['upload', 'people', 'assign', 'results'];
+  const tabsToCapture = options.tab === 'all' ? ALL_TABS : [options.tab];
+
+  console.log(`\nScreenshot Harness`);
+  console.log(`==================`);
+  console.log(`Base URL: ${baseUrl}`);
+  console.log(`Route: ${options.route}`);
+  console.log(`Params: ${options.params || '(none)'}`);
+  console.log(`Mock Data: ${options.mockData ? 'Yes' : 'No'}`);
+  console.log(`Tabs: ${options.tab === 'all' ? 'all (upload, people, assign, results)' : options.tab}`);
+  console.log(`Output: ${outputPath}`);
+  console.log(`Viewports: ${VIEWPORTS.length}`);
+  console.log('');
+
+  const browser = await chromium.launch();
+
+  try {
+    for (const tab of tabsToCapture) {
+      if (tabsToCapture.length > 1) {
+        console.log(`\n--- Tab: ${tab} ---`);
+      }
+
+      for (const viewport of VIEWPORTS) {
+        const context = await browser.newContext({
+          viewport: { width: viewport.width, height: viewport.height },
+        });
+        const page = await context.newPage();
+
+        // Build the full URL
+        let url = `${baseUrl}${options.route}`;
+
+        // Handle mock data injection based on route
+        if (options.mockData) {
+          if (options.route === '/split') {
+            // For /split route, use URL params
+            const splitParams = generateSplitParams();
+            url += `?${splitParams}`;
+          } else {
+            // For home route, inject localStorage data using addInitScript
+            // This runs before any page scripts, ensuring data is available on load
+            const mockSession = buildMockSession(tab);
+            await page.addInitScript((data) => {
+              window.localStorage.setItem('receiptSplitterSession', JSON.stringify(data));
+            }, mockSession);
+          }
+        } else if (options.params) {
+          url += `?${options.params}`;
+        }
+
+        console.log(`  ${viewport.name} (${viewport.width}x${viewport.height})`);
+
+        await page.goto(url);
+        await page.waitForLoadState('networkidle');
+
+        // Wait for React hydration and content to be visible
+        // Look for key elements that indicate the page is fully loaded
+        try {
+          if (options.mockData && options.route === '/') {
+            // Wait for tab content to be visible
+            await page.waitForSelector('[role="tabpanel"]', { timeout: 5000 });
+          } else if (options.route === '/split' && options.mockData) {
+            // Wait for split summary to load
+            await page.waitForSelector('text=Receipt Split', { timeout: 5000 });
+          }
+        } catch {
+          // If specific elements don't appear, continue anyway after networkidle
+        }
+
+        // Brief wait for any CSS animations to settle
+        await page.waitForTimeout(300);
+
+        // Generate filename
+        const routeName = options.route === '/' ? 'home' : options.route.replace(/\//g, '-').slice(1);
+        const tabSuffix = tabsToCapture.length > 1 ? `_${tab}` : (options.mockData && options.route === '/' ? `_${tab}` : '');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const filename = `${routeName}${tabSuffix}_${viewport.name}_${timestamp}.png`;
+        const filePath = path.join(outputPath, filename);
+
+        await page.screenshot({ path: filePath, fullPage: true });
+        console.log(`    Saved: ${filename}`);
+
+        await context.close();
+      }
+    }
+
+    console.log(`\nDone! Screenshots saved to ${outputPath}`);
+  } finally {
+    await browser.close();
+  }
+}
+
+// Main execution
+const options = parseArgs();
+takeScreenshots(options).catch((error) => {
+  if (error.message.includes('net::ERR_CONNECTION_REFUSED')) {
+    console.error('\nError: Could not connect to the dev server.');
+    console.error('Make sure it is running: npm run dev\n');
+  } else {
+    console.error('Error taking screenshots:', error);
+  }
+  process.exit(1);
+});
