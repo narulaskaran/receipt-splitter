@@ -5,15 +5,18 @@
  * Takes screenshots of the application at various viewports.
  *
  * Usage:
- *   npm run screenshots                    # Screenshots of / at all viewports
- *   npm run screenshots -- --route /split  # Screenshots of /split route
- *   npm run screenshots -- --params "data=abc123"  # With URL params
- *   npm run screenshots -- --mock-data     # Inject synthetic localStorage data
+ *   npm run screenshots                          # Screenshots of / at all viewports
+ *   npm run screenshots -- --route /split        # Screenshots of /split route
+ *   npm run screenshots -- --params "data=abc"   # With URL params
+ *   npm run screenshots -- --mock-data           # Inject data, show results tab
+ *   npm run screenshots -- --mock-data --tab all # Screenshot all tabs with mock data
+ *   npm run screenshots -- --mock-data --tab people # Screenshot just people tab
  *
  * Options:
  *   --route <path>      Route to screenshot (default: /)
  *   --params <query>    URL query parameters (without leading ?)
  *   --mock-data         Inject synthetic receipt data into localStorage
+ *   --tab <name>        Which tab to show: upload, people, assign, results, or all (default: results)
  *   --output <dir>      Output directory (default: screenshots)
  *
  * Note: The dev server must be running on localhost:3000 before running this script.
@@ -154,6 +157,7 @@ function parseArgs() {
     route: '/',
     params: '',
     mockData: false,
+    tab: 'results',
     outputDir: 'screenshots',
   };
 
@@ -167,6 +171,9 @@ function parseArgs() {
         break;
       case '--mock-data':
         options.mockData = true;
+        break;
+      case '--tab':
+        options.tab = args[++i] || 'results';
         break;
       case '--output':
         options.outputDir = args[++i] || 'screenshots';
@@ -206,12 +213,17 @@ async function takeScreenshots(options) {
     fs.mkdirSync(outputPath, { recursive: true });
   }
 
+  // Determine which tabs to screenshot
+  const ALL_TABS = ['upload', 'people', 'assign', 'results'];
+  const tabsToCapture = options.tab === 'all' ? ALL_TABS : [options.tab];
+
   console.log(`\nScreenshot Harness`);
   console.log(`==================`);
   console.log(`Base URL: ${baseUrl}`);
   console.log(`Route: ${options.route}`);
   console.log(`Params: ${options.params || '(none)'}`);
   console.log(`Mock Data: ${options.mockData ? 'Yes' : 'No'}`);
+  console.log(`Tabs: ${options.tab === 'all' ? 'all (upload, people, assign, results)' : options.tab}`);
   console.log(`Output: ${outputPath}`);
   console.log(`Viewports: ${VIEWPORTS.length}`);
   console.log('');
@@ -219,65 +231,72 @@ async function takeScreenshots(options) {
   const browser = await chromium.launch();
 
   try {
-    for (const viewport of VIEWPORTS) {
-      const context = await browser.newContext({
-        viewport: { width: viewport.width, height: viewport.height },
-      });
-      const page = await context.newPage();
-
-      // Build the full URL
-      let url = `${baseUrl}${options.route}`;
-
-      // Handle mock data injection based on route
-      if (options.mockData) {
-        if (options.route === '/split') {
-          // For /split route, use URL params
-          const splitParams = generateSplitParams();
-          url += `?${splitParams}`;
-        } else {
-          // For home route, inject localStorage data using addInitScript
-          // This runs before any page scripts, ensuring data is available on load
-          const mockSession = buildMockSession('results');
-          await page.addInitScript((data) => {
-            window.localStorage.setItem('receiptSplitterSession', JSON.stringify(data));
-          }, mockSession);
-        }
-      } else if (options.params) {
-        url += `?${options.params}`;
+    for (const tab of tabsToCapture) {
+      if (tabsToCapture.length > 1) {
+        console.log(`\n--- Tab: ${tab} ---`);
       }
 
-      console.log(`Taking screenshot: ${viewport.name} (${viewport.width}x${viewport.height})`);
+      for (const viewport of VIEWPORTS) {
+        const context = await browser.newContext({
+          viewport: { width: viewport.width, height: viewport.height },
+        });
+        const page = await context.newPage();
 
-      await page.goto(url);
-      await page.waitForLoadState('networkidle');
+        // Build the full URL
+        let url = `${baseUrl}${options.route}`;
 
-      // Wait for React hydration and content to be visible
-      // Look for key elements that indicate the page is fully loaded
-      try {
-        if (options.mockData && options.route === '/') {
-          // Wait for results tab content to be visible
-          await page.waitForSelector('[role="tabpanel"]', { timeout: 5000 });
-        } else if (options.route === '/split' && options.mockData) {
-          // Wait for split summary to load
-          await page.waitForSelector('text=Receipt Split', { timeout: 5000 });
+        // Handle mock data injection based on route
+        if (options.mockData) {
+          if (options.route === '/split') {
+            // For /split route, use URL params
+            const splitParams = generateSplitParams();
+            url += `?${splitParams}`;
+          } else {
+            // For home route, inject localStorage data using addInitScript
+            // This runs before any page scripts, ensuring data is available on load
+            const mockSession = buildMockSession(tab);
+            await page.addInitScript((data) => {
+              window.localStorage.setItem('receiptSplitterSession', JSON.stringify(data));
+            }, mockSession);
+          }
+        } else if (options.params) {
+          url += `?${options.params}`;
         }
-      } catch {
-        // If specific elements don't appear, continue anyway after networkidle
+
+        console.log(`  ${viewport.name} (${viewport.width}x${viewport.height})`);
+
+        await page.goto(url);
+        await page.waitForLoadState('networkidle');
+
+        // Wait for React hydration and content to be visible
+        // Look for key elements that indicate the page is fully loaded
+        try {
+          if (options.mockData && options.route === '/') {
+            // Wait for tab content to be visible
+            await page.waitForSelector('[role="tabpanel"]', { timeout: 5000 });
+          } else if (options.route === '/split' && options.mockData) {
+            // Wait for split summary to load
+            await page.waitForSelector('text=Receipt Split', { timeout: 5000 });
+          }
+        } catch {
+          // If specific elements don't appear, continue anyway after networkidle
+        }
+
+        // Brief wait for any CSS animations to settle
+        await page.waitForTimeout(300);
+
+        // Generate filename
+        const routeName = options.route === '/' ? 'home' : options.route.replace(/\//g, '-').slice(1);
+        const tabSuffix = tabsToCapture.length > 1 ? `_${tab}` : (options.mockData && options.route === '/' ? `_${tab}` : '');
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const filename = `${routeName}${tabSuffix}_${viewport.name}_${timestamp}.png`;
+        const filePath = path.join(outputPath, filename);
+
+        await page.screenshot({ path: filePath, fullPage: true });
+        console.log(`    Saved: ${filename}`);
+
+        await context.close();
       }
-
-      // Brief wait for any CSS animations to settle
-      await page.waitForTimeout(300);
-
-      // Generate filename
-      const routeName = options.route === '/' ? 'home' : options.route.replace(/\//g, '-').slice(1);
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-      const filename = `${routeName}_${viewport.name}_${timestamp}.png`;
-      const filePath = path.join(outputPath, filename);
-
-      await page.screenshot({ path: filePath, fullPage: true });
-      console.log(`  Saved: ${filename}`);
-
-      await context.close();
     }
 
     console.log(`\nDone! Screenshots saved to ${outputPath}`);
