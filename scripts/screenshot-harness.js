@@ -15,6 +15,9 @@
  *   --params <query>    URL query parameters (without leading ?)
  *   --mock-data         Inject synthetic receipt data into localStorage
  *   --output <dir>      Output directory (default: screenshots)
+ *
+ * Note: The dev server must be running on localhost:3000 before running this script.
+ *       Start it with: npm run dev
  */
 
 const { chromium } = require('playwright');
@@ -32,7 +35,10 @@ const VIEWPORTS = [
   { name: 'desktop-large', width: 1920, height: 1080 }, // Full HD
 ];
 
-// Synthetic mock data for testing
+// localStorage key used by the app (must match src/app/page.tsx)
+const LOCAL_STORAGE_KEY = 'receiptSplitterSession';
+
+// Synthetic mock data matching the app's ReceiptState structure
 const MOCK_RECEIPT = {
   restaurant: "Test Restaurant",
   date: "2024-01-15",
@@ -95,7 +101,36 @@ const MOCK_GROUPS = [
   }
 ];
 
-// Generate URL params for /split route from mock data
+// assignedItems stored as array of [itemIndex, assignments[]] entries (serialized Map)
+const MOCK_ASSIGNED_ITEMS = [
+  [0, [{ personId: "person-1", sharePercentage: 100 }]],
+  [1, [{ personId: "person-1", sharePercentage: 50 }, { personId: "person-2", sharePercentage: 50 }]],
+  [2, [{ personId: "person-2", sharePercentage: 100 }]],
+  [3, [{ personId: "person-3", sharePercentage: 100 }]],
+];
+
+/**
+ * Build the session object matching the app's expected localStorage structure
+ * @param {string} activeTab - Which tab to show (upload, people, assign, results)
+ */
+function buildMockSession(activeTab = 'results') {
+  return {
+    state: {
+      originalReceipt: MOCK_RECEIPT,
+      people: MOCK_PEOPLE,
+      assignedItems: MOCK_ASSIGNED_ITEMS,
+      unassignedItems: [],
+      groups: MOCK_GROUPS,
+      isLoading: false,
+      error: null,
+    },
+    activeTab,
+  };
+}
+
+/**
+ * Generate URL params for /split route from mock data
+ */
 function generateSplitParams() {
   const names = MOCK_PEOPLE.map(p => p.name).join(',');
   // Amounts in cents
@@ -142,17 +177,29 @@ function parseArgs() {
   return options;
 }
 
-async function injectMockData(page) {
-  await page.evaluate(({ receipt, people, groups }) => {
-    localStorage.setItem('receipt-splitter-receipt', JSON.stringify(receipt));
-    localStorage.setItem('receipt-splitter-people', JSON.stringify(people));
-    localStorage.setItem('receipt-splitter-groups', JSON.stringify(groups));
-  }, { receipt: MOCK_RECEIPT, people: MOCK_PEOPLE, groups: MOCK_GROUPS });
+/**
+ * Check if the dev server is running
+ */
+async function checkServerRunning(baseUrl) {
+  try {
+    const response = await fetch(baseUrl, { method: 'HEAD' });
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
 async function takeScreenshots(options) {
   const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
   const outputPath = path.resolve(process.cwd(), options.outputDir);
+
+  // Check if server is running
+  const serverRunning = await checkServerRunning(baseUrl);
+  if (!serverRunning) {
+    console.error(`\nError: Could not connect to ${baseUrl}`);
+    console.error('Make sure the dev server is running: npm run dev\n');
+    process.exit(1);
+  }
 
   // Create output directory if it doesn't exist
   if (!fs.existsSync(outputPath)) {
@@ -188,9 +235,12 @@ async function takeScreenshots(options) {
           const splitParams = generateSplitParams();
           url += `?${splitParams}`;
         } else {
-          // For other routes, inject localStorage data
-          await page.goto(baseUrl);
-          await injectMockData(page);
+          // For home route, inject localStorage data using addInitScript
+          // This runs before any page scripts, ensuring data is available on load
+          const mockSession = buildMockSession('results');
+          await page.addInitScript((data) => {
+            window.localStorage.setItem('receiptSplitterSession', JSON.stringify(data));
+          }, mockSession);
         }
       } else if (options.params) {
         url += `?${options.params}`;
@@ -201,8 +251,22 @@ async function takeScreenshots(options) {
       await page.goto(url);
       await page.waitForLoadState('networkidle');
 
-      // Wait a bit for any animations to settle
-      await page.waitForTimeout(500);
+      // Wait for React hydration and content to be visible
+      // Look for key elements that indicate the page is fully loaded
+      try {
+        if (options.mockData && options.route === '/') {
+          // Wait for results tab content to be visible
+          await page.waitForSelector('[role="tabpanel"]', { timeout: 5000 });
+        } else if (options.route === '/split' && options.mockData) {
+          // Wait for split summary to load
+          await page.waitForSelector('text=Receipt Split', { timeout: 5000 });
+        }
+      } catch {
+        // If specific elements don't appear, continue anyway after networkidle
+      }
+
+      // Brief wait for any CSS animations to settle
+      await page.waitForTimeout(300);
 
       // Generate filename
       const routeName = options.route === '/' ? 'home' : options.route.replace(/\//g, '-').slice(1);
@@ -225,6 +289,11 @@ async function takeScreenshots(options) {
 // Main execution
 const options = parseArgs();
 takeScreenshots(options).catch((error) => {
-  console.error('Error taking screenshots:', error);
+  if (error.message.includes('net::ERR_CONNECTION_REFUSED')) {
+    console.error('\nError: Could not connect to the dev server.');
+    console.error('Make sure it is running: npm run dev\n');
+  } else {
+    console.error('Error taking screenshots:', error);
+  }
   process.exit(1);
 });

@@ -1,7 +1,12 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Playwright configuration for screenshot harness
+ * Playwright configuration for e2e tests
+ *
+ * This config is used when running `npx playwright test` for the e2e tests
+ * in the ./e2e directory. The standalone screenshot harness script
+ * (scripts/screenshot-harness.js) does not use this config.
+ *
  * @see https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({
