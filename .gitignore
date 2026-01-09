@@ -14,6 +14,7 @@
 /coverage
 /test-results
 /playwright-report
+/screenshots
 
 # next.js
 /.next/
@@ -26,6 +27,7 @@
 .DS_Store
 *.pem
 .server_pid
+/.claude/settings.local.json
 
 # debug
 npm-debug.log*
