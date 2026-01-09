@@ -605,7 +605,7 @@ export function ItemAssignment({
                         <Button
                           variant="outline"
                           size="sm"
-                          className="ml-2 text-xs px-2 py-1 h-7"
+                          className="ml-2 text-xs px-2"
                           onClick={() => handleEditItem(index)}
                           title="Edit price and quantity"
                         >
@@ -626,7 +626,7 @@ export function ItemAssignment({
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="flex-1 justify-between text-xs px-2 py-1 h-7 min-w-0"
+                                className="flex-1 justify-between text-xs px-2 min-w-0"
                               >
                                 <span
                                   className={`truncate ${

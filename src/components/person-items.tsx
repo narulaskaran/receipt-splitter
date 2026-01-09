@@ -50,10 +50,10 @@ export function PersonItems({ people }: PersonItemsProps) {
                 <div className="font-medium">{person.name}</div>
                 <div className="flex items-center gap-3">
                   <span className="font-bold">{formatCurrency(person.finalTotal)}</span>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-7 w-7 p-0" 
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="p-0"
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleExpand(person.id);

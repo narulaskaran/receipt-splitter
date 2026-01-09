@@ -75,10 +75,10 @@ export function PeopleManager({ people, onPeopleChange }: PeopleManagerProps) {
                 <button
                   type="button"
                   onClick={() => removePerson(person.id)}
-                  className="rounded-full p-1 hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                  className="rounded-full p-2 hover:bg-destructive/10 text-muted-foreground hover:text-destructive min-w-[32px] min-h-[32px] flex items-center justify-center"
                   aria-label={`Remove ${person.name}`}
                 >
-                  <X className="h-3 w-3" />
+                  <X className="h-4 w-4" />
                 </button>
               </div>
             ))
