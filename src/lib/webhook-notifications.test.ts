@@ -71,9 +71,12 @@ describe('webhook-notifications', () => {
         );
 
         // Verify items are formatted correctly
+        interface SlackBlock {
+          text?: { text?: string };
+        }
         const itemsBlock = callBody.blocks.find(
-          (b: any) => b.text?.text?.includes('Items')
-        );
+          (b: SlackBlock) => b.text?.text?.includes('Items')
+        ) as SlackBlock & { text: { text: string } };
         expect(itemsBlock.text.text).toContain('Burger - $10.00 (x2)');
         expect(itemsBlock.text.text).toContain('Fries - $5.00');
       });

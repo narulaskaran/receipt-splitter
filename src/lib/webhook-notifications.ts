@@ -12,6 +12,38 @@ export interface ReceiptWebhookData {
 }
 
 /**
+ * Slack Block Kit types
+ */
+interface SlackTextBlock {
+  type: string;
+  text: string;
+}
+
+interface SlackField {
+  type: string;
+  text: string;
+}
+
+interface SlackBlock {
+  type: string;
+  text?: SlackTextBlock | { type: string; text: string };
+  fields?: SlackField[];
+  image_url?: string;
+  alt_text?: string;
+  elements?: SlackField[];
+}
+
+interface SlackPayload {
+  text: string;
+  blocks: SlackBlock[];
+}
+
+/**
+ * Generic webhook payload type
+ */
+type WebhookPayload = SlackPayload | Record<string, unknown>;
+
+/**
  * Webhook payload formatter interface
  * Implement this to support different webhook formats (Slack, Discord, custom, etc.)
  */
@@ -19,17 +51,17 @@ export interface WebhookPayloadFormatter {
   /**
    * Format receipt data into a webhook payload
    */
-  format(data: ReceiptWebhookData): Record<string, any>;
+  format(data: ReceiptWebhookData): WebhookPayload;
 }
 
 /**
  * Slack Block Kit payload formatter
  */
 class SlackFormatter implements WebhookPayloadFormatter {
-  format(data: ReceiptWebhookData): Record<string, any> {
+  format(data: ReceiptWebhookData): SlackPayload {
     const { receipt, fileUrl, sessionId, fileName, mimeType } = data;
 
-    const blocks: any[] = [
+    const blocks: SlackBlock[] = [
       {
         type: 'header',
         text: {
@@ -135,7 +167,7 @@ class SlackFormatter implements WebhookPayloadFormatter {
  * Simple JSON format that can work with custom webhooks
  */
 class GenericJsonFormatter implements WebhookPayloadFormatter {
-  format(data: ReceiptWebhookData): Record<string, any> {
+  format(data: ReceiptWebhookData): Record<string, unknown> {
     const { receipt, fileUrl, sessionId, fileName, mimeType } = data;
 
     return {
