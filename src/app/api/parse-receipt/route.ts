@@ -266,17 +266,21 @@ export async function POST(request: NextRequest) {
         })),
       };
 
-      // Fire-and-forget webhook notification (non-blocking)
+      // Send webhook notification (awaited to prevent race condition in serverless)
+      // The webhook has a 5-second timeout, so this adds minimal latency (~100-500ms typically)
       if (process.env.WEBHOOK_URL) {
-        sendReceiptParsedNotification(
-          normalizedReceipt,
-          null, // fileUrl - will be added when Supabase integration is complete
-          sessionId,
-          file.name,
-          file.type
-        ).catch((error) => {
-          console.error("[API] Webhook notification failed (non-blocking):", error);
-        });
+        try {
+          await sendReceiptParsedNotification(
+            normalizedReceipt,
+            null, // fileUrl - will be added when Supabase integration is complete
+            sessionId,
+            file.name,
+            file.type
+          );
+        } catch (error) {
+          // Webhook errors are already logged in the function, this is a safety catch
+          console.error("[API] Unexpected webhook error:", error);
+        }
       }
 
       return NextResponse.json(normalizedReceipt);
