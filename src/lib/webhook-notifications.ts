@@ -261,12 +261,17 @@ export async function sendReceiptParsedNotification(
       type: webhookType,
       sessionId,
       restaurant: receipt.restaurant,
+      webhookUrl: webhookUrl.substring(0, 30) + '...' // Log partial URL for debugging
     });
 
     // Create timeout signal (with fallback for environments that don't support AbortSignal.timeout)
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const timeoutId = setTimeout(() => {
+      console.error('[Webhook] Request timed out after 5 seconds');
+      controller.abort();
+    }, 5000);
 
+    console.log('[Webhook] Making fetch request...');
     const response = await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -275,16 +280,25 @@ export async function sendReceiptParsedNotification(
     });
 
     clearTimeout(timeoutId);
+    console.log(`[Webhook] Got response: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unable to read response body');
       throw new Error(
-        `Webhook request failed: ${response.status} ${response.statusText}`
+        `Webhook request failed: ${response.status} ${response.statusText}. Body: ${errorText.substring(0, 200)}`
       );
     }
 
     console.log('[Webhook] Notification sent successfully');
   } catch (error) {
-    console.error('[Webhook] Error sending notification (non-blocking):', error);
+    if (error instanceof Error) {
+      console.error('[Webhook] Error sending notification (non-blocking):', error.message);
+      if (error.name === 'AbortError') {
+        console.error('[Webhook] Request was aborted (likely timeout)');
+      }
+    } else {
+      console.error('[Webhook] Unknown error type:', error);
+    }
     // Fire-and-forget: don't throw
   }
 }
