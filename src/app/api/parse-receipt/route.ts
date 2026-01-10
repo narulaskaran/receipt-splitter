@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { TextBlock } from "@anthropic-ai/sdk/resources";
 import { z } from "zod";
+import { sendReceiptParsedNotification } from "@/lib/webhook-notifications";
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -48,6 +49,7 @@ export async function POST(request: NextRequest) {
     // Get receipt image data
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
+    const sessionId = (formData.get("sessionId") as string | null) || crypto.randomUUID();
 
     if (!file) {
       return NextResponse.json(
@@ -251,7 +253,37 @@ export async function POST(request: NextRequest) {
       }
 
       console.log("Successfully parsed receipt data");
-      return NextResponse.json(validationResult.data);
+
+      // Normalize receipt data to match Receipt type (ensure numeric fields are never null)
+      const normalizedReceipt = {
+        ...validationResult.data,
+        subtotal: validationResult.data.subtotal ?? 0,
+        tax: validationResult.data.tax ?? 0,
+        total: validationResult.data.total ?? 0,
+        items: validationResult.data.items.map((item) => ({
+          ...item,
+          quantity: item.quantity ?? 1,
+        })),
+      };
+
+      // Send webhook notification (awaited to prevent race condition in serverless)
+      // The webhook has a 5-second timeout, so this adds minimal latency (~100-500ms typically)
+      if (process.env.WEBHOOK_URL) {
+        try {
+          await sendReceiptParsedNotification(
+            normalizedReceipt,
+            null, // fileUrl - will be added when Supabase integration is complete
+            sessionId,
+            file.name,
+            file.type
+          );
+        } catch (error) {
+          // Webhook errors are already logged in the function, this is a safety catch
+          console.error("[API] Unexpected webhook error:", error);
+        }
+      }
+
+      return NextResponse.json(normalizedReceipt);
     } catch (parseError) {
       const errorMsg =
         parseError instanceof Error ? parseError.message : "Unknown parse error";
