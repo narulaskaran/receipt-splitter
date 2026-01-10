@@ -33,7 +33,11 @@ import {
   type PersonItemAssignment,
   type Group,
 } from "@/types";
-import { formatCurrency } from "@/lib/receipt-utils";
+import {
+  formatCurrency,
+  calculateSubtotal,
+  remapAssignmentsAfterDelete,
+} from "@/lib/receipt-utils";
 
 interface ItemAssignmentProps {
   receipt: Receipt;
@@ -45,7 +49,10 @@ interface ItemAssignmentProps {
     itemIndex: number,
     assignments: PersonItemAssignment[]
   ) => void;
-  onReceiptUpdate: (receipt: Receipt) => void;
+  onReceiptUpdate: (
+    receipt: Receipt,
+    remappedAssignments?: Map<number, PersonItemAssignment[]>
+  ) => void;
 }
 
 export function ItemAssignment({
@@ -385,11 +392,8 @@ export function ItemAssignment({
       quantity: editedItem.quantity,
     };
 
-    // Recalculate subtotal
-    updatedReceipt.subtotal = updatedReceipt.items.reduce(
-      (sum, item) => sum + item.price * (item.quantity || 1),
-      0
-    );
+    // Recalculate subtotal using Decimal.js
+    updatedReceipt.subtotal = calculateSubtotal(updatedReceipt.items);
 
     // Update the receipt
     onReceiptUpdate(updatedReceipt);
@@ -405,14 +409,14 @@ export function ItemAssignment({
     const updatedReceipt = { ...receipt };
     updatedReceipt.items = receipt.items.filter((_, i) => i !== index);
 
-    // Recalculate subtotal
-    updatedReceipt.subtotal = updatedReceipt.items.reduce(
-      (sum, item) => sum + item.price * (item.quantity || 1),
-      0
-    );
+    // Recalculate subtotal using Decimal.js
+    updatedReceipt.subtotal = calculateSubtotal(updatedReceipt.items);
 
-    // Update the receipt
-    onReceiptUpdate(updatedReceipt);
+    // Remap assignments - shift indices after deletion
+    const remappedAssignments = remapAssignmentsAfterDelete(assignedItems, index);
+
+    // Pass both updated receipt AND remapped assignments to parent
+    onReceiptUpdate(updatedReceipt, remappedAssignments);
     toast.success(`Deleted "${item.name}"`);
   };
 
@@ -453,11 +457,8 @@ export function ItemAssignment({
       },
     ];
 
-    // Recalculate subtotal
-    updatedReceipt.subtotal = updatedReceipt.items.reduce(
-      (sum, item) => sum + item.price * (item.quantity || 1),
-      0
-    );
+    // Recalculate subtotal using Decimal.js
+    updatedReceipt.subtotal = calculateSubtotal(updatedReceipt.items);
 
     // Update the receipt
     onReceiptUpdate(updatedReceipt);

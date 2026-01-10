@@ -5,6 +5,8 @@ import {
   getUnassignedItems,
   validateReceiptInvariants,
   AmountValidationError,
+  calculateSubtotal,
+  remapAssignmentsAfterDelete,
 } from "./receipt-utils";
 import { mockPeople, mockReceipt, mockAssignedItems } from "@/test/test-utils";
 import { type PersonItemAssignment, type Receipt, type Person } from "@/types";
@@ -208,6 +210,161 @@ describe("$0 item handling", () => {
     ]);
 
     expect(validateItemAssignments(receiptWithZeroItem, incompleteAssignments)).toBe(false);
+  });
+});
+
+describe("calculateSubtotal", () => {
+  it("calculates subtotal for single item", () => {
+    const items = [{ name: "Burger", price: 10.50, quantity: 1 }];
+    expect(calculateSubtotal(items)).toBe(10.50);
+  });
+
+  it("calculates subtotal for multiple items with quantities", () => {
+    const items = [
+      { name: "Burger", price: 10.50, quantity: 2 },
+      { name: "Fries", price: 3.25, quantity: 1 }
+    ];
+    expect(calculateSubtotal(items)).toBe(24.25);
+  });
+
+  it("handles floating point precision correctly", () => {
+    const items = [
+      { name: "Item1", price: 0.1, quantity: 1 },
+      { name: "Item2", price: 0.2, quantity: 1 }
+    ];
+    expect(calculateSubtotal(items)).toBe(0.3); // Not 0.30000000000000004
+  });
+
+  it("handles zero-priced items", () => {
+    const items = [
+      { name: "Free Item", price: 0, quantity: 5 },
+      { name: "Paid Item", price: 10, quantity: 1 }
+    ];
+    expect(calculateSubtotal(items)).toBe(10);
+  });
+
+  it("handles high-precision decimals correctly", () => {
+    const items = [{ name: "Item", price: 10.999, quantity: 1 }];
+    expect(calculateSubtotal(items)).toBe(10.999);
+  });
+
+  it("handles empty items array", () => {
+    expect(calculateSubtotal([])).toBe(0);
+  });
+
+  it("handles quantity defaulting to 1 when undefined", () => {
+    const items = [{ name: "Item", price: 5, quantity: 0 }];
+    // quantity || 1 should make it 1
+    expect(calculateSubtotal(items)).toBe(5);
+  });
+});
+
+describe("remapAssignmentsAfterDelete", () => {
+  it("removes assignment for deleted item", () => {
+    const assignments = new Map<number, PersonItemAssignment[]>([
+      [0, [{ personId: "a", sharePercentage: 100 }]],
+      [1, [{ personId: "b", sharePercentage: 100 }]],
+    ]);
+
+    const result = remapAssignmentsAfterDelete(assignments, 1);
+
+    expect(result.size).toBe(1);
+    expect(result.get(0)).toEqual([{ personId: "a", sharePercentage: 100 }]);
+    expect(result.has(1)).toBe(false);
+  });
+
+  it("shifts down assignments after deleted index", () => {
+    const assignments = new Map<number, PersonItemAssignment[]>([
+      [0, [{ personId: "a", sharePercentage: 100 }]],
+      [1, [{ personId: "b", sharePercentage: 100 }]],
+      [2, [{ personId: "c", sharePercentage: 100 }]],
+    ]);
+
+    const result = remapAssignmentsAfterDelete(assignments, 1);
+
+    expect(result.size).toBe(2);
+    expect(result.get(0)).toEqual([{ personId: "a", sharePercentage: 100 }]);
+    expect(result.get(1)).toEqual([{ personId: "c", sharePercentage: 100 }]); // Was index 2
+    expect(result.has(2)).toBe(false);
+  });
+
+  it("preserves assignments before deleted index", () => {
+    const assignments = new Map<number, PersonItemAssignment[]>([
+      [0, [{ personId: "a", sharePercentage: 50 }]],
+      [1, [{ personId: "b", sharePercentage: 100 }]],
+      [2, [
+        { personId: "a", sharePercentage: 50 },
+        { personId: "b", sharePercentage: 50 }
+      ]],
+    ]);
+
+    const result = remapAssignmentsAfterDelete(assignments, 2);
+
+    expect(result.get(0)).toEqual([{ personId: "a", sharePercentage: 50 }]);
+    expect(result.get(1)).toEqual([{ personId: "b", sharePercentage: 100 }]);
+    expect(result.has(2)).toBe(false);
+  });
+
+  it("handles deleting first item", () => {
+    const assignments = new Map<number, PersonItemAssignment[]>([
+      [0, [{ personId: "a", sharePercentage: 100 }]],
+      [1, [{ personId: "b", sharePercentage: 100 }]],
+    ]);
+
+    const result = remapAssignmentsAfterDelete(assignments, 0);
+
+    expect(result.size).toBe(1);
+    expect(result.get(0)).toEqual([{ personId: "b", sharePercentage: 100 }]); // Was index 1
+    expect(result.has(1)).toBe(false);
+  });
+
+  it("handles deleting last item", () => {
+    const assignments = new Map<number, PersonItemAssignment[]>([
+      [0, [{ personId: "a", sharePercentage: 100 }]],
+      [1, [{ personId: "b", sharePercentage: 100 }]],
+    ]);
+
+    const result = remapAssignmentsAfterDelete(assignments, 1);
+
+    expect(result.size).toBe(1);
+    expect(result.get(0)).toEqual([{ personId: "a", sharePercentage: 100 }]);
+    expect(result.has(1)).toBe(false);
+  });
+
+  it("handles empty assignments map", () => {
+    const assignments = new Map<number, PersonItemAssignment[]>();
+    const result = remapAssignmentsAfterDelete(assignments, 0);
+    expect(result.size).toBe(0);
+  });
+
+  it("handles deleting item with shared assignment", () => {
+    const assignments = new Map<number, PersonItemAssignment[]>([
+      [0, [
+        { personId: "a", sharePercentage: 50 },
+        { personId: "b", sharePercentage: 50 }
+      ]],
+      [1, [{ personId: "c", sharePercentage: 100 }]],
+    ]);
+
+    const result = remapAssignmentsAfterDelete(assignments, 0);
+
+    expect(result.size).toBe(1);
+    expect(result.get(0)).toEqual([{ personId: "c", sharePercentage: 100 }]);
+    expect(result.has(1)).toBe(false);
+  });
+
+  it("handles sparse assignment map (gaps in indices)", () => {
+    const assignments = new Map<number, PersonItemAssignment[]>([
+      [0, [{ personId: "a", sharePercentage: 100 }]],
+      [2, [{ personId: "b", sharePercentage: 100 }]],
+      // No assignment for index 1
+    ]);
+
+    const result = remapAssignmentsAfterDelete(assignments, 0);
+
+    expect(result.size).toBe(1);
+    expect(result.get(1)).toEqual([{ personId: "b", sharePercentage: 100 }]); // Was index 2, shifted to 1
+    expect(result.has(2)).toBe(false);
   });
 });
 

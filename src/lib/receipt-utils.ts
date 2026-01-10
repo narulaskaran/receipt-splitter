@@ -144,6 +144,45 @@ export function getUnassignedItems(
 }
 
 /**
+ * Calculates subtotal using Decimal.js for precision
+ */
+export function calculateSubtotal(items: Receipt['items']): number {
+  return items.reduce(
+    (sum, item) => {
+      const itemPrice = new Decimal(item.price);
+      const itemQuantity = new Decimal(item.quantity || 1);
+      return sum.add(itemPrice.mul(itemQuantity));
+    },
+    new Decimal(0)
+  ).toNumber();
+}
+
+/**
+ * Remaps assignment indices after deleting an item
+ * - Removes assignment for deleted item
+ * - Shifts down all assignments after deleted index
+ */
+export function remapAssignmentsAfterDelete(
+  assignedItems: Map<number, PersonItemAssignment[]>,
+  deletedIndex: number
+): Map<number, PersonItemAssignment[]> {
+  const newMap = new Map<number, PersonItemAssignment[]>();
+
+  assignedItems.forEach((assignments, itemIndex) => {
+    if (itemIndex < deletedIndex) {
+      // Items before deleted index stay the same
+      newMap.set(itemIndex, assignments);
+    } else if (itemIndex > deletedIndex) {
+      // Items after deleted index shift down by 1
+      newMap.set(itemIndex - 1, assignments);
+    }
+    // itemIndex === deletedIndex: assignment deleted (not added to map)
+  });
+
+  return newMap;
+}
+
+/**
  * Enum for amount validation error types
  */
 export enum AmountValidationError {

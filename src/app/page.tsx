@@ -222,18 +222,32 @@ export default function Home() {
   };
 
   // Handle receipt updates
-  const handleReceiptUpdate = (updatedReceipt: Receipt) => {
+  const handleReceiptUpdate = (
+    updatedReceipt: Receipt,
+    remappedAssignments?: Map<number, PersonItemAssignment[]>
+  ) => {
     setState((prevState) => {
-      // Recalculate people totals with the updated receipt
+      // Use remapped assignments if provided (from delete), else use existing
+      const assignmentsToUse = remappedAssignments || prevState.assignedItems;
+
+      // Recalculate unassigned items (FIXES STALE STATE BUG)
+      const unassignedItems = getUnassignedItems(
+        updatedReceipt,
+        assignmentsToUse
+      );
+
+      // Recalculate people totals
       const updatedPeople = calculatePersonTotals(
         updatedReceipt,
         prevState.people,
-        prevState.assignedItems
+        assignmentsToUse
       );
 
       return {
         ...prevState,
         originalReceipt: updatedReceipt,
+        assignedItems: assignmentsToUse,
+        unassignedItems,
         people: updatedPeople,
       };
     });
@@ -572,7 +586,7 @@ export default function Home() {
           {state.originalReceipt && (
             <ReceiptDetails
               receipt={state.originalReceipt}
-              onReceiptUpdate={handleReceiptUpdate}
+              onReceiptUpdate={(receipt) => handleReceiptUpdate(receipt)}
             />
           )}
         </TabsContent>
@@ -595,7 +609,7 @@ export default function Home() {
           {state.originalReceipt && (
             <ReceiptDetails
               receipt={state.originalReceipt}
-              onReceiptUpdate={handleReceiptUpdate}
+              onReceiptUpdate={(receipt) => handleReceiptUpdate(receipt)}
             />
           )}
         </TabsContent>
