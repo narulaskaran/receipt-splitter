@@ -4,6 +4,7 @@ import { UploadCloud, Loader2, FileText } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { type Receipt } from "@/types";
+import { MAX_FILE_SIZE_MB, MAX_FILE_SIZE_BYTES } from "@/lib/constants";
 
 interface ReceiptUploaderProps {
   onReceiptParsed: (receipt: Receipt) => void;
@@ -11,10 +12,6 @@ interface ReceiptUploaderProps {
   setIsLoading: (isLoading: boolean) => void;
   resetImageTrigger?: number;
 }
-
-// Vercel serverless functions have a 4.5MB body size limit
-const MAX_FILE_SIZE_MB = 4.5;
-const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 export function ReceiptUploader({
   onReceiptParsed,

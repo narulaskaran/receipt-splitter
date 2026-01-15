@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { TextBlock } from "@anthropic-ai/sdk/resources";
 import { z } from "zod";
 import { sendReceiptParsedNotification } from "@/lib/webhook-notifications";
+import { MAX_FILE_SIZE_BYTES } from "@/lib/constants";
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -58,12 +59,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate file size (limit to 20MB)
-    const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
-    if (file.size > MAX_FILE_SIZE) {
+    // Validate file size (Vercel serverless function body limit)
+    if (file.size > MAX_FILE_SIZE_BYTES) {
       return NextResponse.json(
         {
-          error: `File size exceeds the maximum limit of ${formatFileSizeMB(MAX_FILE_SIZE)}MB`,
+          error: `File size exceeds the maximum limit of ${formatFileSizeMB(MAX_FILE_SIZE_BYTES)}MB`,
         },
         { status: 400 }
       );
