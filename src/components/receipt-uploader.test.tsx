@@ -165,11 +165,9 @@ describe("ReceiptUploader", () => {
 
       // Should show error toast without calling API
       await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledTimes(1);
         expect(toast.error).toHaveBeenCalledWith(
-          expect.stringContaining("File is too large")
-        );
-        expect(toast.error).toHaveBeenCalledWith(
-          expect.stringContaining("Maximum size is 4.5MB")
+          expect.stringMatching(/File is too large.*Maximum size is 4\.5MB.*Your file is 5\.0MB/)
         );
       });
       expect(mockSetIsLoading).not.toHaveBeenCalled();
