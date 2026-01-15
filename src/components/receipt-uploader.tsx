@@ -4,6 +4,7 @@ import { UploadCloud, Loader2, FileText } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { type Receipt } from "@/types";
+import { MAX_FILE_SIZE_MB, MAX_FILE_SIZE_BYTES } from "@/lib/constants";
 
 interface ReceiptUploaderProps {
   onReceiptParsed: (receipt: Receipt) => void;
@@ -55,6 +56,14 @@ export function ReceiptUploader({
         return;
       }
 
+      // Check file size before uploading
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        toast.error(
+          `File is too large. Maximum size is ${MAX_FILE_SIZE_MB}MB. Your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`
+        );
+        return;
+      }
+
       // Convert image to Base64 and store in localStorage (skip for PDFs)
       if (file.type.startsWith("image/")) {
         const reader = new FileReader();
@@ -84,6 +93,12 @@ export function ReceiptUploader({
         });
 
         if (!response.ok) {
+          // Handle 413 specifically - the server may not return JSON for this error
+          if (response.status === 413) {
+            throw new Error(
+              `File is too large. Maximum size is ${MAX_FILE_SIZE_MB}MB. Please compress your image or use a smaller file.`
+            );
+          }
           const errorData = await response.json();
           throw new Error(errorData.error || "Failed to parse receipt");
         }
@@ -92,7 +107,11 @@ export function ReceiptUploader({
         onReceiptParsed(receiptData);
       } catch (error) {
         console.error("Receipt parsing error:", error);
-        toast.error("Failed to parse receipt. Please try again.");
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : "Failed to parse receipt. Please try again.";
+        toast.error(errorMessage);
       } finally {
         setIsLoading(false);
       }

@@ -1,9 +1,13 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { ReceiptUploader } from "./receipt-uploader";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 
 // Mock fetch
 global.fetch = jest.fn();
+
+// Mock toast
+jest.mock("sonner", () => ({ toast: { error: jest.fn() } }));
 
 describe("ReceiptUploader", () => {
   beforeEach(() => {
@@ -134,6 +138,40 @@ describe("ReceiptUploader", () => {
       // Should not call the API
       expect(global.fetch).not.toHaveBeenCalled();
       expect(mockSetIsLoading).not.toHaveBeenCalled();
+    }
+  });
+
+  it("rejects files larger than 4.5MB", async () => {
+    const mockOnReceiptParsed = jest.fn();
+    const mockSetIsLoading = jest.fn();
+
+    render(
+      <ReceiptUploader
+        onReceiptParsed={mockOnReceiptParsed}
+        isLoading={false}
+        setIsLoading={mockSetIsLoading}
+        resetImageTrigger={0}
+      />
+    );
+
+    // Create a file larger than 4.5MB (5MB)
+    const largeFile = new File([new ArrayBuffer(5 * 1024 * 1024)], "large.jpg", {
+      type: "image/jpeg",
+    });
+
+    const input = screen.getByRole("presentation").querySelector("input");
+    if (input) {
+      await userEvent.upload(input, largeFile);
+
+      // Should show error toast without calling API
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledTimes(1);
+        expect(toast.error).toHaveBeenCalledWith(
+          expect.stringMatching(/File is too large.*Maximum size is 4\.5MB.*Your file is 5\.0MB/)
+        );
+      });
+      expect(mockSetIsLoading).not.toHaveBeenCalled();
+      expect(global.fetch).not.toHaveBeenCalled();
     }
   });
 });
