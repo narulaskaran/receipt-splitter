@@ -259,9 +259,33 @@ export async function POST(request: NextRequest) {
       // Normalize receipt data to match Receipt type (ensure numeric fields are never null)
       // Filter out items with null prices (these are typically modifiers like "ADD CHEESE"
       // that don't have their own price - the cost is included in the parent item)
-      const validItems = validationResult.data.items.filter(
+      const allItems = validationResult.data.items;
+      const validItems = allItems.filter(
         (item): item is typeof item & { price: number } => item.price !== null
       );
+
+      // Log filtered items for debugging/analytics
+      const filteredItems = allItems.filter((item) => item.price === null);
+      if (filteredItems.length > 0) {
+        console.log(
+          `Filtered out ${filteredItems.length} item(s) with null prices:`,
+          filteredItems.map((item) => item.name)
+        );
+      }
+
+      // Return error if all items were filtered out (receipt has no priced items)
+      if (validItems.length === 0 && allItems.length > 0) {
+        console.error(
+          "All items filtered out - receipt contained only modifiers/items without prices"
+        );
+        return NextResponse.json(
+          {
+            error:
+              "Could not find any items with prices on the receipt. The receipt may only contain modifiers or add-ons without individual prices.",
+          },
+          { status: 422 }
+        );
+      }
 
       const normalizedReceipt = {
         ...validationResult.data,
