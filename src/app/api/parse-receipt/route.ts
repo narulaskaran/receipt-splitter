@@ -19,9 +19,11 @@ function formatFileSizeMB(bytes: number): number {
 }
 
 // Zod schema for receipt validation
+// Note: price is nullable to handle item modifiers (e.g., "ADD CHEESE") that don't have
+// their own price listed on the receipt. These items are filtered out during normalization.
 const receiptItemSchema = z.object({
   name: z.string(),
-  price: z.number(),
+  price: z.number().nullable(),
   quantity: z.number().optional(),
 });
 
@@ -121,7 +123,7 @@ export async function POST(request: NextRequest) {
                   }
                 ]
               }
-              \nInstructions for items:\n- If the receipt lists a line item with a quantity greater than 1, and shows a total price for that line, divide the total price by the quantity to get the per-unit price, and use that value for the 'price' field.\n- Do NOT multiply the price by the quantity in the output.\n- The 'price' field should always be the price for a single unit, even if the receipt shows a total for multiple units.\n- Only include items that were actually purchased.\n- If you can't determine any field, use null.\n- Keep the item names exactly as they appear on the receipt.\n- Return ONLY the JSON with no explanations or additional text.`;
+              \nInstructions for items:\n- If the receipt lists a line item with a quantity greater than 1, and shows a total price for that line, divide the total price by the quantity to get the per-unit price, and use that value for the 'price' field.\n- Do NOT multiply the price by the quantity in the output.\n- The 'price' field should always be the price for a single unit, even if the receipt shows a total for multiple units.\n- Only include items that were actually purchased AND have a visible price on the receipt.\n- SKIP item modifiers or add-ons (like "ADD CHEESE", "EXTRA SAUCE", etc.) that don't have their own price listed - these costs are included in the parent item's price.\n- If you can't determine any field, use null.\n- Keep the item names exactly as they appear on the receipt.\n- Return ONLY the JSON with no explanations or additional text.`;
 
     const content: Array<
       | {
@@ -255,12 +257,18 @@ export async function POST(request: NextRequest) {
       console.log("Successfully parsed receipt data");
 
       // Normalize receipt data to match Receipt type (ensure numeric fields are never null)
+      // Filter out items with null prices (these are typically modifiers like "ADD CHEESE"
+      // that don't have their own price - the cost is included in the parent item)
+      const validItems = validationResult.data.items.filter(
+        (item): item is typeof item & { price: number } => item.price !== null
+      );
+
       const normalizedReceipt = {
         ...validationResult.data,
         subtotal: validationResult.data.subtotal ?? 0,
         tax: validationResult.data.tax ?? 0,
         total: validationResult.data.total ?? 0,
-        items: validationResult.data.items.map((item) => ({
+        items: validItems.map((item) => ({
           ...item,
           quantity: item.quantity ?? 1,
         })),
