@@ -144,6 +144,55 @@ The application is configured for automatic deployment on Vercel. Just connect y
 
 Make sure to add your Anthropic API key as an environment variable in your Vercel project settings.
 
+## Observability (Optional)
+
+The application includes optional observability features for monitoring uploads and debugging.
+
+### File Storage (UploadThing)
+
+Receipt files are automatically uploaded to UploadThing after successful parsing, providing:
+- Public URLs for files that can be displayed in webhook notifications
+- Automatic 90-day retention with daily cleanup via Vercel Cron
+
+**Setup:**
+1. Create an UploadThing account at https://uploadthing.com
+2. Create a new project and copy your API token
+3. Add to Vercel environment variables:
+   ```
+   UPLOADTHING_TOKEN=your_token_here
+   ```
+
+### Webhook Notifications
+
+Get notified when receipts are parsed via Slack or generic JSON webhooks:
+
+**Slack Setup:**
+1. Create a Slack webhook: https://api.slack.com/messaging/webhooks
+2. Add to Vercel environment variables:
+   ```
+   WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+   ```
+
+Notifications include restaurant name, items, totals, and a link to the uploaded receipt image.
+
+### Automatic File Cleanup
+
+A Vercel Cron job runs daily at 3 AM UTC to delete files older than 90 days:
+- Endpoint: `/api/cron/cleanup-old-receipts`
+- Schedule: `0 3 * * *` (configured in `vercel.json`)
+
+**Optional Security:**
+Add `CRON_SECRET` to your Vercel environment variables to protect the endpoint from unauthorized manual invocations. Vercel automatically includes this in the Authorization header for scheduled cron runs.
+
+### Environment Variables Summary
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `ANTHROPIC_API_KEY` | Yes | Claude API key for receipt parsing |
+| `UPLOADTHING_TOKEN` | No | UploadThing API token for file storage |
+| `WEBHOOK_URL` | No | Slack or generic webhook URL for notifications |
+| `CRON_SECRET` | No | Secret for cron job authentication |
+
 ## License
 
 MIT
