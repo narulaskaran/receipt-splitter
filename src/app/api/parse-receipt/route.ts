@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { TextBlock } from "@anthropic-ai/sdk/resources";
 import { z } from "zod";
 import { sendReceiptParsedNotification } from "@/lib/webhook-notifications";
+import { uploadReceiptFile } from "@/lib/uploadthing-storage";
 import { MAX_FILE_SIZE_BYTES } from "@/lib/constants";
 
 // Initialize Anthropic client
@@ -298,13 +299,35 @@ export async function POST(request: NextRequest) {
         })),
       };
 
-      // Send webhook notification (awaited to prevent race condition in serverless)
-      // The webhook has a 5-second timeout, so this adds minimal latency (~100-500ms typically)
+      // Upload file to UploadThing storage
+      // This provides a public URL for the file that can be displayed in Slack
+      // We await the upload to ensure it completes before sending the webhook
+      let fileUrl: string | null = null;
+      if (process.env.UPLOADTHING_TOKEN) {
+        try {
+          const uploadResult = await uploadReceiptFile(
+            Buffer.from(buffer),
+            file.name,
+            file.type,
+            sessionId
+          );
+          fileUrl = uploadResult.url;
+          if (!uploadResult.success) {
+            console.warn("[API] File upload failed, continuing without file URL:", uploadResult.error);
+          }
+        } catch (error) {
+          // Upload errors shouldn't block the webhook - fileUrl stays null
+          console.error("[API] Unexpected upload error:", error);
+        }
+      }
+
+      // Send webhook notification after upload completes (success or failure)
+      // The webhook receives fileUrl (URL if upload succeeded, null if it failed)
       if (process.env.WEBHOOK_URL) {
         try {
           await sendReceiptParsedNotification(
             normalizedReceipt,
-            null, // fileUrl - will be added when Supabase integration is complete
+            fileUrl,
             sessionId,
             file.name,
             file.type
