@@ -22,7 +22,10 @@ Receipt Splitter is a Next.js web application for splitting receipts among frien
 ```
 src/
 ├── app/                    # Next.js App Router pages
-│   ├── api/parse-receipt/  # Receipt parsing API endpoint
+│   ├── api/
+│   │   ├── parse-receipt/  # Receipt parsing API endpoint
+│   │   └── cron/
+│   │       └── cleanup-old-receipts/  # Daily file cleanup cron job
 │   ├── split/              # Split sharing page for recipients
 │   ├── page.tsx            # Main application page
 │   └── layout.tsx          # Root layout with providers
@@ -40,6 +43,8 @@ src/
 │   ├── split-sharing.ts    # URL serialization/deserialization
 │   ├── venmo-utils.ts      # Payment link generation
 │   ├── emoji-utils.ts      # Group emoji management
+│   ├── uploadthing-storage.ts  # UploadThing file upload/delete/list
+│   ├── webhook-notifications.ts # Slack/JSON webhook notifications
 │   └── utils.ts            # General utilities (cn helper)
 ├── types/                  # TypeScript type definitions
 │   └── index.ts            # Core types: Receipt, Person, Group, etc.
@@ -126,10 +131,45 @@ import { calculateTotals } from '@/lib/receipt-utils';
 
 ## Environment Variables
 
-Required for development:
+Required:
 ```
 ANTHROPIC_API_KEY=your_api_key_here
 ```
+
+Optional (for observability features):
+```
+UPLOADTHING_TOKEN=your_token_here      # File storage for receipts
+WEBHOOK_URL=https://hooks.slack.com/...  # Slack/webhook notifications
+CRON_SECRET=your_secret_here            # Cron job authentication
+```
+
+## Observability Architecture
+
+The application includes optional observability features that are designed to fail gracefully:
+
+### File Upload Flow
+1. User uploads receipt → AI parses it
+2. After successful parse, file is uploaded to UploadThing (`uploadthing-storage.ts`)
+3. Upload is awaited before webhook is sent (ensures URL is available)
+4. If upload fails, webhook still sends with `fileUrl: null`
+
+### Webhook Notifications
+- Triggered after successful receipt parsing (`webhook-notifications.ts`)
+- Supports Slack-formatted messages (detected via `hooks.slack.com` URL)
+- Supports generic JSON webhooks for other integrations
+- Includes receipt details, file URL (if available), and session ID
+
+### Cron Job (File Cleanup)
+- Endpoint: `/api/cron/cleanup-old-receipts`
+- Runs daily at 3 AM UTC (configured in `vercel.json`)
+- Deletes files older than 90 days from UploadThing
+- Protected by optional `CRON_SECRET` authentication
+
+### Key Files
+- `src/lib/uploadthing-storage.ts` - Upload, delete, list files
+- `src/lib/webhook-notifications.ts` - Slack/JSON webhook sender
+- `src/app/api/cron/cleanup-old-receipts/route.ts` - Cleanup cron job
+- `vercel.json` - Cron schedule configuration
 
 ## Development Guidelines
 
