@@ -299,8 +299,9 @@ export async function POST(request: NextRequest) {
         })),
       };
 
-      // Upload file to UploadThing storage (non-blocking for user response)
+      // Upload file to UploadThing storage
       // This provides a public URL for the file that can be displayed in Slack
+      // We await the upload to ensure it completes before sending the webhook
       let fileUrl: string | null = null;
       if (process.env.UPLOADTHING_TOKEN) {
         try {
@@ -315,18 +316,18 @@ export async function POST(request: NextRequest) {
             console.warn("[API] File upload failed, continuing without file URL:", uploadResult.error);
           }
         } catch (error) {
-          // Upload errors shouldn't block the response or webhook
+          // Upload errors shouldn't block the webhook - fileUrl stays null
           console.error("[API] Unexpected upload error:", error);
         }
       }
 
-      // Send webhook notification (awaited to prevent race condition in serverless)
-      // The webhook has a 5-second timeout, so this adds minimal latency (~100-500ms typically)
+      // Send webhook notification after upload completes (success or failure)
+      // The webhook receives fileUrl (URL if upload succeeded, null if it failed)
       if (process.env.WEBHOOK_URL) {
         try {
           await sendReceiptParsedNotification(
             normalizedReceipt,
-            fileUrl, // Include the UploadThing file URL if available
+            fileUrl,
             sessionId,
             file.name,
             file.type
