@@ -1,22 +1,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ReceiptDetails } from "./receipt-details";
-import { mockReceipt, setupGlobalMocks } from "@/test/test-utils";
+import { mockReceipt } from "@/test/test-utils";
 import { toast } from "sonner";
-
-jest.mock("sonner", () => ({
-  toast: {
-    success: jest.fn(),
-    error: jest.fn(),
-  },
-}));
-
-beforeAll(() => {
-  setupGlobalMocks();
-});
-
-beforeEach(() => {
-  jest.clearAllMocks();
-});
 
 describe("ReceiptDetails", () => {
   const mockOnReceiptUpdate = jest.fn();

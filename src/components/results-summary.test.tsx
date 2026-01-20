@@ -1,37 +1,9 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ResultsSummary } from "./results-summary";
-import { setupGlobalMocks, mockPeople } from "@/test/test-utils";
+import { mockPeople } from "@/test/test-utils";
 
-// Mock navigator.clipboard
-const mockClipboard = {
-  writeText: jest.fn(),
-};
-
-Object.defineProperty(navigator, "clipboard", {
-  value: mockClipboard,
-  writable: true,
-});
-
-// Mock window.alert
-global.alert = jest.fn();
-
-beforeAll(() => {
-  setupGlobalMocks();
-});
-
-beforeEach(() => {
-  jest.clearAllMocks();
-  mockClipboard.writeText.mockReset().mockResolvedValue(undefined);
-  (global.alert as jest.Mock).mockClear();
-  // Suppress console errors during tests
-  jest.spyOn(console, "error").mockImplementation(() => {});
-});
-
-afterEach(() => {
-  jest.restoreAllMocks();
-  // Ensure navigator.share is cleaned up after each test
-  delete (navigator as { share?: unknown }).share;
-});
+// Note: Browser API mocks (clipboard, alert, navigator.share) are configured
+// globally in jest.setup.ts. Tests can override specific behaviors as needed.
 
 describe("ResultsSummary", () => {
   describe("Rendering", () => {
@@ -296,8 +268,8 @@ describe("ResultsSummary", () => {
       fireEvent.click(shareButton);
 
       await waitFor(() => {
-        expect(mockClipboard.writeText).toHaveBeenCalled();
-        const clipboardContent = mockClipboard.writeText.mock.calls[0][0];
+        expect((navigator.clipboard.writeText as jest.Mock)).toHaveBeenCalled();
+        const clipboardContent = (navigator.clipboard.writeText as jest.Mock).mock.calls[0][0];
         expect(clipboardContent).toContain("/split?");
         expect(clipboardContent).toContain("names=");
         expect(clipboardContent).toContain("amounts=");
@@ -332,7 +304,7 @@ describe("ResultsSummary", () => {
     });
 
     it("handles clipboard write errors gracefully", async () => {
-      mockClipboard.writeText.mockRejectedValueOnce(new Error("Clipboard error"));
+      (navigator.clipboard.writeText as jest.Mock).mockRejectedValueOnce(new Error("Clipboard error"));
 
       const peopleWithTotals = [
         {
@@ -364,6 +336,25 @@ describe("ResultsSummary", () => {
   });
 
   describe("Share Text Functionality", () => {
+    // These tests verify the clipboard fallback when navigator.share is not available
+    let originalShare: typeof navigator.share;
+
+    beforeEach(() => {
+      // Remove navigator.share to test clipboard fallback path
+      originalShare = navigator.share;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (navigator as any).share;
+    });
+
+    afterEach(() => {
+      // Restore navigator.share
+      Object.defineProperty(navigator, "share", {
+        value: originalShare,
+        writable: true,
+        configurable: true,
+      });
+    });
+
     it("copies text summary to clipboard when Share Text is clicked", async () => {
       const peopleWithTotals = [
         {
@@ -390,8 +381,8 @@ describe("ResultsSummary", () => {
       fireEvent.click(shareButton);
 
       await waitFor(() => {
-        expect(mockClipboard.writeText).toHaveBeenCalled();
-        const clipboardContent = mockClipboard.writeText.mock.calls[0][0];
+        expect((navigator.clipboard.writeText as jest.Mock)).toHaveBeenCalled();
+        const clipboardContent = (navigator.clipboard.writeText as jest.Mock).mock.calls[0][0];
         expect(clipboardContent).toContain("Receipt for Test Restaurant");
         expect(clipboardContent).toContain("Alice:");
         expect(clipboardContent).toContain("Bob:");
@@ -411,7 +402,7 @@ describe("ResultsSummary", () => {
       fireEvent.click(shareButton);
 
       await waitFor(() => {
-        const clipboardContent = mockClipboard.writeText.mock.calls[0][0];
+        const clipboardContent = (navigator.clipboard.writeText as jest.Mock).mock.calls[0][0];
         expect(clipboardContent).toContain("Italian Restaurant");
       });
     });
@@ -429,7 +420,7 @@ describe("ResultsSummary", () => {
       fireEvent.click(shareButton);
 
       await waitFor(() => {
-        const clipboardContent = mockClipboard.writeText.mock.calls[0][0];
+        const clipboardContent = (navigator.clipboard.writeText as jest.Mock).mock.calls[0][0];
         expect(clipboardContent).toContain("Date:");
         expect(clipboardContent).toMatch(/1\/(14|15)\/2024/); // toLocaleDateString format (timezone dependent)
       });
@@ -444,7 +435,7 @@ describe("ResultsSummary", () => {
       fireEvent.click(shareButton);
 
       await waitFor(() => {
-        const clipboardContent = mockClipboard.writeText.mock.calls[0][0];
+        const clipboardContent = (navigator.clipboard.writeText as jest.Mock).mock.calls[0][0];
         expect(clipboardContent).not.toContain("Receipt for");
         expect(clipboardContent).toContain("Amount owed by each person:");
       });
@@ -463,13 +454,13 @@ describe("ResultsSummary", () => {
       fireEvent.click(shareButton);
 
       await waitFor(() => {
-        const clipboardContent = mockClipboard.writeText.mock.calls[0][0];
+        const clipboardContent = (navigator.clipboard.writeText as jest.Mock).mock.calls[0][0];
         expect(clipboardContent).not.toContain("Date:");
       });
     });
 
     it("handles clipboard errors with alert", async () => {
-      mockClipboard.writeText.mockRejectedValueOnce(new Error("Clipboard error"));
+      (navigator.clipboard.writeText as jest.Mock).mockRejectedValueOnce(new Error("Clipboard error"));
 
       render(
         <ResultsSummary
@@ -542,7 +533,7 @@ describe("ResultsSummary", () => {
 
       await waitFor(() => {
         expect(mockShare).toHaveBeenCalled();
-        expect(mockClipboard.writeText).toHaveBeenCalled();
+        expect((navigator.clipboard.writeText as jest.Mock)).toHaveBeenCalled();
       });
 
       // Clean up

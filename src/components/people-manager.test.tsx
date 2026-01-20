@@ -1,17 +1,7 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { PeopleManager } from "./people-manager";
 import { toast } from "sonner";
-import { mockPeople, setupGlobalMocks } from "@/test/test-utils";
-
-jest.mock("sonner", () => ({ toast: { error: jest.fn() } }));
-
-beforeAll(() => {
-  setupGlobalMocks();
-});
-
-beforeEach(() => {
-  jest.clearAllMocks();
-});
+import { mockPeople } from "@/test/test-utils";
 
 describe("PeopleManager", () => {
   it("renders add person button", () => {
