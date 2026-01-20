@@ -1,22 +1,7 @@
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { ItemAssignment } from "./item-assignment";
-import { mockPeople, mockReceipt, mockAssignedItems, setupGlobalMocks } from "@/test/test-utils";
+import { mockPeople, mockReceipt, mockAssignedItems } from "@/test/test-utils";
 import { toast } from "sonner";
-
-jest.mock("sonner", () => ({
-  toast: {
-    error: jest.fn(),
-    success: jest.fn(),
-  },
-}));
-
-beforeAll(() => {
-  setupGlobalMocks();
-});
-
-beforeEach(() => {
-  jest.clearAllMocks();
-});
 
 describe("ItemAssignment", () => {
   it("renders item and people names", () => {

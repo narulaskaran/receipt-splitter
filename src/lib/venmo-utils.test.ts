@@ -8,30 +8,10 @@ import {
   type VenmoPaymentParams,
 } from './venmo-utils';
 
-// Mock window.open for testing
-const mockWindowOpen = jest.fn();
-Object.defineProperty(window, 'open', {
-  value: mockWindowOpen,
-  writable: true,
-  configurable: true,
-});
-
-// Mock navigator.share if not already mocked by setup
-const mockNavigatorShare = jest.fn();
-if (!('share' in navigator)) {
-  Object.defineProperty(navigator, 'share', {
-    value: mockNavigatorShare,
-    writable: true,
-    configurable: true,
-  });
-} else {
-  // Replace existing with our spy-friendly mock
-  Object.defineProperty(navigator, 'share', {
-    value: mockNavigatorShare,
-    writable: true,
-    configurable: true,
-  });
-}
+// Note: window.open, navigator.share are mocked globally in jest.setup.ts
+// Use getter functions to ensure we get fresh mock references
+const getMockWindowOpen = () => window.open as jest.Mock;
+const getMockNavigatorShare = () => navigator.share as jest.Mock;
 
 describe('validateVenmoParams', () => {
   const validParams: VenmoPaymentParams = {
@@ -133,15 +113,15 @@ describe('generateVenmoLink', () => {
 
 describe('openVenmoPayment', () => {
   beforeEach(() => {
-    mockWindowOpen.mockClear();
+    getMockWindowOpen().mockClear();
   });
 
   it('opens valid Venmo payment link', () => {
-    mockWindowOpen.mockReturnValue({} as Window);
+    getMockWindowOpen().mockReturnValue({} as Window);
     const result = openVenmoPayment('5551234567', 25.50, 'Test Restaurant');
     
     expect(result).toBe(true);
-    expect(mockWindowOpen).toHaveBeenCalledWith(
+    expect(getMockWindowOpen()).toHaveBeenCalledWith(
       'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test+Restaurant',
       '_blank',
       'noopener,noreferrer'
@@ -152,12 +132,12 @@ describe('openVenmoPayment', () => {
     const result = openVenmoPayment('invalid', 25.50, 'Test');
     
     expect(result).toBe(false);
-    expect(mockWindowOpen).not.toHaveBeenCalled();
+    expect(getMockWindowOpen()).not.toHaveBeenCalled();
   });
 
   it('handles window.open errors gracefully', () => {
     const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-    mockWindowOpen.mockImplementation(() => {
+    getMockWindowOpen().mockImplementation(() => {
       throw new Error('Window blocked');
     });
 
@@ -172,31 +152,31 @@ describe('openVenmoPayment', () => {
 
 describe('shareVenmoPayment', () => {
   beforeEach(() => {
-    mockNavigatorShare.mockClear();
-    mockWindowOpen.mockClear();
+    getMockNavigatorShare().mockClear();
+    getMockWindowOpen().mockClear();
   });
 
   it('uses native sharing when available', async () => {
-    mockNavigatorShare.mockResolvedValue(undefined);
+    getMockNavigatorShare().mockResolvedValue(undefined);
 
     await shareVenmoPayment('5551234567', 25.50, 'Test Restaurant', 'Alice');
     
-    expect(mockNavigatorShare).toHaveBeenCalledWith({
+    expect(getMockNavigatorShare()).toHaveBeenCalledWith({
       title: 'Pay Alice via Venmo',
       text: 'Pay Alice $25.50 via Venmo',
       url: 'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test+Restaurant',
     });
-    expect(mockWindowOpen).not.toHaveBeenCalled();
+    expect(getMockWindowOpen()).not.toHaveBeenCalled();
   });
 
   it('falls back to window.open when sharing fails', async () => {
-    mockNavigatorShare.mockRejectedValue(new Error('Sharing failed'));
-    mockWindowOpen.mockReturnValue({} as Window);
+    getMockNavigatorShare().mockRejectedValue(new Error('Sharing failed'));
+    getMockWindowOpen().mockReturnValue({} as Window);
 
     await shareVenmoPayment('5551234567', 25.50, 'Test Restaurant', 'Alice');
     
-    expect(mockNavigatorShare).toHaveBeenCalled();
-    expect(mockWindowOpen).toHaveBeenCalledWith(
+    expect(getMockNavigatorShare()).toHaveBeenCalled();
+    expect(getMockWindowOpen()).toHaveBeenCalledWith(
       'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test+Restaurant',
       '_blank',
       'noopener,noreferrer'
@@ -206,12 +186,12 @@ describe('shareVenmoPayment', () => {
   it('does not open link when user cancels sharing', async () => {
     const abortError = new Error('User cancelled');
     abortError.name = 'AbortError';
-    mockNavigatorShare.mockRejectedValue(abortError);
+    getMockNavigatorShare().mockRejectedValue(abortError);
 
     await shareVenmoPayment('5551234567', 25.50, 'Test Restaurant', 'Alice');
     
-    expect(mockNavigatorShare).toHaveBeenCalled();
-    expect(mockWindowOpen).not.toHaveBeenCalled();
+    expect(getMockNavigatorShare()).toHaveBeenCalled();
+    expect(getMockWindowOpen()).not.toHaveBeenCalled();
   });
 
   it('throws error for invalid parameters', async () => {
@@ -219,13 +199,13 @@ describe('shareVenmoPayment', () => {
       shareVenmoPayment('invalid', 25.50, 'Test', 'Alice')
     ).rejects.toThrow('Invalid payment parameters');
     
-    expect(mockNavigatorShare).not.toHaveBeenCalled();
-    expect(mockWindowOpen).not.toHaveBeenCalled();
+    expect(getMockNavigatorShare()).not.toHaveBeenCalled();
+    expect(getMockWindowOpen()).not.toHaveBeenCalled();
   });
 
   it('throws error when window.open also fails', async () => {
-    mockNavigatorShare.mockRejectedValue(new Error('Sharing failed'));
-    mockWindowOpen.mockImplementation(() => {
+    getMockNavigatorShare().mockRejectedValue(new Error('Sharing failed'));
+    getMockWindowOpen().mockImplementation(() => {
       throw new Error('Window blocked');
     });
     
@@ -235,11 +215,11 @@ describe('shareVenmoPayment', () => {
   });
 
   it('uses default person name when not provided', async () => {
-    mockNavigatorShare.mockResolvedValue(undefined);
+    getMockNavigatorShare().mockResolvedValue(undefined);
 
     await shareVenmoPayment('5551234567', 25.50, 'Test Restaurant');
     
-    expect(mockNavigatorShare).toHaveBeenCalledWith({
+    expect(getMockNavigatorShare()).toHaveBeenCalledWith({
       title: 'Pay someone via Venmo',
       text: 'Pay someone $25.50 via Venmo',
       url: expect.stringContaining('venmo.com'),
@@ -251,11 +231,11 @@ describe('shareVenmoPayment', () => {
     const originalShare = navigator.share;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     delete (navigator as any).share;
-    mockWindowOpen.mockReturnValue({} as Window);
+    getMockWindowOpen().mockReturnValue({} as Window);
 
     await shareVenmoPayment('5551234567', 25.50, 'Test Restaurant', 'Alice');
     
-    expect(mockWindowOpen).toHaveBeenCalledWith(
+    expect(getMockWindowOpen()).toHaveBeenCalledWith(
       'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test+Restaurant',
       '_blank',
       'noopener,noreferrer'

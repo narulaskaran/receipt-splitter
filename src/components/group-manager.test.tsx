@@ -1,23 +1,8 @@
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { GroupManager } from "./group-manager";
 import { toast } from "sonner";
-import { mockPeople, setupGlobalMocks } from "@/test/test-utils";
+import { mockPeople } from "@/test/test-utils";
 import { type Group } from "@/types";
-
-jest.mock("sonner", () => ({
-  toast: {
-    error: jest.fn(),
-    success: jest.fn(),
-  },
-}));
-
-beforeAll(() => {
-  setupGlobalMocks();
-});
-
-beforeEach(() => {
-  jest.clearAllMocks();
-});
 
 const mockGroups: Group[] = [
   {

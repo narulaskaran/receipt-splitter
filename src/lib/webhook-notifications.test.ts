@@ -1,14 +1,14 @@
 import { sendReceiptParsedNotification } from './webhook-notifications';
 import { type Receipt } from '@/types';
 
-// Mock fetch
-global.fetch = jest.fn();
+// Note: global.fetch is mocked in jest.setup.ts
 
 describe('webhook-notifications', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    // Reset env vars for each test
     delete process.env.WEBHOOK_URL;
     delete process.env.WEBHOOK_TYPE;
+    // Set default mock behavior for this test suite
     (global.fetch as jest.Mock).mockResolvedValue({ ok: true });
   });
 

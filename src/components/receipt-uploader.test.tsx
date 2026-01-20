@@ -3,17 +3,7 @@ import { ReceiptUploader } from "./receipt-uploader";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 
-// Mock fetch
-global.fetch = jest.fn();
-
-// Mock toast
-jest.mock("sonner", () => ({ toast: { error: jest.fn() } }));
-
 describe("ReceiptUploader", () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    localStorage.clear();
-  });
 
   it("renders upload prompt", () => {
     render(
