@@ -147,19 +147,35 @@ class SlackFormatter implements WebhookPayloadFormatter {
       },
     });
 
-    // Add image if URL available
+    // Add file preview if URL available
+    // Note: Slack's image block only supports actual images (JPEG, PNG, GIF, WebP)
+    // PDFs and other file types need to be displayed as links instead
+    const imageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    const isImageFile = imageTypes.includes(mimeType);
+
     if (fileUrl) {
-      blocks.push({
-        type: 'image',
-        image_url: fileUrl,
-        alt_text: 'Receipt image',
-      });
+      if (isImageFile) {
+        blocks.push({
+          type: 'image',
+          image_url: fileUrl,
+          alt_text: 'Receipt image',
+        });
+      } else {
+        // For PDFs and other non-image files, show a link instead
+        blocks.push({
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `📎 *Attachment:* <${fileUrl}|View Receipt PDF>`,
+          },
+        });
+      }
     } else {
       blocks.push({
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: '⚠️ _File upload failed - image not available_',
+          text: '⚠️ _File upload failed - file not available_',
         },
       });
     }

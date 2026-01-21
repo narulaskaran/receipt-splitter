@@ -107,6 +107,39 @@ describe('webhook-notifications', () => {
         );
       });
 
+      it('shows link instead of image block for PDF files', async () => {
+        await sendReceiptParsedNotification(
+          mockReceipt,
+          'https://example.com/receipt.pdf',
+          'test-session-id',
+          'receipt.pdf',
+          'application/pdf',
+          null
+        );
+
+        const callBody = JSON.parse(
+          (global.fetch as jest.Mock).mock.calls[0][1].body
+        );
+
+        // Should NOT have an image block for PDFs
+        expect(callBody.blocks).not.toContainEqual(
+          expect.objectContaining({
+            type: 'image',
+          })
+        );
+
+        // Should have a section block with link to the PDF
+        expect(callBody.blocks).toContainEqual(
+          expect.objectContaining({
+            type: 'section',
+            text: expect.objectContaining({
+              type: 'mrkdwn',
+              text: expect.stringContaining('View Receipt PDF'),
+            }),
+          })
+        );
+      });
+
       it('includes all receipt fields in Slack format', async () => {
         await sendReceiptParsedNotification(
           mockReceipt,
