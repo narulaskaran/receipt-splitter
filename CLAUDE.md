@@ -157,7 +157,10 @@ The application includes optional observability features that are designed to fa
 - Triggered after successful receipt parsing (`webhook-notifications.ts`)
 - Supports Slack-formatted messages (detected via `hooks.slack.com` URL)
 - Supports generic JSON webhooks for other integrations
-- Includes receipt details, file URL (if available), and session ID
+- Includes receipt details, file URL (if available), session ID, and geolocation data
+- Geolocation data (city, region, country, lat/long) is extracted from Vercel headers (`extractGeolocation()` in `parse-receipt/route.ts`)
+- Returns `null` in local development when Vercel headers are unavailable
+- PDF receipts are handled differently than images in Slack webhooks (linked vs. inlined)
 
 ### Cron Job (File Cleanup)
 - Endpoint: `/api/cron/cleanup-old-receipts`
