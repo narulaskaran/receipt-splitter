@@ -5,11 +5,34 @@ import { z } from "zod";
 import { sendReceiptParsedNotification } from "@/lib/webhook-notifications";
 import { uploadReceiptFile } from "@/lib/uploadthing-storage";
 import { MAX_FILE_SIZE_BYTES } from "@/lib/constants";
+import { type GeolocationData } from "@/types";
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
+
+// Extract geolocation data from Vercel headers
+function extractGeolocation(request: NextRequest): GeolocationData | null {
+  const country = request.headers.get('x-vercel-ip-country');
+  const region = request.headers.get('x-vercel-ip-country-region');
+  const city = request.headers.get('x-vercel-ip-city');
+  const latitude = request.headers.get('x-vercel-ip-latitude');
+  const longitude = request.headers.get('x-vercel-ip-longitude');
+
+  // Return null if no geo data is available (local dev without Vercel CLI)
+  if (!country && !region && !city) {
+    return null;
+  }
+
+  return {
+    country: country || null,
+    region: region || null,
+    city: city || null,
+    latitude: latitude || null,
+    longitude: longitude || null,
+  };
+}
 
 // Valid media types for Anthropic API
 type ValidMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
@@ -41,6 +64,9 @@ const receiptSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    // Extract geolocation data from request headers
+    const geolocation = extractGeolocation(request);
+
     // Validate API key exists
     if (!process.env.ANTHROPIC_API_KEY) {
       console.error("ANTHROPIC_API_KEY environment variable is not set");
@@ -330,7 +356,8 @@ export async function POST(request: NextRequest) {
             fileUrl,
             sessionId,
             file.name,
-            file.type
+            file.type,
+            geolocation
           );
         } catch (error) {
           // Webhook errors are already logged in the function, this is a safety catch

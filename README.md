@@ -173,7 +173,20 @@ Get notified when receipts are parsed via Slack or generic JSON webhooks:
    WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
    ```
 
-Notifications include restaurant name, items, totals, and a link to the uploaded receipt image.
+Notifications include restaurant name, items, totals, a link to the uploaded receipt file (image or PDF), and geolocation data (if available).
+
+#### Privacy & Data Collection
+
+When webhook notifications are enabled, the following data may be collected and transmitted:
+- **Receipt parsing metadata**: Restaurant name, items, subtotals, tax, tip, and totals
+- **File upload URLs**: Public URLs for uploaded receipt files (90-day retention)
+- **Geolocation data**: Approximate location (city, region, country, latitude/longitude) based on IP address via Vercel's geolocation headers
+
+Geolocation data is collected server-side using Vercel's IP geolocation service and is only included when:
+- Webhooks are configured (opt-in feature via `WEBHOOK_URL` environment variable)
+- The application is deployed on Vercel (local development returns no geolocation data)
+
+This data is sent to your configured webhook endpoint and is not stored by the Receipt Splitter application itself.
 
 ### Automatic File Cleanup
 

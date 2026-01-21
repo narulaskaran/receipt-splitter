@@ -65,3 +65,12 @@ export interface ItemAssignment {
   personId: string;
   sharePercentage: number;
 }
+
+// Geolocation data from Vercel headers
+export interface GeolocationData {
+  country: string | null;      // x-vercel-ip-country
+  region: string | null;        // x-vercel-ip-country-region
+  city: string | null;          // x-vercel-ip-city
+  latitude: string | null;      // x-vercel-ip-latitude
+  longitude: string | null;     // x-vercel-ip-longitude
+}
