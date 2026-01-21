@@ -37,7 +37,8 @@ describe('webhook-notifications', () => {
           'https://example.com/receipt.jpg',
           'test-session-id',
           'receipt.jpg',
-          'image/jpeg'
+          'image/jpeg',
+          null
         );
 
         expect(global.fetch).toHaveBeenCalledWith(
@@ -87,7 +88,8 @@ describe('webhook-notifications', () => {
           null, // No file URL
           'test-session-id',
           'receipt.jpg',
-          'image/jpeg'
+          'image/jpeg',
+          null
         );
 
         const callBody = JSON.parse(
@@ -111,7 +113,8 @@ describe('webhook-notifications', () => {
           'https://example.com/receipt.jpg',
           'test-session-id',
           'receipt.jpg',
-          'image/jpeg'
+          'image/jpeg',
+          null
         );
 
         const callBody = JSON.parse(
@@ -141,7 +144,8 @@ describe('webhook-notifications', () => {
           'https://example.com/receipt.jpg',
           'test-session-id',
           'receipt.jpg',
-          'image/jpeg'
+          'image/jpeg',
+          null
         );
 
         expect(global.fetch).toHaveBeenCalledWith(
@@ -188,7 +192,8 @@ describe('webhook-notifications', () => {
           null,
           'test-session-id',
           'receipt.jpg',
-          'image/jpeg'
+          'image/jpeg',
+          null
         );
 
         const callBody = JSON.parse(
@@ -208,7 +213,8 @@ describe('webhook-notifications', () => {
           'https://example.com/receipt.jpg',
           'test-session-id',
           'receipt.jpg',
-          'image/jpeg'
+          'image/jpeg',
+          null
         );
 
         expect(global.fetch).not.toHaveBeenCalled();
@@ -223,7 +229,8 @@ describe('webhook-notifications', () => {
           'https://example.com/receipt.jpg',
           'test-session-id',
           'receipt.jpg',
-          'image/jpeg'
+          'image/jpeg',
+          null
         );
 
         expect(global.fetch).not.toHaveBeenCalled();
@@ -240,7 +247,8 @@ describe('webhook-notifications', () => {
             'https://example.com/receipt.jpg',
             'test-session-id',
             'receipt.jpg',
-            'image/jpeg'
+            'image/jpeg',
+            null
           )
         ).resolves.toBeUndefined();
       });
@@ -260,7 +268,8 @@ describe('webhook-notifications', () => {
             'https://example.com/receipt.jpg',
             'test-session-id',
             'receipt.jpg',
-            'image/jpeg'
+            'image/jpeg',
+            null
           )
         ).resolves.toBeUndefined();
       });
@@ -273,12 +282,92 @@ describe('webhook-notifications', () => {
           'https://example.com/receipt.jpg',
           'test-session-id',
           'receipt.jpg',
-          'image/jpeg'
+          'image/jpeg',
+          null
         );
 
         const fetchCall = (global.fetch as jest.Mock).mock.calls[0][1];
         expect(fetchCall.signal).toBeDefined();
         expect(fetchCall.signal.constructor.name).toBe('AbortSignal');
+      });
+    });
+
+    describe('with geolocation data', () => {
+      it('includes geolocation in Slack webhook when provided', async () => {
+        process.env.WEBHOOK_URL = 'https://hooks.slack.com/test';
+
+        const geolocation = {
+          country: 'US',
+          region: 'CA',
+          city: 'San Francisco',
+          latitude: '37.7749',
+          longitude: '-122.4194',
+        };
+
+        await sendReceiptParsedNotification(
+          mockReceipt,
+          'https://example.com/receipt.jpg',
+          'test-session-id',
+          'receipt.jpg',
+          'image/jpeg',
+          geolocation
+        );
+
+        const callBody = JSON.parse(
+          (global.fetch as jest.Mock).mock.calls[0][1].body
+        );
+
+        const bodyString = JSON.stringify(callBody);
+        expect(bodyString).toContain('San Francisco, CA, US');
+      });
+
+      it('includes geolocation in JSON webhook when provided', async () => {
+        process.env.WEBHOOK_URL = 'https://example.com/webhook';
+        process.env.WEBHOOK_TYPE = 'json';
+
+        const geolocation = {
+          country: 'US',
+          region: 'CA',
+          city: 'San Francisco',
+          latitude: '37.7749',
+          longitude: '-122.4194',
+        };
+
+        await sendReceiptParsedNotification(
+          mockReceipt,
+          'https://example.com/receipt.jpg',
+          'test-session-id',
+          'receipt.jpg',
+          'image/jpeg',
+          geolocation
+        );
+
+        const callBody = JSON.parse(
+          (global.fetch as jest.Mock).mock.calls[0][1].body
+        );
+
+        expect(callBody.geolocation).toEqual(geolocation);
+      });
+
+      it('handles null geolocation gracefully', async () => {
+        process.env.WEBHOOK_URL = 'https://hooks.slack.com/test';
+
+        await sendReceiptParsedNotification(
+          mockReceipt,
+          'https://example.com/receipt.jpg',
+          'test-session-id',
+          'receipt.jpg',
+          'image/jpeg',
+          null
+        );
+
+        const callBody = JSON.parse(
+          (global.fetch as jest.Mock).mock.calls[0][1].body
+        );
+
+        // Should not have a location section when geolocation is null
+        const bodyString = JSON.stringify(callBody);
+        expect(bodyString).not.toContain('*Location:*');
       });
     });
 
@@ -297,7 +386,8 @@ describe('webhook-notifications', () => {
           'https://example.com/receipt.jpg',
           'test-session-id',
           'receipt.jpg',
-          'image/jpeg'
+          'image/jpeg',
+          null
         );
 
         const callBody = JSON.parse(
@@ -321,7 +411,8 @@ describe('webhook-notifications', () => {
           'https://example.com/receipt.jpg',
           'test-session-id',
           'receipt.jpg',
-          'image/jpeg'
+          'image/jpeg',
+          null
         );
 
         const callBody = JSON.parse(

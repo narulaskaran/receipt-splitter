@@ -1,4 +1,4 @@
-import { type Receipt } from '@/types';
+import { type Receipt, type GeolocationData } from '@/types';
 
 /**
  * Metadata about a parsed receipt that will be sent via webhook
@@ -9,6 +9,7 @@ export interface ReceiptWebhookData {
   sessionId: string;
   fileName: string;
   mimeType: string;
+  geolocation: GeolocationData | null;
 }
 
 /**
@@ -111,6 +112,25 @@ class SlackFormatter implements WebhookPayloadFormatter {
       ],
     });
 
+    // Add geolocation section if available
+    if (data.geolocation) {
+      const { city, region, country } = data.geolocation;
+      const locationParts = [city, region, country].filter(Boolean);
+      const locationText = locationParts.length > 0
+        ? locationParts.join(', ')
+        : 'Unknown';
+
+      blocks.push({
+        type: 'section',
+        fields: [
+          {
+            type: 'mrkdwn',
+            text: `*Location:*\n${locationText}`,
+          },
+        ],
+      });
+    }
+
     // Add items list
     const itemsText = receipt.items
       .map(
@@ -168,12 +188,13 @@ class SlackFormatter implements WebhookPayloadFormatter {
  */
 class GenericJsonFormatter implements WebhookPayloadFormatter {
   format(data: ReceiptWebhookData): Record<string, unknown> {
-    const { receipt, fileUrl, sessionId, fileName, mimeType } = data;
+    const { receipt, fileUrl, sessionId, fileName, mimeType, geolocation } = data;
 
     return {
       event: 'receipt_parsed',
       timestamp: new Date().toISOString(),
       sessionId,
+      geolocation,
       file: {
         url: fileUrl,
         name: fileName,
@@ -222,13 +243,15 @@ export type WebhookType = 'slack' | 'json';
  * @param sessionId - UUID session identifier
  * @param fileName - Original file name
  * @param mimeType - File MIME type
+ * @param geolocation - Geolocation data from Vercel headers (or null if not available)
  */
 export async function sendReceiptParsedNotification(
   receipt: Receipt,
   fileUrl: string | null,
   sessionId: string,
   fileName: string,
-  mimeType: string
+  mimeType: string,
+  geolocation: GeolocationData | null
 ): Promise<void> {
   try {
     const webhookUrl = process.env.WEBHOOK_URL;
@@ -254,6 +277,7 @@ export async function sendReceiptParsedNotification(
       sessionId,
       fileName,
       mimeType,
+      geolocation,
     };
     const payload = formatter.format(data);
 
