@@ -76,6 +76,7 @@ export function createMockReceipt(overrides: Partial<Receipt> = {}): Receipt {
     tip: 15,
     total: 125,
     items: [{ name: "Test Item", price: 100, quantity: 1 }],
+    currency: 'USD',
     ...overrides,
   };
 }
