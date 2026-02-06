@@ -93,6 +93,61 @@ Options:
 
 Screenshots are saved in the `/screenshots` directory (gitignored) and include 7 viewport sizes from mobile to desktop.
 
+## Visual Change Workflow
+
+When making visual changes to components, follow this workflow to ensure changes are validated across all viewports:
+
+### 1. Capture Baseline Screenshots
+
+Before making any visual changes:
+
+```bash
+npm run dev                                    # Start dev server
+npm run screenshots -- --mock-data --tab all  # Capture baseline across all tabs
+```
+
+### 2. Make Changes & Write Tests
+
+- Update component file(s)
+- Add or update unit tests for functionality (not just visual)
+- Ensure all tests pass: `npm test`
+
+### 3. Capture Updated Screenshots
+
+After making changes:
+
+```bash
+npm run screenshots -- --mock-data --tab all  # Capture updated state
+```
+
+### 4. Manual Visual Review
+
+- Compare screenshots in `/screenshots` directory before/after changes
+- Check all 7 viewports (mobile-small → desktop-large) for regressions
+- Verify no unintended visual changes in other components/tabs
+- Test responsive behavior across viewport sizes
+
+### 5. Commit Changes
+
+- Commit component and test files
+- Screenshots are gitignored (used for manual review only)
+- Document visual changes in commit message
+
+### When to Use Each Testing Tool
+
+- **Unit Tests (Jest + RTL)**: Component logic, state management, user interactions, accessibility
+- **Screenshot Harness**: Visual review across viewports before/after visual changes
+- **Playwright E2E**: Multi-page flows, integration scenarios, complex user journeys
+
+### Screenshot Naming Convention
+
+Screenshots follow this pattern: `{route}_{tab}_{viewport}_{timestamp}.png`
+
+Examples:
+- `home_results_mobile_2026-01-10T17-14-30.png`
+- `home_assign_desktop-large_2026-01-10T17-15-02.png`
+- `split_desktop_2026-01-10T17-20-45.png`
+
 ## Key Types
 
 The core data types are defined in `src/types/index.ts`:
