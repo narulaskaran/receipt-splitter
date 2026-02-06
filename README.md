@@ -96,11 +96,19 @@ npm run build
 
 ### Visual Testing
 
-The project includes a screenshot harness for capturing UI states across multiple viewports:
+The project includes a screenshot harness for capturing UI states across multiple viewports.
+
+**Before Making Visual Changes:**
+
+1. Start dev server: `npm run dev`
+2. Capture baseline: `npm run screenshots -- --mock-data --tab all`
+3. Make changes and update tests
+4. Capture new screenshots: `npm run screenshots -- --mock-data --tab all`
+5. Manually compare screenshots in `/screenshots` directory
+
+**Available Commands:**
 
 ```bash
-# Requires dev server running (npm run dev)
-
 # Screenshot all tabs with mock data
 npm run screenshots -- --mock-data --tab all
 
@@ -109,9 +117,17 @@ npm run screenshots -- --mock-data --tab results
 
 # Screenshot /split route
 npm run screenshots -- --route /split --mock-data
+
+# Custom output directory
+npm run screenshots -- --mock-data --output ./my-screenshots
 ```
 
-Screenshots are saved to the `/screenshots` directory (gitignored) and include 7 viewport sizes: mobile-small (320px), mobile (375px), mobile-large (414px), tablet (768px), tablet-landscape (1024px), desktop (1280px), and desktop-large (1920px).
+**What Gets Captured:**
+
+- 7 viewport sizes: mobile-small (320px), mobile (375px), mobile-large (414px), tablet (768px), tablet-landscape (1024px), desktop (1280px), and desktop-large (1920px)
+- All tabs: upload, people, assign, results
+- Full-page screenshots with mock data
+- Screenshots saved to `/screenshots` directory (gitignored)
 
 ## Key Components
 
