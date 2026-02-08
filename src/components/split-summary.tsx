@@ -89,7 +89,7 @@ export function SplitSummary({ splitData, phoneNumber }: SplitSummaryProps) {
                   <span className="font-semibold text-base">{name}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  {phoneNumber && (
+                  {phoneNumber && splitData.currency === 'USD' && (
                     <Button
                       onClick={() => {
                         const note = `${splitData.note} - ${name}`;
@@ -118,6 +118,11 @@ export function SplitSummary({ splitData, phoneNumber }: SplitSummaryProps) {
                       />
                       {formatCurrency(splitData.amounts[index], splitData.currency)}
                     </Button>
+                  )}
+                  {phoneNumber && splitData.currency !== 'USD' && (
+                    <span className="text-sm font-semibold">
+                      {formatCurrency(splitData.amounts[index], splitData.currency)}
+                    </span>
                   )}
                 </div>
               </div>
