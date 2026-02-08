@@ -151,6 +151,40 @@ describe('Currency utilities', () => {
     });
   });
 
+  describe('Cache behavior', () => {
+    it('caches currency info for repeated calls', () => {
+      // First call should populate cache
+      const first = getCurrencyInfo('EUR');
+
+      // Second call should return cached object (same reference)
+      const second = getCurrencyInfo('EUR');
+
+      // Verify both calls return the same data
+      expect(first.code).toBe(second.code);
+      expect(first.symbol).toBe(second.symbol);
+      expect(first.name).toBe(second.name);
+      expect(first.minorUnits).toBe(second.minorUnits);
+
+      // Verify it's the same cached object (reference equality)
+      expect(first).toBe(second);
+    });
+
+    it('caches multiple currencies independently', () => {
+      const usd = getCurrencyInfo('USD');
+      const eur = getCurrencyInfo('EUR');
+      const jpy = getCurrencyInfo('JPY');
+
+      // Second calls should return cached objects
+      expect(getCurrencyInfo('USD')).toBe(usd);
+      expect(getCurrencyInfo('EUR')).toBe(eur);
+      expect(getCurrencyInfo('JPY')).toBe(jpy);
+
+      // Verify they're different objects
+      expect(usd).not.toBe(eur);
+      expect(eur).not.toBe(jpy);
+    });
+  });
+
   describe('DEFAULT_CURRENCY', () => {
     it('is set to USD', () => {
       expect(DEFAULT_CURRENCY).toBe('USD');

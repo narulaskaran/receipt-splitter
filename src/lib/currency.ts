@@ -5,6 +5,8 @@
  * while maintaining only the essential metadata (minorUnits, locale) that can't be derived.
  */
 
+import Decimal from 'decimal.js';
+
 export interface CurrencyInfo {
   code: string;
   name: string;
@@ -206,24 +208,38 @@ export function formatCurrency(amount: number, currencyCode: string = DEFAULT_CU
 
 /**
  * Convert amount to minor units (cents/pence/etc) based on currency
+ *
+ * Uses Decimal.js to avoid floating-point precision errors in financial calculations.
+ * Example: toMinorUnits(12.34, 'USD') => 1234 (cents)
+ *
+ * @param amount - The amount in major units (e.g., dollars)
+ * @param currencyCode - ISO 4217 currency code (defaults to USD)
+ * @returns The amount in minor units (e.g., cents)
  */
 export function toMinorUnits(amount: number, currencyCode: string = DEFAULT_CURRENCY): number {
   const currency = getCurrencyInfo(currencyCode);
   if (!isFinite(amount)) return 0;
 
   const multiplier = Math.pow(10, currency.minorUnits);
-  return Math.round(amount * multiplier);
+  return new Decimal(amount).times(multiplier).round().toNumber();
 }
 
 /**
  * Convert amount from minor units to major units
+ *
+ * Uses Decimal.js to avoid floating-point precision errors in financial calculations.
+ * Example: fromMinorUnits(1234, 'USD') => 12.34 (dollars)
+ *
+ * @param amountMinorUnits - The amount in minor units (e.g., cents)
+ * @param currencyCode - ISO 4217 currency code (defaults to USD)
+ * @returns The amount in major units (e.g., dollars)
  */
 export function fromMinorUnits(amountMinorUnits: number, currencyCode: string = DEFAULT_CURRENCY): number {
   const currency = getCurrencyInfo(currencyCode);
   if (!isFinite(amountMinorUnits)) return 0;
 
   const divisor = Math.pow(10, currency.minorUnits);
-  return amountMinorUnits / divisor;
+  return new Decimal(amountMinorUnits).dividedBy(divisor).toNumber();
 }
 
 /**
