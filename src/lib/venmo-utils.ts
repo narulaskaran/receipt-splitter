@@ -45,17 +45,27 @@ export function validateVenmoParams(params: VenmoPaymentParams): boolean {
 
 /**
  * Generates a Venmo payment link
- * 
+ *
+ * NOTE: Venmo only supports USD. This function should only be called for USD amounts.
+ *
  * @param phoneNumber - Recipient's phone number (10 or 11 digits)
- * @param amount - Payment amount (must be positive and <= $2999.99)
+ * @param amount - Payment amount in USD (must be positive and <= $2999.99)
  * @param note - Payment note/memo (optional, max 60 characters)
- * @returns Venmo payment URL or null if parameters are invalid
+ * @param currencyCode - Currency code (must be 'USD', defaults to 'USD')
+ * @returns Venmo payment URL or null if parameters are invalid or currency is not USD
  */
 export function generateVenmoLink(
   phoneNumber: string,
   amount: number,
-  note: string = ''
+  note: string = '',
+  currencyCode: string = 'USD'
 ): string | null {
+  // Venmo only supports USD
+  if (currencyCode !== 'USD') {
+    console.warn(`Venmo only supports USD. Attempted to generate link for ${currencyCode}`);
+    return null;
+  }
+
   const params: VenmoPaymentParams = {
     phoneNumber,
     amount,
@@ -74,7 +84,7 @@ export function generateVenmoLink(
   const urlParams = new URLSearchParams({
     txn: 'pay',
     recipients: cleanPhone,
-    amount: amount.toFixed(2),
+    amount: amount.toFixed(2), // Venmo always uses 2 decimal places for USD
   });
 
   // Add note if provided
@@ -116,23 +126,29 @@ export function openVenmoPayment(
 /**
  * Shares a Venmo payment link using the Web Share API if available,
  * otherwise opens the link directly
- * 
+ *
+ * NOTE: Venmo only supports USD.
+ *
  * @param phoneNumber - Recipient's phone number
- * @param amount - Payment amount
+ * @param amount - Payment amount in USD
  * @param note - Payment note/memo
  * @param personName - Name of the person for the share title
+ * @param currencyCode - Currency code (must be 'USD', defaults to 'USD')
  * @returns Promise that resolves when sharing is complete
  */
 export async function shareVenmoPayment(
   phoneNumber: string,
   amount: number,
   note: string = '',
-  personName: string = 'someone'
+  personName: string = 'someone',
+  currencyCode: string = 'USD'
 ): Promise<void> {
-  const link = generateVenmoLink(phoneNumber, amount, note);
-  
+  const link = generateVenmoLink(phoneNumber, amount, note, currencyCode);
+
   if (!link) {
-    throw new Error('Invalid payment parameters');
+    throw new Error(currencyCode !== 'USD'
+      ? 'Venmo only supports USD payments'
+      : 'Invalid payment parameters');
   }
 
   // Try native sharing first

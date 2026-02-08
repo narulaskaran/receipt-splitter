@@ -39,13 +39,14 @@ src/
 │   ├── payment-card.tsx        # Individual payment display
 │   └── ...
 ├── lib/                    # Utility functions
-│   ├── receipt-utils.ts    # Tax/tip calculations
-│   ├── split-sharing.ts    # URL serialization/deserialization
-│   ├── venmo-utils.ts      # Payment link generation
-│   ├── emoji-utils.ts      # Group emoji management
+│   ├── currency.ts          # Multi-currency support (20 currencies)
+│   ├── receipt-utils.ts     # Tax/tip calculations
+│   ├── split-sharing.ts     # URL serialization/deserialization
+│   ├── venmo-utils.ts       # Payment link generation (USD only)
+│   ├── emoji-utils.ts       # Group emoji management
 │   ├── uploadthing-storage.ts  # UploadThing file upload/delete/list
 │   ├── webhook-notifications.ts # Slack/JSON webhook notifications
-│   └── utils.ts            # General utilities (cn helper)
+│   └── utils.ts             # General utilities (cn helper)
 ├── types/                  # TypeScript type definitions
 │   └── index.ts            # Core types: Receipt, Person, Group, etc.
 └── test/                   # Test utilities
@@ -152,11 +153,12 @@ Examples:
 
 The core data types are defined in `src/types/index.ts`:
 
-- `Receipt`: Parsed receipt with items, subtotal, tax, tip, total
+- `Receipt`: Parsed receipt with items, subtotal, tax, tip, total, and currency (ISO 4217 code)
 - `ReceiptItem`: Individual item with name, price, quantity
 - `Person`: Person with assigned items and calculated totals
 - `Group`: Named group with emoji and member IDs
 - `PersonItemAssignment`: Tracks item-to-person assignments with share percentages
+- `CurrencyInfo`: Currency metadata (code, name, symbol, locale, minorUnits)
 
 ## Architecture Patterns
 
@@ -228,6 +230,41 @@ The application includes optional observability features that are designed to fa
 - `src/lib/webhook-notifications.ts` - Slack/JSON webhook sender
 - `src/app/api/cron/cleanup-old-receipts/route.ts` - Cleanup cron job
 - `vercel.json` - Cron schedule configuration
+
+## Multi-Currency Support
+
+Receipt Splitter supports 20 international currencies with automatic AI detection and manual override.
+
+**Important**: Each receipt/split uses a **single currency**. All items, calculations, and payments are in the same currency. Mixed-currency splits are not supported.
+
+### Supported Currencies
+- **Americas**: USD, CAD, MXN, BRL
+- **Europe**: EUR, GBP, CHF, SEK, NOK, DKK, PLN, TRY
+- **Asia-Pacific**: JPY, CNY, INR, KRW, SGD, HKD, AUD, NZD
+
+### Currency Module (`src/lib/currency.ts`)
+- **Auto-Detection**: AI detects currency from receipt context (country, region, language)
+- **Manual Override**: Users can change currency via receipt edit dialog
+- **Proper Formatting**: Uses Intl API for browser-native formatting
+- **Zero-Decimal Support**: Handles JPY, KRW correctly (no cents)
+- **Minor Units**: `toMinorUnits()`/`fromMinorUnits()` use Decimal.js for precision
+- **Lazy Loading**: Proxy-based caching for performance
+
+### Venmo Integration
+- **USD Only**: Venmo payment button only appears for USD receipts
+- **Currency Validation**: `generateVenmoLink()` rejects non-USD currencies
+- **User Clarity**: Non-USD amounts display as formatted text instead of payment button
+
+### Currency in Components
+- **Receipt Details**: Shows "CODE - Name (Symbol)" format (e.g., "JPY - Japanese Yen (¥)")
+- **Split Sharing**: Currency preserved in shareable URLs with proper minor unit conversion
+- **Format Currency**: All `formatCurrency()` calls accept optional `currencyCode` parameter
+
+### Testing
+- Currency utilities: 28 tests covering formatting, conversion, validation
+- Split sharing: 300+ multi-currency tests (JPY, KRW, EUR round-trip)
+- Venmo validation: Tests for non-USD currency rejection
+- Cache verification: Tests for Proxy-based lazy loading
 
 ## Development Guidelines
 

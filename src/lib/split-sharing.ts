@@ -1,5 +1,5 @@
 import { type Person } from "@/types";
-import { toCents, fromCents } from "./utils";
+import { toMinorUnits, fromMinorUnits, DEFAULT_CURRENCY } from "./currency";
 
 /**
  * Interface representing the minimal data needed for a shared split
@@ -10,6 +10,7 @@ export interface SharedSplitData {
   total: number;
   note: string; // Required: becomes Venmo transaction description
   phone: string; // Required: needed for Venmo payment links
+  currency: string; // Currency code (e.g., 'USD', 'JPY', 'EUR')
   date?: string; // Optional: receipt date for display
 }
 
@@ -63,6 +64,7 @@ export const VALIDATION_LIMITS = {
  * @param people - Array of people with their calculated amounts
  * @param note - Required note/memo for the split (becomes Venmo transaction description)
  * @param phone - Required phone number for Venmo payments
+ * @param currency - Currency code for the split (defaults to USD)
  * @param date - Optional receipt date
  * @returns URLSearchParams object ready to be appended to a URL
  */
@@ -70,6 +72,7 @@ export function serializeSplitData(
   people: Person[],
   note: string,
   phone: string,
+  currency: string = DEFAULT_CURRENCY,
   date?: string | null
 ): URLSearchParams {
   // Validate input before proceeding
@@ -84,18 +87,19 @@ export function serializeSplitData(
   const sortedPeople = [...people].sort((a, b) => a.name.localeCompare(b.name));
 
   const names = sortedPeople.map((person) => person.name);
-  const amountsCents = sortedPeople.map((person) => toCents(person.finalTotal));
-  const totalCents = amountsCents.reduce((sum, amount) => sum + amount, 0);
+  const amountsMinorUnits = sortedPeople.map((person) => toMinorUnits(person.finalTotal, currency));
+  const totalMinorUnits = amountsMinorUnits.reduce((sum, amount) => sum + amount, 0);
 
   const params = new URLSearchParams();
 
   // Required parameters
   params.set("names", names.join(","));
-  // Emit minor units (cents)
-  params.set("amounts", amountsCents.join(","));
-  params.set("total", String(totalCents));
+  // Emit minor units (cents for USD, whole units for JPY, etc.)
+  params.set("amounts", amountsMinorUnits.join(","));
+  params.set("total", String(totalMinorUnits));
   params.set("note", note.trim());
   params.set("phone", phone.trim());
+  params.set("currency", currency);
 
   // Optional parameters
   if (date) {
@@ -120,8 +124,9 @@ export function deserializeSplitData(
     const totalParam = searchParams.get("total");
     const noteParam = searchParams.get("note");
     const phoneParam = searchParams.get("phone");
+    const currencyParam = searchParams.get("currency");
 
-    // Required parameters check
+    // Required parameters check (currency defaults to USD for backwards compatibility)
     if (
       !namesParam ||
       !amountsParam ||
@@ -132,6 +137,7 @@ export function deserializeSplitData(
       return null;
     }
 
+    const currency = currencyParam || DEFAULT_CURRENCY;
     const names = namesParam
       .split(",")
       .map((name) => name.trim())
@@ -139,12 +145,12 @@ export function deserializeSplitData(
     const amountStrings = amountsParam
       .split(",")
       .map((amount) => amount.trim());
-    // Back-compat: support both cents (integers) and dollars strings
+    // Back-compat: support both minor units (integers) and major unit strings
     const parsedTotalRaw = Number(totalParam);
-    const isTotalInCents =
+    const isTotalInMinorUnits =
       Number.isInteger(parsedTotalRaw) && !totalParam.includes(".");
-    const total = isTotalInCents
-      ? fromCents(parsedTotalRaw)
+    const total = isTotalInMinorUnits
+      ? fromMinorUnits(parsedTotalRaw, currency)
       : parseFloat(totalParam);
     const note = noteParam.trim();
     const phone = phoneParam.trim();
@@ -163,8 +169,8 @@ export function deserializeSplitData(
     const amounts: number[] = [];
     for (const amountStr of amountStrings) {
       const raw = Number(amountStr);
-      const isCents = Number.isInteger(raw) && !amountStr.includes(".");
-      const amount = isCents ? fromCents(raw) : parseFloat(amountStr);
+      const isMinorUnits = Number.isInteger(raw) && !amountStr.includes(".");
+      const amount = isMinorUnits ? fromMinorUnits(raw, currency) : parseFloat(amountStr);
       if (isNaN(amount) || amount < 0) {
         return null;
       }
@@ -185,6 +191,7 @@ export function deserializeSplitData(
       total,
       note,
       phone,
+      currency,
       date,
     };
   } catch {
@@ -200,6 +207,7 @@ export function deserializeSplitData(
  * @param people - Array of people with their calculated amounts
  * @param note - Required note/memo for the split (becomes Venmo transaction description)
  * @param phone - Required phone number for Venmo payments
+ * @param currency - Currency code for the split (defaults to USD)
  * @param date - Optional receipt date
  * @returns Complete shareable URL
  */
@@ -208,9 +216,10 @@ export function generateShareableUrl(
   people: Person[],
   note: string,
   phone: string,
+  currency: string = DEFAULT_CURRENCY,
   date?: string | null
 ): string {
-  const params = serializeSplitData(people, note, phone, date);
+  const params = serializeSplitData(people, note, phone, currency, date);
   // Ensure baseUrl doesn't end with slash to avoid double slashes
   const cleanBaseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
   return `${cleanBaseUrl}/split?${params.toString()}`;

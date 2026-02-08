@@ -106,8 +106,44 @@ describe('generateVenmoLink', () => {
 
   it('handles special characters in note', () => {
     const link = generateVenmoLink('5551234567', 25.50, 'Café & Co.');
-    
+
     expect(link).toContain('note=Caf%C3%A9+%26+Co.');
+  });
+
+  it('generates link for USD currency (explicit)', () => {
+    const link = generateVenmoLink('5551234567', 25.50, 'Test', 'USD');
+
+    expect(link).toBe('https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test');
+  });
+
+  it('returns null for EUR currency (Venmo only supports USD)', () => {
+    const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const link = generateVenmoLink('5551234567', 25.50, 'Test', 'EUR');
+
+    expect(link).toBeNull();
+    expect(consoleSpy).toHaveBeenCalledWith('Venmo only supports USD. Attempted to generate link for EUR');
+
+    consoleSpy.mockRestore();
+  });
+
+  it('returns null for JPY currency (Venmo only supports USD)', () => {
+    const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const link = generateVenmoLink('5551234567', 1000, 'Test', 'JPY');
+
+    expect(link).toBeNull();
+    expect(consoleSpy).toHaveBeenCalledWith('Venmo only supports USD. Attempted to generate link for JPY');
+
+    consoleSpy.mockRestore();
+  });
+
+  it('returns null for GBP currency (Venmo only supports USD)', () => {
+    const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const link = generateVenmoLink('5551234567', 25.50, 'Test', 'GBP');
+
+    expect(link).toBeNull();
+    expect(consoleSpy).toHaveBeenCalledWith('Venmo only supports USD. Attempted to generate link for GBP');
+
+    consoleSpy.mockRestore();
   });
 });
 
@@ -234,7 +270,7 @@ describe('shareVenmoPayment', () => {
     getMockWindowOpen().mockReturnValue({} as Window);
 
     await shareVenmoPayment('5551234567', 25.50, 'Test Restaurant', 'Alice');
-    
+
     expect(getMockWindowOpen()).toHaveBeenCalledWith(
       'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test+Restaurant',
       '_blank',
@@ -244,6 +280,36 @@ describe('shareVenmoPayment', () => {
     // Restore navigator.share
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (navigator as any).share = originalShare;
+  });
+
+  it('throws error for EUR currency (Venmo only supports USD)', async () => {
+    await expect(
+      shareVenmoPayment('5551234567', 25.50, 'Test', 'Alice', 'EUR')
+    ).rejects.toThrow('Venmo only supports USD payments');
+
+    expect(getMockNavigatorShare()).not.toHaveBeenCalled();
+    expect(getMockWindowOpen()).not.toHaveBeenCalled();
+  });
+
+  it('throws error for JPY currency (Venmo only supports USD)', async () => {
+    await expect(
+      shareVenmoPayment('5551234567', 1000, 'Test', 'Alice', 'JPY')
+    ).rejects.toThrow('Venmo only supports USD payments');
+
+    expect(getMockNavigatorShare()).not.toHaveBeenCalled();
+    expect(getMockWindowOpen()).not.toHaveBeenCalled();
+  });
+
+  it('works with explicit USD currency', async () => {
+    getMockNavigatorShare().mockResolvedValue(undefined);
+
+    await shareVenmoPayment('5551234567', 25.50, 'Test Restaurant', 'Alice', 'USD');
+
+    expect(getMockNavigatorShare()).toHaveBeenCalledWith({
+      title: 'Pay Alice via Venmo',
+      text: 'Pay Alice $25.50 via Venmo',
+      url: 'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test+Restaurant',
+    });
   });
 });
 
