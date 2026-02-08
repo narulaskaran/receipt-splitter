@@ -13,7 +13,13 @@ export interface Receipt {
   tip: number | null;
   total: number;
   items: ReceiptItem[];
-  currency: string; // ISO 4217 currency code (e.g., 'USD', 'EUR', 'GBP')
+  /**
+   * ISO 4217 currency code (e.g., 'USD', 'EUR', 'GBP', 'JPY')
+   *
+   * This field is always present after parsing due to Zod schema's `.default('USD')`.
+   * While optional in the Zod schema, it will always be set to 'USD' if not detected by AI.
+   */
+  currency: string;
 }
 
 // Person types
