@@ -6,6 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -15,6 +22,7 @@ import {
 import { toast } from "sonner";
 import { type Receipt } from "@/types";
 import { formatCurrency, validateReceiptInvariants, AmountValidationError } from "@/lib/receipt-utils";
+import { getSupportedCurrencies } from "@/lib/currency";
 
 interface ReceiptDetailsProps {
   receipt: Receipt;
@@ -132,7 +140,15 @@ export function ReceiptDetails({
 
           <div className="col-span-2">
             <p className="text-sm text-muted-foreground">Currency</p>
-            <p className="font-medium">{receipt.currency || 'USD'}</p>
+            <p className="font-medium">
+              {(() => {
+                const currencies = getSupportedCurrencies();
+                const currency = currencies.find(c => c.code === (receipt.currency || 'USD'));
+                return currency
+                  ? `${currency.code} - ${currency.name} (${currency.symbol})`
+                  : receipt.currency || 'USD';
+              })()}
+            </p>
           </div>
         </div>
       </CardContent>
@@ -177,6 +193,30 @@ export function ReceiptDetails({
                   }
                 />
               </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="currency">Currency</Label>
+              <Select
+                value={editedReceipt.currency || 'USD'}
+                onValueChange={(value) =>
+                  setEditedReceipt({
+                    ...editedReceipt,
+                    currency: value,
+                  })
+                }
+              >
+                <SelectTrigger id="currency">
+                  <SelectValue placeholder="Select currency" />
+                </SelectTrigger>
+                <SelectContent>
+                  {getSupportedCurrencies().map((currency) => (
+                    <SelectItem key={currency.code} value={currency.code}>
+                      {currency.code} - {currency.name} ({currency.symbol})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
