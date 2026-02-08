@@ -235,6 +235,8 @@ The application includes optional observability features that are designed to fa
 
 Receipt Splitter supports 20 international currencies with automatic AI detection and manual override.
 
+**Important**: Each receipt/split uses a **single currency**. All items, calculations, and payments are in the same currency. Mixed-currency splits are not supported.
+
 ### Supported Currencies
 - **Americas**: USD, CAD, MXN, BRL
 - **Europe**: EUR, GBP, CHF, SEK, NOK, DKK, PLN, TRY
