@@ -1,6 +1,17 @@
 import { type Receipt, type GeolocationData } from '@/types';
 
 /**
+ * Context for error notifications
+ */
+export interface ErrorNotificationContext {
+  sessionId?: string;
+  fileName?: string;
+  mimeType?: string;
+  fileUrl?: string | null;
+  geolocation?: GeolocationData | null;
+}
+
+/**
  * Metadata about a parsed receipt that will be sent via webhook
  */
 export interface ReceiptWebhookData {
@@ -36,7 +47,8 @@ interface SlackBlock {
 
 interface SlackPayload {
   text: string;
-  blocks: SlackBlock[];
+  blocks?: SlackBlock[];
+  attachments?: Array<{ color: string; blocks: SlackBlock[] }>;
 }
 
 /**
@@ -234,11 +246,142 @@ class GenericJsonFormatter implements WebhookPayloadFormatter {
 }
 
 /**
+ * Error payload formatter interface
+ */
+export interface ErrorPayloadFormatter {
+  format(errorType: string, errorMessage: string, context: ErrorNotificationContext): WebhookPayload;
+}
+
+/**
+ * Slack error notification formatter
+ */
+class SlackErrorFormatter implements ErrorPayloadFormatter {
+  format(errorType: string, errorMessage: string, context: ErrorNotificationContext): SlackPayload {
+    const blocks: SlackBlock[] = [
+      {
+        type: 'header',
+        text: {
+          type: 'plain_text',
+          text: '⚠️ Receipt Parse Error',
+        },
+      },
+      {
+        type: 'section',
+        fields: [
+          {
+            type: 'mrkdwn',
+            text: `*Error Type:*\n${errorType}`,
+          },
+          {
+            type: 'mrkdwn',
+            text: `*Session ID:*\n\`${context.sessionId || 'unknown'}\``,
+          },
+          {
+            type: 'mrkdwn',
+            text: `*Timestamp:*\n${new Date().toISOString()}`,
+          },
+        ],
+      },
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `*Error Details:*\n\`\`\`${errorMessage}\`\`\``,
+        },
+      },
+    ];
+
+    // Add file preview if URL available
+    if (context.fileUrl) {
+      const imageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      const isImageFile = context.mimeType && imageTypes.includes(context.mimeType);
+
+      if (isImageFile) {
+        blocks.push({
+          type: 'image',
+          image_url: context.fileUrl,
+          alt_text: 'Receipt image',
+        });
+      } else {
+        blocks.push({
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `📎 *Attachment:* <${context.fileUrl}|View Receipt File>`,
+          },
+        });
+      }
+    }
+
+    // Add geolocation if available
+    if (context.geolocation) {
+      const { city, region, country } = context.geolocation;
+      const locationParts = [city, region, country].filter(Boolean);
+      if (locationParts.length > 0) {
+        blocks.push({
+          type: 'section',
+          fields: [
+            {
+              type: 'mrkdwn',
+              text: `*Location:*\n${locationParts.join(', ')}`,
+            },
+          ],
+        });
+      }
+    }
+
+    // Add context footer
+    if (context.fileName || context.mimeType) {
+      blocks.push({
+        type: 'context',
+        elements: [
+          {
+            type: 'mrkdwn',
+            text: `File: ${context.fileName || 'unknown'} (${context.mimeType || 'unknown'})`,
+          },
+        ],
+      });
+    }
+
+    return {
+      text: `Receipt Parse Error: ${errorType}`,
+      attachments: [{ color: '#E74C3C', blocks }],
+    } as SlackPayload;
+  }
+}
+
+/**
+ * Generic JSON error notification formatter
+ */
+class GenericJsonErrorFormatter implements ErrorPayloadFormatter {
+  format(errorType: string, errorMessage: string, context: ErrorNotificationContext): Record<string, unknown> {
+    return {
+      event: 'receipt_parse_error',
+      timestamp: new Date().toISOString(),
+      errorType,
+      errorMessage,
+      sessionId: context.sessionId || null,
+      geolocation: context.geolocation || null,
+      file: {
+        url: context.fileUrl || null,
+        name: context.fileName || null,
+        mimeType: context.mimeType || null,
+      },
+    };
+  }
+}
+
+/**
  * Available webhook formatters
  */
 const FORMATTERS: Record<string, WebhookPayloadFormatter> = {
   slack: new SlackFormatter(),
   json: new GenericJsonFormatter(),
+};
+
+const ERROR_FORMATTERS: Record<string, ErrorPayloadFormatter> = {
+  slack: new SlackErrorFormatter(),
+  json: new GenericJsonErrorFormatter(),
 };
 
 /**
@@ -338,6 +481,73 @@ export async function sendReceiptParsedNotification(
       }
     } else {
       console.error('[Webhook] Unknown error type:', error);
+    }
+    // Fire-and-forget: don't throw
+  }
+}
+
+/**
+ * Send webhook notification for an error that occurred during receipt processing
+ *
+ * @param errorType - Category of error (e.g., "anthropic_rate_limit", "zod_validation")
+ * @param errorMessage - Human-readable error description
+ * @param context - Additional context about the request
+ */
+export async function sendErrorNotification(
+  errorType: string,
+  errorMessage: string,
+  context: ErrorNotificationContext = {}
+): Promise<void> {
+  try {
+    const webhookUrl = process.env.WEBHOOK_URL;
+
+    if (!webhookUrl) {
+      return;
+    }
+
+    const webhookType = (process.env.WEBHOOK_TYPE || 'slack') as WebhookType;
+    const formatter = ERROR_FORMATTERS[webhookType];
+
+    if (!formatter) {
+      console.error(`[Webhook] Unknown webhook type for error notification: ${webhookType}`);
+      return;
+    }
+
+    const payload = formatter.format(errorType, errorMessage, context);
+
+    console.log('[Webhook] Sending error notification...', {
+      type: webhookType,
+      errorType,
+      sessionId: context.sessionId,
+    });
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, 5000);
+
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unable to read response body');
+      throw new Error(
+        `Webhook request failed: ${response.status} ${response.statusText}. Body: ${errorText.substring(0, 200)}`
+      );
+    }
+
+    console.log('[Webhook] Error notification sent successfully');
+  } catch (error) {
+    if (error instanceof Error) {
+      console.error('[Webhook] Error sending error notification (non-blocking):', error.message);
+    } else {
+      console.error('[Webhook] Unknown error sending error notification:', error);
     }
     // Fire-and-forget: don't throw
   }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { sendReceiptParsedNotification } from "@/lib/webhook-notifications";
+import { sendReceiptParsedNotification, sendErrorNotification } from "@/lib/webhook-notifications";
 import { uploadReceiptFile } from "@/lib/uploadthing-storage";
 import { MAX_FILE_SIZE_BYTES } from "@/lib/constants";
 import { type GeolocationData } from "@/types";
@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
     // Validate API key exists
     if (!process.env.ANTHROPIC_API_KEY) {
       console.error("ANTHROPIC_API_KEY environment variable is not set");
+      sendErrorNotification("missing_api_key", "ANTHROPIC_API_KEY environment variable is not set", { geolocation }).catch(() => {});
       return NextResponse.json(
         { error: "Server configuration error: API key not found" },
         { status: 500 }
@@ -132,6 +133,31 @@ export async function POST(request: NextRequest) {
         },
         { status: 400 }
       );
+    }
+
+    // Error notification context — shared across error paths
+    const errorContext = { sessionId, fileName: file.name, mimeType, fileUrl: null as string | null, geolocation };
+
+    // Upload file to UploadThing storage BEFORE parsing
+    // This ensures the file URL is available for both success and error notifications
+    let fileUrl: string | null = null;
+    if (process.env.UPLOADTHING_TOKEN) {
+      try {
+        const uploadResult = await uploadReceiptFile(
+          Buffer.from(buffer),
+          file.name,
+          file.type,
+          sessionId
+        );
+        fileUrl = uploadResult.url;
+        errorContext.fileUrl = fileUrl;
+        if (!uploadResult.success) {
+          console.warn("[API] File upload failed, continuing without file URL:", uploadResult.error);
+        }
+      } catch (error) {
+        // Upload errors shouldn't block processing - fileUrl stays null
+        console.error("[API] Unexpected upload error:", error);
+      }
     }
 
     // Prepare content based on file type
@@ -249,6 +275,7 @@ export async function POST(request: NextRequest) {
       // Use API status codes for error detection
       if (apiError instanceof Anthropic.APIError) {
         if (apiError.status === 429) {
+          sendErrorNotification("anthropic_rate_limit", `Rate limit exceeded: ${apiError.message}`, errorContext).catch(() => {});
           return NextResponse.json(
             {
               error:
@@ -259,6 +286,7 @@ export async function POST(request: NextRequest) {
         }
 
         if (apiError.status === 400) {
+          sendErrorNotification("anthropic_bad_request", `Bad request to Anthropic API: ${apiError.message}`, errorContext).catch(() => {});
           return NextResponse.json(
             {
               error:
@@ -269,6 +297,10 @@ export async function POST(request: NextRequest) {
         }
 
         console.error("Anthropic API error details:", apiError.message, apiError.status);
+        sendErrorNotification("anthropic_api_error", `Anthropic API error (${apiError.status}): ${apiError.message}`, errorContext).catch(() => {});
+      } else {
+        const msg = apiError instanceof Error ? apiError.message : "Unknown Anthropic error";
+        sendErrorNotification("anthropic_unknown_error", msg, errorContext).catch(() => {});
       }
 
       return NextResponse.json(
@@ -285,6 +317,7 @@ export async function POST(request: NextRequest) {
       const textBlock = message.content.find((block) => block.type === "text");
       if (!textBlock || textBlock.type !== "text") {
         console.error("No text content in response");
+        sendErrorNotification("empty_response", "No text content in Anthropic response", errorContext).catch(() => {});
         return NextResponse.json(
           { error: "Failed to parse receipt. Please try again later." },
           { status: 500 }
@@ -302,6 +335,7 @@ export async function POST(request: NextRequest) {
 
       if (!validationResult.success) {
         console.error("Receipt validation failed:", validationResult.error);
+        sendErrorNotification("zod_validation", `Zod validation failed: ${validationResult.error.message}`, errorContext).catch(() => {});
         return NextResponse.json(
           { error: "Failed to parse receipt. Please try again later." },
           { status: 500 }
@@ -369,28 +403,6 @@ export async function POST(request: NextRequest) {
         items: correctedItems,
       };
 
-      // Upload file to UploadThing storage
-      // This provides a public URL for the file that can be displayed in Slack
-      // We await the upload to ensure it completes before sending the webhook
-      let fileUrl: string | null = null;
-      if (process.env.UPLOADTHING_TOKEN) {
-        try {
-          const uploadResult = await uploadReceiptFile(
-            Buffer.from(buffer),
-            file.name,
-            file.type,
-            sessionId
-          );
-          fileUrl = uploadResult.url;
-          if (!uploadResult.success) {
-            console.warn("[API] File upload failed, continuing without file URL:", uploadResult.error);
-          }
-        } catch (error) {
-          // Upload errors shouldn't block the webhook - fileUrl stays null
-          console.error("[API] Unexpected upload error:", error);
-        }
-      }
-
       // Send webhook notification after upload completes (success or failure)
       // The webhook receives fileUrl (URL if upload succeeded, null if it failed)
       if (process.env.WEBHOOK_URL) {
@@ -414,6 +426,7 @@ export async function POST(request: NextRequest) {
       const errorMsg =
         parseError instanceof Error ? parseError.message : "Unknown parse error";
       console.error("Failed to parse JSON response:", errorMsg);
+      sendErrorNotification("json_parse_error", `Failed to parse JSON response: ${errorMsg}`, errorContext).catch(() => {});
       return NextResponse.json(
         {
           error: "Failed to parse receipt. Please try again later.",
@@ -434,6 +447,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    sendErrorNotification("unexpected_error", errorMessage).catch(() => {});
     return NextResponse.json(
       {
         error:
