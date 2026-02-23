@@ -288,7 +288,13 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const parsedData = JSON.parse(textBlock.text);
+      // Strip code fences if present (safety fallback in case structured outputs
+      // returns fenced JSON due to API version mismatch or model rollback)
+      const jsonText = textBlock.text
+        .replace(/^```(?:json)?\s*\n?/i, "")
+        .replace(/\n?```\s*$/i, "")
+        .trim();
+      const parsedData = JSON.parse(jsonText);
       const validationResult = receiptSchema.safeParse(parsedData);
 
       if (!validationResult.success) {

@@ -345,8 +345,8 @@ describe("receipt normalization", () => {
   });
 });
 
-describe("JSON code fence stripping", () => {
-  // Mirrors the stripping logic in route.ts
+describe("JSON code fence stripping (mirrors route.ts fallback logic)", () => {
+  // This must match the stripping logic applied before JSON.parse in route.ts
   function stripCodeFences(text: string): string {
     return text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
   }
