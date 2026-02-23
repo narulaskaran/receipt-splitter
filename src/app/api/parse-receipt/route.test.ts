@@ -344,3 +344,66 @@ describe("receipt normalization", () => {
     });
   });
 });
+
+describe("JSON code fence stripping (mirrors route.ts fallback logic)", () => {
+  // This must match the stripping logic applied before JSON.parse in route.ts
+  function stripCodeFences(text: string): string {
+    return text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+  }
+
+  it("strips ```json code fences from response", () => {
+    const wrapped = '```json\n{"restaurant": "MONTESACRO", "items": []}\n```';
+    const result = stripCodeFences(wrapped);
+    expect(JSON.parse(result)).toEqual({ restaurant: "MONTESACRO", items: [] });
+  });
+
+  it("strips ``` code fences without json tag", () => {
+    const wrapped = '```\n{"restaurant": "Test", "items": []}\n```';
+    const result = stripCodeFences(wrapped);
+    expect(JSON.parse(result)).toEqual({ restaurant: "Test", items: [] });
+  });
+
+  it("leaves plain JSON unchanged", () => {
+    const plain = '{"restaurant": "Test", "items": []}';
+    const result = stripCodeFences(plain);
+    expect(JSON.parse(result)).toEqual({ restaurant: "Test", items: [] });
+  });
+
+  it("handles code fences with trailing whitespace", () => {
+    const wrapped = '```json\n{"restaurant": "Test", "items": []}\n```  ';
+    const result = stripCodeFences(wrapped);
+    expect(JSON.parse(result)).toEqual({ restaurant: "Test", items: [] });
+  });
+
+  it("handles a full realistic Haiku 4.5 response with code fences", () => {
+    const response = `\`\`\`json
+{
+  "restaurant": "MONTESACRO",
+  "date": "2026-02-21",
+  "total": 259.04,
+  "subtotal": 201.00,
+  "tax": 17.84,
+  "tip": 40.20,
+  "items": [
+    { "name": "Carbonara", "price": 25.00, "quantity": 2 },
+    { "name": "Garbatella", "price": 26.00, "quantity": 1 },
+    { "name": "AGNOLOTTI", "price": 26.00, "quantity": 1 },
+    { "name": "Maranella", "price": 25.00, "quantity": 1 },
+    { "name": "INFERNETTO", "price": 25.00, "quantity": 1 },
+    { "name": "Portonaccio", "price": 24.00, "quantity": 1 },
+    { "name": "Carbonara", "price": 25.00, "quantity": 1 }
+  ]
+}
+\`\`\``;
+    const result = stripCodeFences(response);
+    const parsed = JSON.parse(result);
+
+    expect(parsed.restaurant).toBe("MONTESACRO");
+    expect(parsed.items).toHaveLength(7);
+    expect(parsed.total).toBe(259.04);
+
+    // Also validate against receipt schema
+    const schemaResult = receiptSchema.safeParse(parsed);
+    expect(schemaResult.success).toBe(true);
+  });
+});

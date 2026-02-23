@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { TextBlock } from "@anthropic-ai/sdk/resources";
 import { z } from "zod";
 import { sendReceiptParsedNotification } from "@/lib/webhook-notifications";
 import { uploadReceiptFile } from "@/lib/uploadthing-storage";
@@ -150,7 +149,7 @@ export async function POST(request: NextRequest) {
                   }
                 ]
               }
-              \nInstructions for items:\n- If the receipt lists a line item with a quantity greater than 1, and shows a total price for that line, divide the total price by the quantity to get the per-unit price, and use that value for the 'price' field.\n- Do NOT multiply the price by the quantity in the output.\n- The 'price' field should always be the price for a single unit, even if the receipt shows a total for multiple units.\n- Only include items that were actually purchased AND have a visible price on the receipt.\n- SKIP item modifiers or add-ons (like "ADD CHEESE", "EXTRA SAUCE", etc.) that don't have their own price listed - these costs are included in the parent item's price.\n- If you can't determine any field, use null.\n- Keep the item names exactly as they appear on the receipt.\n- Return ONLY the JSON with no explanations or additional text.`;
+              \nInstructions for items:\n- If the receipt lists a line item with a quantity greater than 1, and shows a total price for that line, divide the total price by the quantity to get the per-unit price, and use that value for the 'price' field.\n- Do NOT multiply the price by the quantity in the output.\n- The 'price' field should always be the price for a single unit, even if the receipt shows a total for multiple units.\n- Only include items that were actually purchased AND have a visible price on the receipt.\n- SKIP item modifiers or add-ons (like "ADD CHEESE", "EXTRA SAUCE", etc.) that don't have their own price listed - these costs are included in the parent item's price.\n- If you can't determine any field, use null.\n- Keep the item names exactly as they appear on the receipt.`;
 
     const content: Array<
       | {
@@ -197,7 +196,7 @@ export async function POST(request: NextRequest) {
       text: promptText,
     });
 
-    // Call Anthropic with the file
+    // Call Anthropic with structured outputs (deterministic JSON via schema)
     let message;
     try {
       message = await anthropic.messages.create({
@@ -209,6 +208,37 @@ export async function POST(request: NextRequest) {
             content,
           },
         ],
+        output_config: {
+          format: {
+            type: "json_schema",
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                restaurant: { type: ["string", "null"] },
+                date: { type: ["string", "null"] },
+                total: { type: ["number", "null"] },
+                subtotal: { type: ["number", "null"] },
+                tax: { type: ["number", "null"] },
+                tip: { type: ["number", "null"] },
+                items: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    properties: {
+                      name: { type: "string" },
+                      price: { type: ["number", "null"] },
+                      quantity: { type: "number" },
+                    },
+                    required: ["name", "price", "quantity"],
+                  },
+                },
+              },
+              required: ["restaurant", "date", "total", "subtotal", "tax", "tip", "items"],
+            },
+          },
+        },
       });
     } catch (apiError: unknown) {
       console.error("Anthropic API error:", apiError);
@@ -247,30 +277,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Extract the JSON from the response and handle potential type issues
-    let jsonText = "";
-
-    // Safely get text content from the response
-    for (const block of message.content) {
-      if (block.type === "text") {
-        jsonText = (block as TextBlock).text;
-        break;
-      }
-    }
-
-    if (!jsonText) {
-      console.error("No text content in response");
-      return NextResponse.json(
-        { error: "Failed to parse receipt. Please try again later." },
-        { status: 500 }
-      );
-    }
-
-    // Try to parse the JSON
+    // Extract and parse the structured JSON response
     try {
-      const parsedData = JSON.parse(jsonText);
+      const textBlock = message.content.find((block) => block.type === "text");
+      if (!textBlock || textBlock.type !== "text") {
+        console.error("No text content in response");
+        return NextResponse.json(
+          { error: "Failed to parse receipt. Please try again later." },
+          { status: 500 }
+        );
+      }
 
-      // Validate receipt data structure using Zod
+      // Strip code fences if present (safety fallback in case structured outputs
+      // returns fenced JSON due to API version mismatch or model rollback)
+      const jsonText = textBlock.text
+        .replace(/^```(?:json)?\s*\n?/i, "")
+        .replace(/\n?```\s*$/i, "")
+        .trim();
+      const parsedData = JSON.parse(jsonText);
       const validationResult = receiptSchema.safeParse(parsedData);
 
       if (!validationResult.success) {
@@ -370,7 +394,6 @@ export async function POST(request: NextRequest) {
       const errorMsg =
         parseError instanceof Error ? parseError.message : "Unknown parse error";
       console.error("Failed to parse JSON response:", errorMsg);
-      console.error("Response text:", jsonText.substring(0, 200)); // Log first 200 chars
       return NextResponse.json(
         {
           error: "Failed to parse receipt. Please try again later.",
