@@ -5,6 +5,7 @@ import { sendReceiptParsedNotification } from "@/lib/webhook-notifications";
 import { uploadReceiptFile } from "@/lib/uploadthing-storage";
 import { MAX_FILE_SIZE_BYTES } from "@/lib/constants";
 import { type GeolocationData } from "@/types";
+import { correctMultiQuantityPrices } from "@/lib/receipt-utils";
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -149,7 +150,7 @@ export async function POST(request: NextRequest) {
                   }
                 ]
               }
-              \nInstructions for items:\n- If the receipt lists a line item with a quantity greater than 1, and shows a total price for that line, divide the total price by the quantity to get the per-unit price, and use that value for the 'price' field.\n- Do NOT multiply the price by the quantity in the output.\n- The 'price' field should always be the price for a single unit, even if the receipt shows a total for multiple units.\n- Only include items that were actually purchased AND have a visible price on the receipt.\n- SKIP item modifiers or add-ons (like "ADD CHEESE", "EXTRA SAUCE", etc.) that don't have their own price listed - these costs are included in the parent item's price.\n- If you can't determine any field, use null.\n- Keep the item names exactly as they appear on the receipt.`;
+              \nInstructions for items:\n- CRITICAL: The dollar amount shown next to each line item on a receipt is almost always the LINE TOTAL (price × quantity), NOT the per-unit price. For example, "7 Guinness Dft $91.00" means 7 beers at $13.00 each = $91.00 total, so price should be 13.00 and quantity should be 7.\n- If the receipt lists a line item with a quantity greater than 1, and shows a total price for that line, divide the total price by the quantity to get the per-unit price, and use that value for the 'price' field.\n- Do NOT multiply the price by the quantity in the output. The price shown on the receipt already IS the total for that line.\n- The 'price' field should always be the price for a single unit, even if the receipt shows a total for multiple units.\n- Only include items that were actually purchased AND have a visible price on the receipt.\n- SKIP item modifiers or add-ons (like "ADD CHEESE", "EXTRA SAUCE", etc.) that don't have their own price listed - these costs are included in the parent item's price.\n- If you can't determine any field, use null.\n- Keep the item names exactly as they appear on the receipt.\n\nSELF-CHECK: After parsing, verify that the sum of (price × quantity) for all items approximately equals the subtotal. If it doesn't, you likely misinterpreted line totals as per-unit prices for multi-quantity items. Go back and correct those items by dividing the displayed price by the quantity.`;
 
     const content: Array<
       | {
@@ -338,15 +339,25 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Normalize items with default quantities
+      const normalizedItems = validItems.map((item) => ({
+        ...item,
+        quantity: item.quantity ?? 1,
+      }));
+
+      // Correct multi-quantity price errors (e.g., model treating line totals as per-unit prices)
+      const parsedSubtotal = validationResult.data.subtotal ?? 0;
+      const correctedItems = parsedSubtotal > 0
+        ? correctMultiQuantityPrices(normalizedItems, parsedSubtotal)
+        : normalizedItems;
+
       const normalizedReceipt = {
         ...validationResult.data,
-        subtotal: validationResult.data.subtotal ?? 0,
+        subtotal: parsedSubtotal,
         tax: validationResult.data.tax ?? 0,
         total: validationResult.data.total ?? 0,
-        items: validItems.map((item) => ({
-          ...item,
-          quantity: item.quantity ?? 1,
-        })),
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        items: correctedItems.map(({ corrected: _corrected, ...item }) => item),
       };
 
       // Upload file to UploadThing storage

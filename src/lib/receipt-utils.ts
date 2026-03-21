@@ -78,6 +78,72 @@ export function calculatePersonTotals(
 }
 
 /**
+ * Detects and corrects a common OCR/LLM parsing error where the model treats
+ * a line total as a per-unit price for multi-quantity items.
+ *
+ * Example: "7 Guinness Dft $91.00" → model outputs price=91, qty=7 (total=637)
+ * but the receipt means price=13, qty=7 (total=91). The $91.00 IS the line total.
+ *
+ * Detection: if sum(price*qty) significantly exceeds subtotal, check whether
+ * treating multi-qty items' prices as line totals (price/qty) fixes the mismatch.
+ */
+export function correctMultiQuantityPrices(
+  items: Array<{ name: string; price: number; quantity: number }>,
+  subtotal: number
+): Array<{ name: string; price: number; quantity: number; corrected?: boolean }> {
+  if (subtotal <= 0 || items.length === 0) return items;
+
+  const itemsSum = items.reduce(
+    (sum, item) => sum.add(new Decimal(item.price).mul(new Decimal(item.quantity))),
+    new Decimal(0)
+  );
+  const subtotalDecimal = new Decimal(subtotal);
+
+  // Allow 5% tolerance for rounding differences
+  const tolerance = subtotalDecimal.mul(new Decimal("0.05"));
+  const overshoot = itemsSum.sub(subtotalDecimal);
+
+  // Only correct if items sum significantly exceeds subtotal
+  if (overshoot.lte(tolerance)) return items;
+
+  console.log(
+    `[Price correction] Items sum ($${itemsSum.toFixed(2)}) exceeds subtotal ($${subtotalDecimal.toFixed(2)}) by $${overshoot.toFixed(2)}`
+  );
+
+  // Try correcting multi-quantity items by dividing their price by quantity
+  // (treating the listed price as a line total rather than per-unit)
+  const correctedItems = items.map((item) => {
+    if (item.quantity > 1) {
+      const correctedPrice = new Decimal(item.price).div(new Decimal(item.quantity));
+      return {
+        ...item,
+        price: correctedPrice.toDecimalPlaces(2).toNumber(),
+        corrected: true,
+      };
+    }
+    return item;
+  });
+
+  // Check if correction brings items sum closer to subtotal
+  const correctedSum = correctedItems.reduce(
+    (sum, item) => sum.add(new Decimal(item.price).mul(new Decimal(item.quantity))),
+    new Decimal(0)
+  );
+  const correctedDiff = correctedSum.sub(subtotalDecimal).abs();
+
+  if (correctedDiff.lt(overshoot)) {
+    console.log(
+      `[Price correction] Corrected items sum: $${correctedSum.toFixed(2)} (diff: $${correctedDiff.toFixed(2)})`
+    );
+    return correctedItems;
+  }
+
+  // Correction didn't help, return original items
+  console.log("[Price correction] Correction did not improve match, keeping original prices");
+  return items;
+}
+
+/**
  * Validates if all items have been fully assigned (100%)
  */
 export function validateItemAssignments(

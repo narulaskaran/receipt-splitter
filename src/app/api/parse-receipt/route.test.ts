@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { correctMultiQuantityPrices } from "@/lib/receipt-utils";
 
 // Re-create the schemas here for testing (they're not exported from route.ts)
 // This tests the schema validation logic independently of the API endpoint
@@ -405,5 +406,135 @@ describe("JSON code fence stripping (mirrors route.ts fallback logic)", () => {
     // Also validate against receipt schema
     const schemaResult = receiptSchema.safeParse(parsed);
     expect(schemaResult.success).toBe(true);
+  });
+});
+
+describe("correctMultiQuantityPrices", () => {
+  it("corrects multi-quantity items when sum exceeds subtotal (issue #106)", () => {
+    // "7 Guinness Dft $91.00" - model outputs price=91 qty=7 (sum=637)
+    // but receipt means price=13 qty=7 (sum=91)
+    const items = [
+      { name: "7 Guinness Dft", price: 91, quantity: 7 },
+      { name: "Burger", price: 15, quantity: 1 },
+    ];
+    const subtotal = 106; // 91 + 15
+
+    const result = correctMultiQuantityPrices(items, subtotal);
+
+    expect(result[0].price).toBe(13); // 91 / 7
+    expect(result[0].quantity).toBe(7);
+    expect(result[1].price).toBe(15); // unchanged
+    expect(result[1].quantity).toBe(1);
+  });
+
+  it("does not correct when items sum already matches subtotal", () => {
+    const items = [
+      { name: "Beer", price: 13, quantity: 7 },
+      { name: "Burger", price: 15, quantity: 1 },
+    ];
+    const subtotal = 106; // 91 + 15
+
+    const result = correctMultiQuantityPrices(items, subtotal);
+
+    expect(result[0].price).toBe(13);
+    expect(result[1].price).toBe(15);
+  });
+
+  it("does not correct single-quantity items", () => {
+    const items = [
+      { name: "Expensive Wine", price: 200, quantity: 1 },
+      { name: "Salad", price: 12, quantity: 1 },
+    ];
+    const subtotal = 100; // mismatch, but all qty=1 so can't correct
+
+    const result = correctMultiQuantityPrices(items, subtotal);
+
+    expect(result[0].price).toBe(200);
+    expect(result[1].price).toBe(12);
+  });
+
+  it("handles multiple multi-quantity items", () => {
+    const items = [
+      { name: "Beer", price: 91, quantity: 7 },   // line total 91, per-unit 13
+      { name: "Wings", price: 30, quantity: 3 },   // line total 30, per-unit 10
+      { name: "Fries", price: 8, quantity: 1 },
+    ];
+    const subtotal = 129; // 91 + 30 + 8
+
+    const result = correctMultiQuantityPrices(items, subtotal);
+
+    expect(result[0].price).toBe(13);   // 91 / 7
+    expect(result[1].price).toBe(10);   // 30 / 3
+    expect(result[2].price).toBe(8);    // unchanged
+  });
+
+  it("returns original items when subtotal is 0", () => {
+    const items = [{ name: "Beer", price: 91, quantity: 7 }];
+    const result = correctMultiQuantityPrices(items, 0);
+
+    expect(result[0].price).toBe(91);
+  });
+
+  it("returns empty array for empty items", () => {
+    const result = correctMultiQuantityPrices([], 100);
+    expect(result).toEqual([]);
+  });
+
+  it("does not correct if correction makes the sum worse", () => {
+    // Items: price=20 qty=2 → sum=40. If corrected: price=10 qty=2 → sum=20
+    // Subtotal=35. Original overshoot=5, corrected diff=15. Keep original.
+    const items = [
+      { name: "Item A", price: 20, quantity: 2 },
+    ];
+    const subtotal = 35;
+
+    const result = correctMultiQuantityPrices(items, subtotal);
+
+    expect(result[0].price).toBe(20);
+  });
+
+  it("tolerates small differences within 5%", () => {
+    // Items sum slightly exceeds subtotal but within 5%
+    const items = [
+      { name: "Beer", price: 13.5, quantity: 7 },
+    ];
+    const subtotal = 91; // items sum = 94.5, diff = 3.5, 5% of 91 = 4.55
+
+    const result = correctMultiQuantityPrices(items, subtotal);
+
+    expect(result[0].price).toBe(13.5); // within tolerance, not corrected
+  });
+
+  it("handles decimal prices correctly", () => {
+    const items = [
+      { name: "Cocktail", price: 45.5, quantity: 2 },
+      { name: "Appetizer", price: 14, quantity: 1 },
+    ];
+    const subtotal = 59.5; // 45.5 + 14
+
+    const result = correctMultiQuantityPrices(items, subtotal);
+
+    expect(result[0].price).toBe(22.75); // 45.5 / 2
+    expect(result[0].quantity).toBe(2);
+    expect(result[1].price).toBe(14);
+  });
+
+  it("handles realistic receipt from issue #106 scenario", () => {
+    // Simulating a Toast receipt where model misreads prices
+    const items = [
+      { name: "Guinness Dft", price: 91, quantity: 7 },   // should be 13 each
+      { name: "Club Soda", price: 16, quantity: 4 },       // should be 4 each
+      { name: "Wings", price: 29, quantity: 1 },
+      { name: "Loaded Fries", price: 16, quantity: 1 },
+    ];
+    // Correct subtotal: 91 + 16 + 29 + 16 = 152
+    const subtotal = 152;
+
+    const result = correctMultiQuantityPrices(items, subtotal);
+
+    expect(result[0].price).toBe(13);   // 91 / 7
+    expect(result[1].price).toBe(4);    // 16 / 4
+    expect(result[2].price).toBe(29);   // unchanged
+    expect(result[3].price).toBe(16);   // unchanged
   });
 });
