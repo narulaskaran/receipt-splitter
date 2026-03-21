@@ -87,38 +87,59 @@ export function ItemAssignment({
   const [assignments, setAssignments] = useState<Map<string, number>>(
     new Map()
   );
+  // inputValues holds raw string input while user is typing (e.g. "28." before completing "28.57")
+  const [inputValues, setInputValues] = useState<Map<string, string>>(
+    new Map()
+  );
   const [selectedPeople, setSelectedPeople] = useState<
     Map<number, Set<string>>
   >(new Map());
 
-  // Apply selections to assignments when the dialog opens
+  // Initialize assignments when the dialog opens for an item
   useEffect(() => {
     if (currentItemIndex !== null && open) {
-      const selected = selectedPeople.get(currentItemIndex) || new Set();
+      // Prefer restoring existing saved assignments over reinitializing with equal split
+      const existingAssignments = assignedItems.get(currentItemIndex) || [];
 
-      if (selected.size > 0) {
-        // If we have selected people but no assignments yet, initialize with equal split
-        const peopleToAssign = Array.from(selected);
-        const equalShare = +(100 / peopleToAssign.length).toFixed(2);
-
+      if (existingAssignments.length > 0) {
         const newAssignments = new Map<string, number>();
-        let runningSum = 0;
-
-        peopleToAssign.forEach((personId, index) => {
-          // Last person gets the remainder to ensure total is exactly 100%
-          if (index === peopleToAssign.length - 1) {
-            const lastShare = +(100 - runningSum).toFixed(2);
-            newAssignments.set(personId, lastShare);
-          } else {
-            newAssignments.set(personId, equalShare);
-            runningSum += equalShare;
-          }
+        const newInputValues = new Map<string, string>();
+        existingAssignments.forEach(({ personId, sharePercentage }) => {
+          newAssignments.set(personId, sharePercentage);
+          newInputValues.set(personId, sharePercentage.toString());
         });
-
         setAssignments(newAssignments);
+        setInputValues(newInputValues);
+      } else {
+        const selected = selectedPeople.get(currentItemIndex) || new Set();
+
+        if (selected.size > 0) {
+          const peopleToAssign = Array.from(selected);
+          const equalShare = +(100 / peopleToAssign.length).toFixed(2);
+
+          const newAssignments = new Map<string, number>();
+          const newInputValues = new Map<string, string>();
+          let runningSum = 0;
+
+          peopleToAssign.forEach((personId, index) => {
+            // Last person gets the remainder to ensure total is exactly 100%
+            if (index === peopleToAssign.length - 1) {
+              const lastShare = +(100 - runningSum).toFixed(2);
+              newAssignments.set(personId, lastShare);
+              newInputValues.set(personId, lastShare.toString());
+            } else {
+              newAssignments.set(personId, equalShare);
+              newInputValues.set(personId, equalShare.toString());
+              runningSum += equalShare;
+            }
+          });
+
+          setAssignments(newAssignments);
+          setInputValues(newInputValues);
+        }
       }
     }
-  }, [currentItemIndex, open, selectedPeople]);
+  }, [currentItemIndex, open]);
 
   // Handle split equally between selected people
   const splitEqually = () => {
@@ -150,18 +171,22 @@ export function ItemAssignment({
     let runningSum = 0;
 
     // Assign equal shares
+    const newInputValues = new Map<string, string>();
     selectedPeopleIds.forEach((personId, index) => {
       // Last person gets the remainder to ensure total is exactly 100%
       if (index === selectedPeopleIds.length - 1) {
         const lastShare = +(100 - runningSum).toFixed(2);
         newAssignments.set(personId, lastShare);
+        newInputValues.set(personId, lastShare.toString());
       } else {
         newAssignments.set(personId, equalShare);
+        newInputValues.set(personId, equalShare.toString());
         runningSum += equalShare;
       }
     });
 
     setAssignments(newAssignments);
+    setInputValues(newInputValues);
   };
 
   // Check if all members of a group are selected for an item
@@ -885,15 +910,19 @@ export function ItemAssignment({
                   <div className="flex items-center gap-2">
                     <Checkbox
                       id={`person-${person.id}-dialog`}
-                      checked={!!assignments.get(person.id)}
+                      checked={assignments.has(person.id)}
                       onCheckedChange={(checked) => {
                         const newAssignments = new Map(assignments);
+                        const newInputValues = new Map(inputValues);
                         if (checked) {
                           newAssignments.set(person.id, 0);
+                          newInputValues.set(person.id, "0");
                         } else {
                           newAssignments.delete(person.id);
+                          newInputValues.delete(person.id);
                         }
                         setAssignments(newAssignments);
+                        setInputValues(newInputValues);
                       }}
                     />
                     <Label htmlFor={`person-${person.id}-dialog`}>
@@ -906,12 +935,19 @@ export function ItemAssignment({
                       type="number"
                       min="0"
                       max="100"
-                      value={assignments.get(person.id) || ""}
+                      step="0.01"
+                      value={inputValues.get(person.id) ?? ""}
                       onChange={(e) => {
-                        const value = parseInt(e.target.value) || 0;
-                        const newAssignments = new Map(assignments);
-                        newAssignments.set(person.id, value);
-                        setAssignments(newAssignments);
+                        const raw = e.target.value;
+                        const newInputValues = new Map(inputValues);
+                        newInputValues.set(person.id, raw);
+                        setInputValues(newInputValues);
+                        const parsed = parseFloat(raw);
+                        if (!isNaN(parsed)) {
+                          const newAssignments = new Map(assignments);
+                          newAssignments.set(person.id, parsed);
+                          setAssignments(newAssignments);
+                        }
                       }}
                       className="w-20 text-right"
                       disabled={!assignments.has(person.id)}
