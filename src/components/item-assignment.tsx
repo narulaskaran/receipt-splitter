@@ -94,31 +94,46 @@ export function ItemAssignment({
   // Apply selections to assignments when the dialog opens
   useEffect(() => {
     if (currentItemIndex !== null && open) {
-      const selected = selectedPeople.get(currentItemIndex) || new Set();
+      // Load existing custom percentages if available
+      const existingAssignments = assignedItems.get(currentItemIndex) || [];
 
-      if (selected.size > 0) {
-        // If we have selected people but no assignments yet, initialize with equal split
-        const peopleToAssign = Array.from(selected);
-        const equalShare = +(100 / peopleToAssign.length).toFixed(2);
-
+      if (existingAssignments.length > 0) {
         const newAssignments = new Map<string, number>();
-        let runningSum = 0;
-
-        peopleToAssign.forEach((personId, index) => {
-          // Last person gets the remainder to ensure total is exactly 100%
-          if (index === peopleToAssign.length - 1) {
-            const lastShare = +(100 - runningSum).toFixed(2);
-            newAssignments.set(personId, lastShare);
-          } else {
-            newAssignments.set(personId, equalShare);
-            runningSum += equalShare;
-          }
+        existingAssignments.forEach((a) => {
+          newAssignments.set(a.personId, a.sharePercentage);
         });
-
         setAssignments(newAssignments);
+      } else {
+        // No existing assignments — initialize with equal split for selected people
+        const selected = selectedPeople.get(currentItemIndex) || new Set();
+
+        if (selected.size > 0) {
+          const peopleToAssign = Array.from(selected);
+          const equalShare = +(100 / peopleToAssign.length).toFixed(2);
+
+          const newAssignments = new Map<string, number>();
+          let runningSum = 0;
+
+          peopleToAssign.forEach((personId, index) => {
+            // Last person gets the remainder to ensure total is exactly 100%
+            if (index === peopleToAssign.length - 1) {
+              const lastShare = +(100 - runningSum).toFixed(2);
+              newAssignments.set(personId, lastShare);
+            } else {
+              newAssignments.set(personId, equalShare);
+              runningSum += equalShare;
+            }
+          });
+
+          setAssignments(newAssignments);
+        }
       }
     }
-  }, [currentItemIndex, open, selectedPeople]);
+    // Only re-initialize when the dialog opens or switches to a different item.
+    // Intentionally excluding selectedPeople and assignedItems to prevent
+    // in-flight edits from being reset by parent prop updates.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentItemIndex, open]);
 
   // Handle split equally between selected people
   const splitEqually = () => {
@@ -908,7 +923,7 @@ export function ItemAssignment({
                       max="100"
                       value={assignments.get(person.id) || ""}
                       onChange={(e) => {
-                        const value = parseInt(e.target.value) || 0;
+                        const value = parseFloat(e.target.value) || 0;
                         const newAssignments = new Map(assignments);
                         newAssignments.set(person.id, value);
                         setAssignments(newAssignments);
