@@ -1,7 +1,66 @@
 import Decimal from 'decimal.js';
-import { type Person, type Receipt, type PersonItem, type PersonItemAssignment } from '@/types';
+import { type Person, type Receipt, type ReceiptItem, type PersonItem, type PersonItemAssignment } from '@/types';
 import { VALIDATION_LIMITS } from './split-sharing';
 import { formatCurrency as formatCurrencyNew } from './currency';
+
+/**
+ * Detects and corrects the common LLM mis-parse where a multi-quantity line-item's
+ * *line total* is returned as `price` instead of the per-unit price.
+ *
+ * Example: the receipt shows "7 Guinness Dft  $91.00" and the model outputs
+ * price=91.00, quantity=7.  The frontend multiplies these, yielding $637 instead
+ * of $91.  This function detects the discrepancy via the subtotal cross-check and
+ * divides each affected item's price by its quantity to restore the per-unit value.
+ *
+ * The correction is only applied when:
+ *   1. There is at least one item with quantity > 1.
+ *   2. The current items total differs from the subtotal by more than 10 %.
+ *   3. Dividing all multi-quantity item prices by their quantities brings the total
+ *      at least 50 % closer to the subtotal (ensuring we don't over-correct).
+ *
+ * Note: this assumes all multi-quantity items have the same error. A receipt with
+ * a mix of correctly-priced and line-total-priced multi-qty items will not be fixed.
+ */
+export function fixMultiQuantityPrices(
+  items: ReceiptItem[],
+  subtotal: number
+): { items: ReceiptItem[]; corrected: boolean } {
+  if (subtotal <= 0) return { items, corrected: false };
+
+  const hasMultiQty = items.some((item) => (item.quantity || 1) > 1);
+  if (!hasMultiQty) return { items, corrected: false };
+
+  const currentTotal = items.reduce(
+    (sum, item) => sum + item.price * (item.quantity || 1),
+    0
+  );
+  const currentDiff = Math.abs(currentTotal - subtotal);
+
+  // No meaningful mismatch — nothing to fix (allow 10% tolerance for discounts/rounding)
+  if (currentDiff <= subtotal * 0.1) return { items, corrected: false };
+
+  // Try treating every multi-quantity item's price as a line total (divide by qty)
+  const candidateItems = items.map((item) => {
+    const qty = item.quantity || 1;
+    if (qty > 1) {
+      return { ...item, price: new Decimal(item.price).dividedBy(qty).toNumber() };
+    }
+    return item;
+  });
+
+  const correctedTotal = candidateItems.reduce(
+    (sum, item) => sum + item.price * (item.quantity || 1),
+    0
+  );
+  const correctedDiff = Math.abs(correctedTotal - subtotal);
+
+  // Only apply if correction achieves at least 50% improvement in the mismatch
+  if (correctedDiff < currentDiff * 0.5) {
+    return { items: candidateItems, corrected: true };
+  }
+
+  return { items, corrected: false };
+}
 
 /**
  * Calculates the proportion of tax and tip each person should pay based on their items

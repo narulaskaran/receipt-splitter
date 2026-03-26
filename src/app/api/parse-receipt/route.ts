@@ -5,6 +5,7 @@ import { sendReceiptParsedNotification } from "@/lib/webhook-notifications";
 import { uploadReceiptFile } from "@/lib/uploadthing-storage";
 import { MAX_FILE_SIZE_BYTES } from "@/lib/constants";
 import { type GeolocationData } from "@/types";
+import { fixMultiQuantityPrices } from "@/lib/receipt-utils";
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -146,12 +147,12 @@ export async function POST(request: NextRequest) {
                 "items": [
                   {
                     "name": "Item name",
-                    "price": "Item price as number (this should always be the price for a single unit, not the total for all units)",
+                    "price": "Per-unit price as number (NEVER the line total — see instructions below)",
                     "quantity": "Quantity as number (default to 1 if not specified)"
                   }
                 ]
               }
-              \nInstructions:\n- Detect the currency and return the 3-letter ISO 4217 code (USD, EUR, GBP, JPY, CAD, AUD, INR, CNY, etc.). Use the following priority:\n  1. Explicit currency codes on the receipt (e.g., "USD", "EUR")\n  2. Country/region indicators (e.g., "USA" or US address → USD, "Japan" or Japanese text → JPY, "China" or Chinese characters → CNY)\n  3. Language context as a last resort\n- For ambiguous cases:\n  - If the receipt appears to be from Japan (Japanese text, Japan address, etc.) → use JPY\n  - If the receipt appears to be from China (Chinese characters, China address, etc.) → use CNY\n  - If the receipt appears to be from the USA → use USD\n  - If the receipt appears to be from Canada → use CAD\n  - If the receipt appears to be from Australia → use AUD\n- If the currency cannot be determined with confidence, default to 'USD'\n- Return ONLY the 3-letter ISO 4217 code (e.g., 'JPY'), not the currency symbol or full name\n- If the receipt lists a line item with a quantity greater than 1, and shows a total price for that line, divide the total price by the quantity to get the per-unit price, and use that value for the 'price' field.\n- Do NOT multiply the price by the quantity in the output.\n- The 'price' field should always be the price for a single unit, even if the receipt shows a total for multiple units.\n- Only include items that were actually purchased AND have a visible price on the receipt.\n- SKIP item modifiers or add-ons (like "ADD CHEESE", "EXTRA SAUCE", etc.) that don't have their own price listed - these costs are included in the parent item's price.\n- If you can't determine any field, use null.\n- Keep the item names exactly as they appear on the receipt.\n- Return ONLY the JSON with no explanations or additional text.`;
+              \nInstructions:\n- Detect the currency and return the 3-letter ISO 4217 code (USD, EUR, GBP, JPY, CAD, AUD, INR, CNY, etc.). Use the following priority:\n  1. Explicit currency codes on the receipt (e.g., "USD", "EUR")\n  2. Country/region indicators (e.g., "USA" or US address → USD, "Japan" or Japanese text → JPY, "China" or Chinese characters → CNY)\n  3. Language context as a last resort\n- For ambiguous cases:\n  - If the receipt appears to be from Japan (Japanese text, Japan address, etc.) → use JPY\n  - If the receipt appears to be from China (Chinese characters, China address, etc.) → use CNY\n  - If the receipt appears to be from the USA → use USD\n  - If the receipt appears to be from Canada → use CAD\n  - If the receipt appears to be from Australia → use AUD\n- If the currency cannot be determined with confidence, default to 'USD'\n- Return ONLY the 3-letter ISO 4217 code (e.g., 'JPY'), not the currency symbol or full name\n- CRITICAL — Per-unit pricing for multi-quantity items:\n  - The 'price' field must ALWAYS be the price for ONE unit, never the line total.\n  - If the receipt shows a line total for multiple units, divide to get the per-unit price.\n  - Example: receipt line "7 Guinness Dft  $91.00" → output {"name": "Guinness Dft", "price": 13.00, "quantity": 7} because $91.00 ÷ 7 = $13.00 per drink.\n  - Example: receipt line "2 Club Soda  $16.00" → output {"name": "Club Soda", "price": 8.00, "quantity": 2} because $16.00 ÷ 2 = $8.00 each.\n  - Do NOT output the line total as the price — the application will multiply price × quantity automatically.\n- After extracting all items, verify: the sum of (price × quantity) for all items should approximately equal the subtotal. If it does not, re-examine any multi-quantity items to confirm you used the per-unit price and not the line total.\n- Only include items that were actually purchased AND have a visible price on the receipt.\n- SKIP item modifiers or add-ons (like "ADD CHEESE", "EXTRA SAUCE", etc.) that don't have their own price listed - these costs are included in the parent item's price.\n- If you can't determine any field, use null.\n- Keep the item names exactly as they appear on the receipt.\n- Return ONLY the JSON with no explanations or additional text.`;
 
     const content: Array<
       | {
@@ -340,15 +341,32 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      const subtotalValue = validationResult.data.subtotal ?? 0;
+
+      // Normalize items: ensure quantity defaults to 1
+      const normalizedItems = validItems.map((item) => ({
+        ...item,
+        quantity: item.quantity ?? 1,
+      }));
+
+      // Cross-check items total against subtotal and auto-correct multi-quantity
+      // price errors (LLM returned line total instead of per-unit price).
+      const { items: correctedItems, corrected: pricesCorrected } =
+        fixMultiQuantityPrices(normalizedItems, subtotalValue);
+      if (pricesCorrected) {
+        console.log(
+          "[parse-receipt] Auto-corrected multi-quantity item prices: " +
+            "model returned line totals instead of per-unit prices. " +
+            `Affected items: ${correctedItems.filter((_, i) => normalizedItems[i].price !== correctedItems[i].price).map((item) => item.name).join(", ")}`
+        );
+      }
+
       const normalizedReceipt = {
         ...validationResult.data,
-        subtotal: validationResult.data.subtotal ?? 0,
+        subtotal: subtotalValue,
         tax: validationResult.data.tax ?? 0,
         total: validationResult.data.total ?? 0,
-        items: validItems.map((item) => ({
-          ...item,
-          quantity: item.quantity ?? 1,
-        })),
+        items: correctedItems,
       };
 
       // Upload file to UploadThing storage
