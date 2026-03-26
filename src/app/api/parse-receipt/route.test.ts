@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { fixMultiQuantityPrices } from "@/lib/receipt-utils";
 
 // Re-create the schemas here for testing (they're not exported from route.ts)
 // This tests the schema validation logic independently of the API endpoint
@@ -17,45 +18,6 @@ const receiptSchema = z.object({
   total: z.number().nullable(),
   items: z.array(receiptItemSchema),
 });
-
-// Mirror of the fixMultiQuantityPrices function in route.ts (not exported, so re-implemented here)
-function fixMultiQuantityPrices(
-  items: Array<{ name: string; price: number; quantity: number }>,
-  subtotal: number
-): { items: Array<{ name: string; price: number; quantity: number }>; corrected: boolean } {
-  if (subtotal <= 0) return { items, corrected: false };
-
-  const hasMultiQty = items.some((item) => (item.quantity || 1) > 1);
-  if (!hasMultiQty) return { items, corrected: false };
-
-  const currentTotal = items.reduce(
-    (sum, item) => sum + item.price * (item.quantity || 1),
-    0
-  );
-  const currentDiff = Math.abs(currentTotal - subtotal);
-
-  if (currentDiff <= subtotal * 0.1) return { items, corrected: false };
-
-  const corrected = items.map((item) => {
-    const qty = item.quantity || 1;
-    if (qty > 1) {
-      return { ...item, price: item.price / qty };
-    }
-    return item;
-  });
-
-  const correctedTotal = corrected.reduce(
-    (sum, item) => sum + item.price * (item.quantity || 1),
-    0
-  );
-  const correctedDiff = Math.abs(correctedTotal - subtotal);
-
-  if (correctedDiff < currentDiff * 0.5) {
-    return { items: corrected, corrected: true };
-  }
-
-  return { items, corrected: false };
-}
 
 // Helper function that mirrors the normalization logic in route.ts
 function normalizeReceipt(data: z.infer<typeof receiptSchema>) {

@@ -5,6 +5,7 @@ import { sendReceiptParsedNotification } from "@/lib/webhook-notifications";
 import { uploadReceiptFile } from "@/lib/uploadthing-storage";
 import { MAX_FILE_SIZE_BYTES } from "@/lib/constants";
 import { type GeolocationData } from "@/types";
+import { fixMultiQuantityPrices } from "@/lib/receipt-utils";
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -61,62 +62,6 @@ const receiptSchema = z.object({
   items: z.array(receiptItemSchema),
   currency: z.string().optional().default('USD'),
 });
-
-/**
- * Detects and corrects the common LLM mis-parse where a multi-quantity line-item's
- * *line total* is returned as `price` instead of the per-unit price.
- *
- * Example: the receipt shows "7 Guinness Dft  $91.00" and the model outputs
- * price=91.00, quantity=7.  The frontend multiplies these, yielding $637 instead
- * of $91.  This function detects the discrepancy via the subtotal cross-check and
- * divides each affected item's price by its quantity to restore the per-unit value.
- *
- * The correction is only applied when:
- *   1. There is at least one item with quantity > 1.
- *   2. The current items total differs from the subtotal by more than 10 %.
- *   3. Dividing all multi-quantity item prices by their quantities brings the total
- *      at least 50 % closer to the subtotal (ensuring we don't over-correct).
- */
-function fixMultiQuantityPrices(
-  items: Array<{ name: string; price: number; quantity: number }>,
-  subtotal: number
-): { items: Array<{ name: string; price: number; quantity: number }>; corrected: boolean } {
-  if (subtotal <= 0) return { items, corrected: false };
-
-  const hasMultiQty = items.some((item) => (item.quantity || 1) > 1);
-  if (!hasMultiQty) return { items, corrected: false };
-
-  const currentTotal = items.reduce(
-    (sum, item) => sum + item.price * (item.quantity || 1),
-    0
-  );
-  const currentDiff = Math.abs(currentTotal - subtotal);
-
-  // No meaningful mismatch — nothing to fix (allow 10% tolerance for discounts/rounding)
-  if (currentDiff <= subtotal * 0.1) return { items, corrected: false };
-
-  // Try treating every multi-quantity item's price as a line total (divide by qty)
-  const corrected = items.map((item) => {
-    const qty = item.quantity || 1;
-    if (qty > 1) {
-      return { ...item, price: item.price / qty };
-    }
-    return item;
-  });
-
-  const correctedTotal = corrected.reduce(
-    (sum, item) => sum + item.price * (item.quantity || 1),
-    0
-  );
-  const correctedDiff = Math.abs(correctedTotal - subtotal);
-
-  // Only apply if correction achieves at least 50% improvement in the mismatch
-  if (correctedDiff < currentDiff * 0.5) {
-    return { items: corrected, corrected: true };
-  }
-
-  return { items, corrected: false };
-}
 
 export async function POST(request: NextRequest) {
   try {
