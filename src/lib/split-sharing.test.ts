@@ -55,6 +55,7 @@ describe("serializeSplitData", () => {
     expect(params.get("total")).toBe("6500");
     expect(params.get("note")).toBe("Pizza Palace");
     expect(params.get("phone")).toBe("5551234567");
+    expect(params.get("currency")).toBe("USD"); // Default currency
   });
 
   it("should include optional date when provided", () => {
@@ -62,11 +63,13 @@ describe("serializeSplitData", () => {
       mockPeople,
       "Pizza Palace",
       "5551234567",
-      "2024-01-15"
+      "USD", // currency
+      "2024-01-15" // date
     );
 
     expect(params.get("note")).toBe("Pizza Palace");
     expect(params.get("phone")).toBe("5551234567");
+    expect(params.get("currency")).toBe("USD");
     expect(params.get("date")).toBe("2024-01-15");
   });
 
@@ -317,7 +320,8 @@ describe("generateShareableUrl", () => {
       mockPeople,
       "Pizza Palace",
       "5551234567",
-      "2024-01-15"
+      "USD", // currency
+      "2024-01-15" // date
     );
 
     expect(url).toMatch(/^https:\/\/receipt-splitter\.app\/split\?/);
@@ -326,6 +330,7 @@ describe("generateShareableUrl", () => {
     expect(url).toContain("total=6500");
     expect(url).toContain("note=Pizza+Palace");
     expect(url).toContain("phone=5551234567");
+    expect(url).toContain("currency=USD");
     expect(url).toContain("date=2024-01-15");
   });
 
@@ -525,7 +530,8 @@ describe("round-trip serialization", () => {
       mockPeople,
       "Test Restaurant",
       "5551234567",
-      "2024-01-15"
+      "USD", // currency
+      "2024-01-15" // date
     );
 
     const deserialized = deserializeSplitData(params);
@@ -536,6 +542,7 @@ describe("round-trip serialization", () => {
     expect(deserialized!.total).toBe(65.0);
     expect(deserialized!.note).toBe("Test Restaurant");
     expect(deserialized!.phone).toBe("5551234567");
+    expect(deserialized!.currency).toBe("USD");
     expect(deserialized!.date).toBe("2024-01-15");
 
     // Validate the round-trip data
@@ -814,5 +821,314 @@ describe("minor-unit migration (pre-implementation tests)", () => {
     const data = deserializeSplitData(params)!;
     expect(data.amounts).toEqual([1.01, 2.02]);
     expect(data.total).toBe(3.03);
+  });
+});
+
+describe("Multi-Currency Support", () => {
+  // Mock data for JPY (0 decimal places)
+  const mockPeopleJPY: Person[] = [
+    {
+      id: "1",
+      name: "Alice",
+      items: [],
+      totalBeforeTax: 1000,
+      tax: 100,
+      tip: 150,
+      finalTotal: 1250,
+    },
+    {
+      id: "2",
+      name: "Bob",
+      items: [],
+      totalBeforeTax: 800,
+      tax: 80,
+      tip: 120,
+      finalTotal: 1000,
+    },
+  ];
+
+  // Mock data for KRW (0 decimal places)
+  const mockPeopleKRW: Person[] = [
+    {
+      id: "1",
+      name: "Alice",
+      items: [],
+      totalBeforeTax: 15000,
+      tax: 1500,
+      tip: 2250,
+      finalTotal: 18750,
+    },
+    {
+      id: "2",
+      name: "Bob",
+      items: [],
+      totalBeforeTax: 12000,
+      tax: 1200,
+      tip: 1800,
+      finalTotal: 15000,
+    },
+  ];
+
+  describe("serializeSplitData with different currencies", () => {
+    it("should serialize JPY amounts correctly (0 decimal places)", () => {
+      const params = serializeSplitData(
+        mockPeopleJPY,
+        "Sushi Restaurant",
+        "5551234567",
+        "JPY"
+      );
+
+      // JPY has 0 decimal places, so amounts are whole numbers
+      expect(params.get("names")).toBe("Alice,Bob");
+      expect(params.get("amounts")).toBe("1250,1000"); // No cents for JPY
+      expect(params.get("total")).toBe("2250");
+      expect(params.get("currency")).toBe("JPY");
+      expect(params.get("note")).toBe("Sushi Restaurant");
+    });
+
+    it("should serialize KRW amounts correctly (0 decimal places)", () => {
+      const params = serializeSplitData(
+        mockPeopleKRW,
+        "Korean BBQ",
+        "5551234567",
+        "KRW"
+      );
+
+      // KRW has 0 decimal places
+      expect(params.get("names")).toBe("Alice,Bob");
+      expect(params.get("amounts")).toBe("18750,15000");
+      expect(params.get("total")).toBe("33750");
+      expect(params.get("currency")).toBe("KRW");
+      expect(params.get("note")).toBe("Korean BBQ");
+    });
+
+    it("should serialize EUR amounts correctly (2 decimal places)", () => {
+      const params = serializeSplitData(
+        mockPeople,
+        "French Bistro",
+        "5551234567",
+        "EUR"
+      );
+
+      // EUR has 2 decimal places like USD
+      expect(params.get("names")).toBe("Alice,Bob,Charlie");
+      expect(params.get("amounts")).toBe("3250,1950,1300");
+      expect(params.get("total")).toBe("6500");
+      expect(params.get("currency")).toBe("EUR");
+    });
+
+    it("should default to USD when currency is not provided", () => {
+      const params = serializeSplitData(mockPeople, "Test", "5551234567");
+
+      expect(params.get("currency")).toBe("USD");
+    });
+  });
+
+  describe("deserializeSplitData with different currencies", () => {
+    it("should deserialize JPY amounts correctly", () => {
+      const params = new URLSearchParams({
+        names: "Alice,Bob",
+        amounts: "1250,1000",
+        total: "2250",
+        note: "Sushi Restaurant",
+        phone: "5551234567",
+        currency: "JPY",
+      });
+
+      const result = deserializeSplitData(params);
+
+      expect(result).not.toBeNull();
+      expect(result!.amounts).toEqual([1250, 1000]);
+      expect(result!.total).toBe(2250);
+      expect(result!.currency).toBe("JPY");
+    });
+
+    it("should deserialize KRW amounts correctly", () => {
+      const params = new URLSearchParams({
+        names: "Alice,Bob",
+        amounts: "18750,15000",
+        total: "33750",
+        note: "Korean BBQ",
+        phone: "5551234567",
+        currency: "KRW",
+      });
+
+      const result = deserializeSplitData(params);
+
+      expect(result).not.toBeNull();
+      expect(result!.amounts).toEqual([18750, 15000]);
+      expect(result!.total).toBe(33750);
+      expect(result!.currency).toBe("KRW");
+    });
+
+    it("should deserialize EUR amounts correctly", () => {
+      const params = new URLSearchParams({
+        names: "Alice,Bob",
+        amounts: "3250,1950",
+        total: "5200",
+        note: "French Bistro",
+        phone: "5551234567",
+        currency: "EUR",
+      });
+
+      const result = deserializeSplitData(params);
+
+      expect(result).not.toBeNull();
+      expect(result!.amounts).toEqual([32.5, 19.5]);
+      expect(result!.total).toBe(52.0);
+      expect(result!.currency).toBe("EUR");
+    });
+
+    it("should default to USD for backwards compatibility when currency is missing", () => {
+      const params = new URLSearchParams({
+        names: "Alice,Bob",
+        amounts: "3250,1950",
+        total: "5200",
+        note: "Test",
+        phone: "5551234567",
+      });
+
+      const result = deserializeSplitData(params);
+
+      expect(result).not.toBeNull();
+      expect(result!.currency).toBe("USD");
+      expect(result!.amounts).toEqual([32.5, 19.5]);
+      expect(result!.total).toBe(52.0);
+    });
+
+    it("should handle backwards compatibility with old USD links (no currency param)", () => {
+      const params = new URLSearchParams({
+        names: "Alice,Bob",
+        amounts: "3250,1950",
+        total: "5200",
+        note: "Pizza Palace",
+        phone: "5551234567",
+        date: "2024-01-15",
+      });
+
+      const result = deserializeSplitData(params);
+
+      expect(result).not.toBeNull();
+      expect(result!.currency).toBe("USD"); // Should default to USD
+      expect(result!.amounts).toEqual([32.5, 19.5]);
+      expect(result!.total).toBe(52.0);
+    });
+  });
+
+  describe("generateShareableUrl with different currencies", () => {
+    it("should generate URL with JPY currency", () => {
+      const url = generateShareableUrl(
+        "https://example.com",
+        mockPeopleJPY,
+        "Sushi Restaurant",
+        "5551234567",
+        "JPY"
+      );
+
+      expect(url).toContain("currency=JPY");
+      expect(url).toContain("amounts=1250%2C1000");
+      expect(url).toContain("total=2250");
+    });
+
+    it("should generate URL with KRW currency", () => {
+      const url = generateShareableUrl(
+        "https://example.com",
+        mockPeopleKRW,
+        "Korean BBQ",
+        "5551234567",
+        "KRW"
+      );
+
+      expect(url).toContain("currency=KRW");
+      expect(url).toContain("amounts=18750%2C15000");
+      expect(url).toContain("total=33750");
+    });
+
+    it("should generate URL with EUR currency", () => {
+      const url = generateShareableUrl(
+        "https://example.com",
+        mockPeople,
+        "French Bistro",
+        "5551234567",
+        "EUR"
+      );
+
+      expect(url).toContain("currency=EUR");
+      expect(url).toContain("amounts=3250%2C1950%2C1300");
+      expect(url).toContain("total=6500");
+    });
+
+    it("should default to USD when currency is not provided", () => {
+      const url = generateShareableUrl(
+        "https://example.com",
+        mockPeople,
+        "Test",
+        "5551234567"
+      );
+
+      expect(url).toContain("currency=USD");
+    });
+  });
+
+  describe("Round-trip serialization with different currencies", () => {
+    it("should correctly round-trip JPY data", () => {
+      const params = serializeSplitData(
+        mockPeopleJPY,
+        "Sushi Restaurant",
+        "5551234567",
+        "JPY"
+      );
+      const deserialized = deserializeSplitData(params);
+
+      expect(deserialized).not.toBeNull();
+      expect(deserialized!.currency).toBe("JPY");
+      expect(deserialized!.amounts).toEqual([1250, 1000]);
+      expect(deserialized!.total).toBe(2250);
+    });
+
+    it("should correctly round-trip KRW data", () => {
+      const params = serializeSplitData(
+        mockPeopleKRW,
+        "Korean BBQ",
+        "5551234567",
+        "KRW"
+      );
+      const deserialized = deserializeSplitData(params);
+
+      expect(deserialized).not.toBeNull();
+      expect(deserialized!.currency).toBe("KRW");
+      expect(deserialized!.amounts).toEqual([18750, 15000]);
+      expect(deserialized!.total).toBe(33750);
+    });
+
+    it("should correctly round-trip EUR data", () => {
+      const params = serializeSplitData(
+        mockPeople,
+        "French Bistro",
+        "5551234567",
+        "EUR"
+      );
+      const deserialized = deserializeSplitData(params);
+
+      expect(deserialized).not.toBeNull();
+      expect(deserialized!.currency).toBe("EUR");
+      expect(deserialized!.amounts).toEqual([32.5, 19.5, 13.0]);
+      expect(deserialized!.total).toBe(65.0);
+    });
+
+    it("should correctly round-trip USD data", () => {
+      const params = serializeSplitData(
+        mockPeople,
+        "Pizza Palace",
+        "5551234567",
+        "USD"
+      );
+      const deserialized = deserializeSplitData(params);
+
+      expect(deserialized).not.toBeNull();
+      expect(deserialized!.currency).toBe("USD");
+      expect(deserialized!.amounts).toEqual([32.5, 19.5, 13.0]);
+      expect(deserialized!.total).toBe(65.0);
+    });
   });
 });
