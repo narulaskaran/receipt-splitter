@@ -18,6 +18,45 @@ const receiptSchema = z.object({
   items: z.array(receiptItemSchema),
 });
 
+// Mirror of the fixMultiQuantityPrices function in route.ts (not exported, so re-implemented here)
+function fixMultiQuantityPrices(
+  items: Array<{ name: string; price: number; quantity: number }>,
+  subtotal: number
+): { items: Array<{ name: string; price: number; quantity: number }>; corrected: boolean } {
+  if (subtotal <= 0) return { items, corrected: false };
+
+  const hasMultiQty = items.some((item) => (item.quantity || 1) > 1);
+  if (!hasMultiQty) return { items, corrected: false };
+
+  const currentTotal = items.reduce(
+    (sum, item) => sum + item.price * (item.quantity || 1),
+    0
+  );
+  const currentDiff = Math.abs(currentTotal - subtotal);
+
+  if (currentDiff <= subtotal * 0.1) return { items, corrected: false };
+
+  const corrected = items.map((item) => {
+    const qty = item.quantity || 1;
+    if (qty > 1) {
+      return { ...item, price: item.price / qty };
+    }
+    return item;
+  });
+
+  const correctedTotal = corrected.reduce(
+    (sum, item) => sum + item.price * (item.quantity || 1),
+    0
+  );
+  const correctedDiff = Math.abs(correctedTotal - subtotal);
+
+  if (correctedDiff < currentDiff * 0.5) {
+    return { items: corrected, corrected: true };
+  }
+
+  return { items, corrected: false };
+}
+
 // Helper function that mirrors the normalization logic in route.ts
 function normalizeReceipt(data: z.infer<typeof receiptSchema>) {
   const allItems = data.items;
@@ -405,5 +444,129 @@ describe("JSON code fence stripping (mirrors route.ts fallback logic)", () => {
     // Also validate against receipt schema
     const schemaResult = receiptSchema.safeParse(parsed);
     expect(schemaResult.success).toBe(true);
+  });
+});
+
+describe("fixMultiQuantityPrices", () => {
+  describe("core bug fix: line total returned instead of per-unit price", () => {
+    it("fixes the reported bug: 7 Guinness Dft parsed as $637 instead of $91", () => {
+      // Simulates the LLM returning price=91 (line total) for qty=7 item
+      // Frontend would compute 91 * 7 = $637 — this should be caught and fixed
+      const items = [
+        { name: "Guinness Dft", price: 91.0, quantity: 7 }, // line total, not per-unit
+        { name: "Burger", price: 15.0, quantity: 1 },
+      ];
+      // Subtotal reflects correct math: 13*7 + 15 = 106
+      const subtotal = 106.0;
+
+      const { items: fixed, corrected } = fixMultiQuantityPrices(items, subtotal);
+
+      expect(corrected).toBe(true);
+      expect(fixed[0].price).toBeCloseTo(13.0, 2); // 91 / 7 = 13
+      expect(fixed[0].quantity).toBe(7);
+      expect(fixed[1].price).toBe(15.0); // qty=1 items unchanged
+    });
+
+    it("fixes multiple multi-quantity items all returning line totals", () => {
+      // 2 Club Soda total $16 (should be $8 each), 3 Beer total $36 (should be $12 each)
+      const items = [
+        { name: "Club Soda", price: 16.0, quantity: 2 },
+        { name: "Beer", price: 36.0, quantity: 3 },
+        { name: "Fries", price: 10.0, quantity: 1 },
+      ];
+      // Correct subtotal: 8*2 + 12*3 + 10 = 16 + 36 + 10 = 62
+      const subtotal = 62.0;
+
+      const { items: fixed, corrected } = fixMultiQuantityPrices(items, subtotal);
+
+      expect(corrected).toBe(true);
+      expect(fixed[0].price).toBeCloseTo(8.0, 2);
+      expect(fixed[1].price).toBeCloseTo(12.0, 2);
+      expect(fixed[2].price).toBe(10.0); // single-qty item unchanged
+    });
+  });
+
+  describe("does not modify already-correct prices", () => {
+    it("leaves items unchanged when items total matches subtotal", () => {
+      const items = [
+        { name: "Guinness Dft", price: 13.0, quantity: 7 }, // already per-unit
+        { name: "Burger", price: 15.0, quantity: 1 },
+      ];
+      const subtotal = 106.0; // 13*7 + 15 = 91 + 15 = 106
+
+      const { items: result, corrected } = fixMultiQuantityPrices(items, subtotal);
+
+      expect(corrected).toBe(false);
+      expect(result[0].price).toBe(13.0);
+      expect(result[1].price).toBe(15.0);
+    });
+
+    it("leaves items unchanged within 10% tolerance (minor rounding/discounts)", () => {
+      const items = [
+        { name: "Item A", price: 10.0, quantity: 2 }, // 20 total
+        { name: "Item B", price: 5.0, quantity: 1 },
+      ];
+      // Subtotal is 5% less than items total (e.g. a small discount was applied)
+      const subtotal = 23.75; // within 10% of 25
+
+      const { corrected } = fixMultiQuantityPrices(items, subtotal);
+
+      expect(corrected).toBe(false);
+    });
+
+    it("leaves items with only single-quantity items unchanged", () => {
+      const items = [
+        { name: "Burger", price: 15.0, quantity: 1 },
+        { name: "Fries", price: 5.0, quantity: 1 },
+      ];
+      const subtotal = 18.0; // mismatch but no multi-qty items to fix
+
+      const { corrected } = fixMultiQuantityPrices(items, subtotal);
+
+      expect(corrected).toBe(false);
+    });
+
+    it("returns corrected=false when correction does not improve the match", () => {
+      // Items where dividing by qty actually makes things worse
+      const items = [
+        { name: "Bundle Deal", price: 50.0, quantity: 2 }, // $50 each, not $25 each
+        { name: "Drink", price: 5.0, quantity: 1 },
+      ];
+      // Subtotal = 105 (50*2 + 5), correction would give 25*2 + 5 = 55 — further from 105
+      const subtotal = 105.0;
+
+      const { corrected } = fixMultiQuantityPrices(items, subtotal);
+
+      expect(corrected).toBe(false);
+    });
+  });
+
+  describe("edge cases", () => {
+    it("returns unchanged when subtotal is 0", () => {
+      const items = [{ name: "Item", price: 100.0, quantity: 3 }];
+      const { corrected } = fixMultiQuantityPrices(items, 0);
+      expect(corrected).toBe(false);
+    });
+
+    it("returns unchanged for empty items array", () => {
+      const { corrected } = fixMultiQuantityPrices([], 50.0);
+      expect(corrected).toBe(false);
+    });
+
+    it("handles items where quantity defaults to 1 (falsy qty guard)", () => {
+      // quantity=1 items should never be divided
+      const items = [
+        { name: "Single Item", price: 20.0, quantity: 1 },
+        { name: "Multi Item", price: 30.0, quantity: 3 }, // line total
+      ];
+      // Correct subtotal: 20 + 10*3 = 50
+      const subtotal = 50.0;
+
+      const { items: fixed, corrected } = fixMultiQuantityPrices(items, subtotal);
+
+      expect(corrected).toBe(true);
+      expect(fixed[0].price).toBe(20.0); // unchanged
+      expect(fixed[1].price).toBeCloseTo(10.0, 2); // 30/3
+    });
   });
 });
