@@ -87,6 +87,7 @@ export function ItemAssignment({
   const [assignments, setAssignments] = useState<Map<string, number>>(
     new Map()
   );
+  const [rawInputs, setRawInputs] = useState<Map<string, string>>(new Map());
   const [selectedPeople, setSelectedPeople] = useState<
     Map<number, Set<string>>
   >(new Map());
@@ -94,6 +95,7 @@ export function ItemAssignment({
   // Apply selections to assignments when the dialog opens
   useEffect(() => {
     if (currentItemIndex !== null && open) {
+      setRawInputs(new Map()); // Clear raw inputs when dialog reinitializes
       // Load existing custom percentages if available
       const existingAssignments = assignedItems.get(currentItemIndex) || [];
 
@@ -177,6 +179,7 @@ export function ItemAssignment({
     });
 
     setAssignments(newAssignments);
+    setRawInputs(new Map()); // Clear raw inputs when split equally is applied
   };
 
   // Check if all members of a group are selected for an item
@@ -921,12 +924,24 @@ export function ItemAssignment({
                       type="number"
                       min="0"
                       max="100"
-                      value={assignments.get(person.id) || ""}
+                      step="any"
+                      value={rawInputs.has(person.id) ? rawInputs.get(person.id)! : (assignments.get(person.id) || "")}
                       onChange={(e) => {
-                        const value = parseFloat(e.target.value) || 0;
-                        const newAssignments = new Map(assignments);
-                        newAssignments.set(person.id, value);
-                        setAssignments(newAssignments);
+                        const raw = e.target.value;
+                        const newRawInputs = new Map(rawInputs);
+                        newRawInputs.set(person.id, raw);
+                        setRawInputs(newRawInputs);
+                        const parsed = parseFloat(raw);
+                        if (!isNaN(parsed) && parsed >= 0) {
+                          const newAssignments = new Map(assignments);
+                          newAssignments.set(person.id, parsed);
+                          setAssignments(newAssignments);
+                        }
+                      }}
+                      onBlur={() => {
+                        const newRawInputs = new Map(rawInputs);
+                        newRawInputs.delete(person.id);
+                        setRawInputs(newRawInputs);
                       }}
                       className="w-20 text-right"
                       disabled={!assignments.has(person.id)}

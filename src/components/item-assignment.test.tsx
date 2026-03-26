@@ -250,10 +250,15 @@ describe("ItemAssignment", () => {
 
       // Alice is pre-assigned; her input is enabled and shows 100
       const aliceInput = within(dialog).getByDisplayValue("100");
-      fireEvent.change(aliceInput, { target: { value: "28.57" } });
 
-      // The value should be the decimal 28.57, not the integer-truncated 28
-      expect(aliceInput).toHaveValue(28.57);
+      // Simulate character-by-character typing: type "28." - the trailing decimal
+      // must be preserved in the input so the user can continue to "28.57"
+      fireEvent.change(aliceInput, { target: { value: "28." } });
+      expect(aliceInput).toHaveDisplayValue("28.");
+
+      // Complete the decimal value
+      fireEvent.change(aliceInput, { target: { value: "28.57" } });
+      expect(aliceInput).toHaveDisplayValue("28.57");
     });
   });
 
