@@ -189,8 +189,8 @@ function parseArgs() {
  */
 async function checkServerRunning(baseUrl) {
   try {
-    const response = await fetch(baseUrl, { method: 'HEAD' });
-    return response.ok;
+    await fetch(baseUrl, { method: 'HEAD' });
+    return true; // any response (including 500) means the server is up
   } catch {
     return false;
   }
