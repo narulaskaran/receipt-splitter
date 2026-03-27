@@ -903,7 +903,7 @@ export function ItemAssignment({
                   <div className="flex items-center gap-2">
                     <Checkbox
                       id={`person-${person.id}-dialog`}
-                      checked={!!assignments.get(person.id)}
+                      checked={assignments.has(person.id)}
                       onCheckedChange={(checked) => {
                         const newAssignments = new Map(assignments);
                         if (checked) {
@@ -923,18 +923,23 @@ export function ItemAssignment({
                       id={`person-${person.id}-percent`}
                       type="text"
                       inputMode="decimal"
-                      value={rawInputs.has(person.id) ? rawInputs.get(person.id)! : (assignments.get(person.id) || "")}
+                      value={rawInputs.has(person.id) ? rawInputs.get(person.id)! : (assignments.get(person.id) ?? "")}
                       onChange={(e) => {
                         const raw = e.target.value;
                         const newRawInputs = new Map(rawInputs);
-                        newRawInputs.set(person.id, raw);
-                        setRawInputs(newRawInputs);
-                        const parsed = parseFloat(raw);
-                        if (!isNaN(parsed) && parsed >= 0) {
-                          const newAssignments = new Map(assignments);
-                          newAssignments.set(person.id, parsed);
-                          setAssignments(newAssignments);
+                        const newAssignments = new Map(assignments);
+                        if (raw === "") {
+                          newRawInputs.delete(person.id);
+                          newAssignments.delete(person.id);
+                        } else {
+                          newRawInputs.set(person.id, raw);
+                          const parsed = parseFloat(raw);
+                          if (!isNaN(parsed) && parsed >= 0) {
+                            newAssignments.set(person.id, parsed);
+                          }
                         }
+                        setRawInputs(newRawInputs);
+                        setAssignments(newAssignments);
                       }}
                       onBlur={() => {
                         const newRawInputs = new Map(rawInputs);
@@ -942,7 +947,6 @@ export function ItemAssignment({
                         setRawInputs(newRawInputs);
                       }}
                       className="w-20 text-right"
-                      disabled={!assignments.has(person.id)}
                     />
                     <span className="ml-2">%</span>
                   </div>

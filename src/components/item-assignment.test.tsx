@@ -228,7 +228,7 @@ describe("ItemAssignment", () => {
     });
 
     it("accepts decimal percentages without truncation", async () => {
-      // Start with Alice pre-assigned at 100% so her input is enabled
+      // Start with Alice pre-assigned at 100% to verify her existing value appears in the input
       const singleAssignment = new Map([
         [0, [{ personId: "a", sharePercentage: 100 }]],
       ]);
@@ -259,6 +259,64 @@ describe("ItemAssignment", () => {
       // Complete the decimal value
       fireEvent.change(aliceInput, { target: { value: "28.57" } });
       expect(aliceInput).toHaveDisplayValue("28.57");
+    });
+
+    it("clearing an input removes the assignment and unchecks the checkbox", async () => {
+      const singleAssignment = new Map([
+        [0, [{ personId: "a", sharePercentage: 100 }]],
+      ]);
+
+      render(
+        <ItemAssignment
+          receipt={threePersonReceipt}
+          people={threePeople}
+          assignedItems={singleAssignment}
+          unassignedItems={[]}
+          onAssignItems={jest.fn()}
+          onReceiptUpdate={jest.fn()}
+        />
+      );
+
+      fireEvent.click(getEditSplitButton(0));
+      const dialog = await screen.findByRole("dialog", { name: /Edit Split/i });
+
+      const aliceCheckbox = within(dialog).getByRole("checkbox", { name: /Alice/i });
+      expect(aliceCheckbox).toBeChecked();
+
+      const aliceInput = within(dialog).getByDisplayValue("100");
+      fireEvent.change(aliceInput, { target: { value: "" } });
+
+      expect(aliceCheckbox).not.toBeChecked();
+      expect(aliceInput).toHaveDisplayValue("");
+    });
+
+    it("typing into an unassigned person's input creates an assignment", async () => {
+      render(
+        <ItemAssignment
+          receipt={threePersonReceipt}
+          people={threePeople}
+          assignedItems={new Map()}
+          unassignedItems={[0]}
+          onAssignItems={jest.fn()}
+          onReceiptUpdate={jest.fn()}
+        />
+      );
+
+      fireEvent.click(getEditSplitButton(0));
+      const dialog = await screen.findByRole("dialog", { name: /Edit Split/i });
+
+      // Bob starts unassigned — checkbox unchecked, input empty
+      const bobCheckbox = within(dialog).getByRole("checkbox", { name: /Bob/i });
+      expect(bobCheckbox).not.toBeChecked();
+
+      // Inputs are rendered in people order: Alice[0], Bob[1], Carol[2]
+      const bobInput = within(dialog).getAllByRole("textbox")[1];
+      expect(bobInput).toHaveDisplayValue("");
+
+      fireEvent.change(bobInput, { target: { value: "50" } });
+
+      expect(bobCheckbox).toBeChecked();
+      expect(bobInput).toHaveDisplayValue("50");
     });
   });
 
