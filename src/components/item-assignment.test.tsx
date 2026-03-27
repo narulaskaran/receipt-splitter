@@ -177,6 +177,91 @@ describe("ItemAssignment", () => {
     });
   });
 
+  describe("Edit Split dialog (custom percentages)", () => {
+    /** Find the "Edit Split" pencil button for a given item row.
+     *  The pencil button immediately precedes the "Delete item" button in each row. */
+    const getEditSplitButton = (itemIndex: number) => {
+      const deleteButtons = screen.getAllByTitle(/delete item/i);
+      const deleteBtn = deleteButtons[itemIndex];
+      return deleteBtn.parentElement!.querySelector("button")! as HTMLElement;
+    };
+
+    const threePersonReceipt = {
+      ...mockReceipt,
+      items: [{ name: "Drinks", price: 30, quantity: 1 }],
+      subtotal: 30,
+    };
+    const threePeople = [
+      { id: "a", name: "Alice", items: [], totalBeforeTax: 0, tax: 0, tip: 0, finalTotal: 0 },
+      { id: "b", name: "Bob", items: [], totalBeforeTax: 0, tax: 0, tip: 0, finalTotal: 0 },
+      { id: "c", name: "Carol", items: [], totalBeforeTax: 0, tax: 0, tip: 0, finalTotal: 0 },
+    ];
+
+    it("preserves previously saved custom percentages when dialog is reopened", async () => {
+      const customAssignments = new Map([
+        [0, [
+          { personId: "a", sharePercentage: 28.57 },
+          { personId: "b", sharePercentage: 28.57 },
+          { personId: "c", sharePercentage: 42.86 },
+        ]],
+      ]);
+
+      render(
+        <ItemAssignment
+          receipt={threePersonReceipt}
+          people={threePeople}
+          assignedItems={customAssignments}
+          unassignedItems={[]}
+          onAssignItems={jest.fn()}
+          onReceiptUpdate={jest.fn()}
+        />
+      );
+
+      fireEvent.click(getEditSplitButton(0));
+
+      const dialog = await screen.findByRole("dialog", { name: /Edit Split/i });
+
+      // Custom percentages should be preserved, not reset to equal splits (33.33)
+      // Alice and Bob both have 28.57; Carol has 42.86
+      expect(within(dialog).getAllByDisplayValue("28.57")).toHaveLength(2);
+      expect(within(dialog).getByDisplayValue("42.86")).toBeInTheDocument();
+    });
+
+    it("accepts decimal percentages without truncation", async () => {
+      // Start with Alice pre-assigned at 100% so her input is enabled
+      const singleAssignment = new Map([
+        [0, [{ personId: "a", sharePercentage: 100 }]],
+      ]);
+
+      render(
+        <ItemAssignment
+          receipt={threePersonReceipt}
+          people={threePeople}
+          assignedItems={singleAssignment}
+          unassignedItems={[]}
+          onAssignItems={jest.fn()}
+          onReceiptUpdate={jest.fn()}
+        />
+      );
+
+      fireEvent.click(getEditSplitButton(0));
+
+      const dialog = await screen.findByRole("dialog", { name: /Edit Split/i });
+
+      // Alice is pre-assigned; her input is enabled and shows 100
+      const aliceInput = within(dialog).getByDisplayValue("100");
+
+      // Simulate character-by-character typing: type "28." - the trailing decimal
+      // must be preserved in the input so the user can continue to "28.57"
+      fireEvent.change(aliceInput, { target: { value: "28." } });
+      expect(aliceInput).toHaveDisplayValue("28.");
+
+      // Complete the decimal value
+      fireEvent.change(aliceInput, { target: { value: "28.57" } });
+      expect(aliceInput).toHaveDisplayValue("28.57");
+    });
+  });
+
   describe("Edit Item", () => {
     it("opens edit dialog when edit button is clicked", () => {
       render(
