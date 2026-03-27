@@ -921,10 +921,8 @@ export function ItemAssignment({
                   <div className="flex items-center">
                     <Input
                       id={`person-${person.id}-percent`}
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="any"
+                      type="text"
+                      inputMode="decimal"
                       value={rawInputs.has(person.id) ? rawInputs.get(person.id)! : (assignments.get(person.id) || "")}
                       onChange={(e) => {
                         const raw = e.target.value;
