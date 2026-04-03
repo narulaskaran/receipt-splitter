@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { type Receipt } from "@/types";
 import { MAX_FILE_SIZE_MB, MAX_FILE_SIZE_BYTES } from "@/lib/constants";
+import imageCompression from "browser-image-compression";
 
 interface ReceiptUploaderProps {
   onReceiptParsed: (receipt: Receipt) => void;
@@ -13,6 +14,9 @@ interface ReceiptUploaderProps {
   resetImageTrigger?: number;
 }
 
+const MAX_COMPRESSION_FILE_SIZE_MB = 50;
+const COMPRESSION_TARGET_SIZE_MB = 4;
+
 export function ReceiptUploader({
   onReceiptParsed,
   isLoading,
@@ -20,6 +24,7 @@ export function ReceiptUploader({
   resetImageTrigger,
 }: ReceiptUploaderProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isCompressing, setIsCompressing] = useState(false);
   const IMAGE_STORAGE_KEY = "receiptSplitterImage";
 
   // Restore preview image from localStorage on mount
@@ -48,7 +53,7 @@ export function ReceiptUploader({
       if (acceptedFiles.length === 0) return;
 
       // Get the first file
-      const file = acceptedFiles[0];
+      let file = acceptedFiles[0];
 
       // Check file type
       if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
@@ -56,7 +61,42 @@ export function ReceiptUploader({
         return;
       }
 
-      // Check file size before uploading
+      const fileSizeMB = file.size / (1024 * 1024);
+
+      // Attempt client-side compression for images that exceed the upload limit
+      if (file.type.startsWith("image/") && file.size > MAX_FILE_SIZE_BYTES) {
+        if (fileSizeMB > MAX_COMPRESSION_FILE_SIZE_MB) {
+          toast.error(
+            `File is too large to compress (${fileSizeMB.toFixed(1)}MB). Maximum is ${MAX_COMPRESSION_FILE_SIZE_MB}MB.`
+          );
+          return;
+        }
+
+        try {
+          setIsCompressing(true);
+          const compressed = await imageCompression(file, {
+            maxSizeMB: COMPRESSION_TARGET_SIZE_MB,
+            maxWidthOrHeight: 2048,
+            useWebWorker: true,
+          });
+          const originalSize = fileSizeMB.toFixed(1);
+          const newSize = (compressed.size / (1024 * 1024)).toFixed(1);
+          toast.success(
+            `Compressed from ${originalSize}MB to ${newSize}MB`
+          );
+          file = compressed;
+        } catch (error) {
+          console.error("Image compression error:", error);
+          toast.error(
+            `File is too large (${fileSizeMB.toFixed(1)}MB). Maximum size is ${MAX_FILE_SIZE_MB}MB. Compression failed — please use a smaller file.`
+          );
+          return;
+        } finally {
+          setIsCompressing(false);
+        }
+      }
+
+      // Final size check (after potential compression)
       if (file.size > MAX_FILE_SIZE_BYTES) {
         toast.error(
           `File is too large. Maximum size is ${MAX_FILE_SIZE_MB}MB. Your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`
@@ -126,8 +166,10 @@ export function ReceiptUploader({
       "application/pdf": [".pdf"],
     },
     maxFiles: 1,
-    disabled: isLoading,
+    disabled: isLoading || isCompressing,
   });
+
+  const isBusy = isLoading || isCompressing;
 
   return (
     <Card className="w-full">
@@ -136,11 +178,19 @@ export function ReceiptUploader({
           {...getRootProps()}
           className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
             isDragActive ? "border-primary bg-primary/5" : "border-input"
-          } ${isLoading ? "opacity-60 cursor-not-allowed" : ""}`}
+          } ${isBusy ? "opacity-60 cursor-not-allowed" : ""}`}
         >
-          <input {...getInputProps()} disabled={isLoading} />
+          <input {...getInputProps()} disabled={isBusy} />
 
-          {previewUrl ? (
+          {isCompressing ? (
+            <div className="flex flex-col items-center">
+              <Loader2 className="h-10 w-10 mb-4 animate-spin text-primary" />
+              <p className="mb-1 font-medium">Compressing image...</p>
+              <p className="text-sm text-muted-foreground">
+                Reducing file size to under {MAX_FILE_SIZE_MB}MB
+              </p>
+            </div>
+          ) : previewUrl ? (
             <div className="flex flex-col items-center">
               {previewUrl === "pdf-placeholder" ? (
                 <FileText className="h-32 w-32 mb-4 text-muted-foreground" />
