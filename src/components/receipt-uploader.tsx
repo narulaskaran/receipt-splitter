@@ -81,6 +81,12 @@ export function ReceiptUploader({
           });
           const originalSize = fileSizeMB.toFixed(1);
           const newSize = (compressed.size / (1024 * 1024)).toFixed(1);
+          if (compressed.size > MAX_FILE_SIZE_BYTES) {
+            toast.error(
+              `Compressed from ${originalSize}MB to ${newSize}MB, but it's still over the ${MAX_FILE_SIZE_MB}MB limit. Please use a smaller or lower-resolution image.`
+            );
+            return;
+          }
           toast.success(
             `Compressed from ${originalSize}MB to ${newSize}MB`
           );

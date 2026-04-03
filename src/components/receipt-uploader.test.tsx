@@ -230,6 +230,45 @@ describe("ReceiptUploader", () => {
     }
   });
 
+  it("shows single error when compression succeeds but result still exceeds limit", async () => {
+    const mockOnReceiptParsed = jest.fn();
+    const mockSetIsLoading = jest.fn();
+
+    // Mock compression that returns a file still over 4.5MB
+    const stillTooLargeFile = new File([new ArrayBuffer(4.8 * 1024 * 1024)], "still-large.jpg", {
+      type: "image/jpeg",
+    });
+    (imageCompression as unknown as jest.Mock).mockResolvedValueOnce(stillTooLargeFile);
+
+    render(
+      <ReceiptUploader
+        onReceiptParsed={mockOnReceiptParsed}
+        isLoading={false}
+        setIsLoading={mockSetIsLoading}
+        resetImageTrigger={0}
+      />
+    );
+
+    const largeFile = new File([new ArrayBuffer(10 * 1024 * 1024)], "large.jpg", {
+      type: "image/jpeg",
+    });
+
+    const input = screen.getByRole("presentation").querySelector("input");
+    if (input) {
+      await userEvent.upload(input, largeFile);
+
+      // Should show a single descriptive error, not a success followed by an error
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledTimes(1);
+        expect(toast.error).toHaveBeenCalledWith(
+          expect.stringMatching(/Compressed from.*still over the 4\.5MB limit/)
+        );
+      });
+      expect(toast.success).not.toHaveBeenCalled();
+      expect(global.fetch).not.toHaveBeenCalled();
+    }
+  });
+
   it("shows error when compression fails", async () => {
     const mockOnReceiptParsed = jest.fn();
     const mockSetIsLoading = jest.fn();
