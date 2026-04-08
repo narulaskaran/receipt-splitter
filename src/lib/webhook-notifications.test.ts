@@ -1,4 +1,4 @@
-import { sendReceiptParsedNotification } from './webhook-notifications';
+import { sendReceiptParsedNotification, sendErrorNotification } from './webhook-notifications';
 import { type Receipt } from '@/types';
 
 // Note: global.fetch is mocked in jest.setup.ts
@@ -454,6 +454,215 @@ describe('webhook-notifications', () => {
 
         const bodyString = JSON.stringify(callBody);
         expect(bodyString).toContain('$0.00'); // Null tip should show as $0.00
+      });
+    });
+  });
+
+  describe('sendErrorNotification', () => {
+    describe('with Slack formatter (default)', () => {
+      beforeEach(() => {
+        process.env.WEBHOOK_URL = 'https://hooks.slack.com/test';
+      });
+
+      it('sends error notification with red color attachment', async () => {
+        await sendErrorNotification('anthropic_rate_limit', 'Rate limit exceeded', {
+          sessionId: 'test-session-id',
+          fileName: 'receipt.jpg',
+          mimeType: 'image/jpeg',
+        });
+
+        expect(global.fetch).toHaveBeenCalledWith(
+          'https://hooks.slack.com/test',
+          expect.objectContaining({
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+          })
+        );
+
+        const callBody = JSON.parse(
+          (global.fetch as jest.Mock).mock.calls[0][1].body
+        );
+
+        expect(callBody.text).toContain('Receipt Parse Error');
+        expect(callBody.attachments).toHaveLength(1);
+        expect(callBody.attachments[0].color).toBe('#E74C3C');
+
+        const blocks = callBody.attachments[0].blocks;
+        expect(blocks).toContainEqual(
+          expect.objectContaining({
+            type: 'header',
+            text: expect.objectContaining({
+              text: '⚠️ Receipt Parse Error',
+            }),
+          })
+        );
+
+        const bodyString = JSON.stringify(blocks);
+        expect(bodyString).toContain('anthropic_rate_limit');
+        expect(bodyString).toContain('Rate limit exceeded');
+        expect(bodyString).toContain('test-session-id');
+      });
+
+      it('includes file image when fileUrl and image mimeType provided', async () => {
+        await sendErrorNotification('zod_validation', 'Validation failed', {
+          sessionId: 'test-session-id',
+          fileName: 'receipt.jpg',
+          mimeType: 'image/jpeg',
+          fileUrl: 'https://example.com/receipt.jpg',
+        });
+
+        const callBody = JSON.parse(
+          (global.fetch as jest.Mock).mock.calls[0][1].body
+        );
+
+        const blocks = callBody.attachments[0].blocks;
+        expect(blocks).toContainEqual(
+          expect.objectContaining({
+            type: 'image',
+            image_url: 'https://example.com/receipt.jpg',
+          })
+        );
+      });
+
+      it('includes file link for PDF fileUrl', async () => {
+        await sendErrorNotification('zod_validation', 'Validation failed', {
+          fileUrl: 'https://example.com/receipt.pdf',
+          mimeType: 'application/pdf',
+        });
+
+        const callBody = JSON.parse(
+          (global.fetch as jest.Mock).mock.calls[0][1].body
+        );
+
+        const blocks = callBody.attachments[0].blocks;
+        const bodyString = JSON.stringify(blocks);
+        expect(bodyString).toContain('View Receipt File');
+        expect(bodyString).toContain('https://example.com/receipt.pdf');
+      });
+
+      it('includes geolocation when provided', async () => {
+        await sendErrorNotification('anthropic_api_error', 'API error', {
+          sessionId: 'test-session-id',
+          geolocation: {
+            country: 'US',
+            region: 'CA',
+            city: 'San Francisco',
+            latitude: '37.7749',
+            longitude: '-122.4194',
+          },
+        });
+
+        const callBody = JSON.parse(
+          (global.fetch as jest.Mock).mock.calls[0][1].body
+        );
+
+        const bodyString = JSON.stringify(callBody);
+        expect(bodyString).toContain('San Francisco, CA, US');
+      });
+
+      it('includes context footer with file info', async () => {
+        await sendErrorNotification('json_parse_error', 'Parse failed', {
+          fileName: 'receipt.png',
+          mimeType: 'image/png',
+        });
+
+        const callBody = JSON.parse(
+          (global.fetch as jest.Mock).mock.calls[0][1].body
+        );
+
+        const blocks = callBody.attachments[0].blocks;
+        expect(blocks).toContainEqual(
+          expect.objectContaining({
+            type: 'context',
+            elements: expect.arrayContaining([
+              expect.objectContaining({
+                text: 'File: receipt.png (image/png)',
+              }),
+            ]),
+          })
+        );
+      });
+    });
+
+    describe('with JSON formatter', () => {
+      beforeEach(() => {
+        process.env.WEBHOOK_URL = 'https://example.com/webhook';
+        process.env.WEBHOOK_TYPE = 'json';
+      });
+
+      it('sends error in generic JSON format', async () => {
+        await sendErrorNotification('anthropic_rate_limit', 'Rate limit exceeded', {
+          sessionId: 'test-session-id',
+          fileName: 'receipt.jpg',
+          mimeType: 'image/jpeg',
+          fileUrl: 'https://example.com/receipt.jpg',
+        });
+
+        const callBody = JSON.parse(
+          (global.fetch as jest.Mock).mock.calls[0][1].body
+        );
+
+        expect(callBody).toMatchObject({
+          event: 'receipt_parse_error',
+          errorType: 'anthropic_rate_limit',
+          errorMessage: 'Rate limit exceeded',
+          sessionId: 'test-session-id',
+          file: {
+            url: 'https://example.com/receipt.jpg',
+            name: 'receipt.jpg',
+            mimeType: 'image/jpeg',
+          },
+        });
+
+        expect(callBody.timestamp).toBeDefined();
+      });
+
+      it('handles minimal context', async () => {
+        await sendErrorNotification('unexpected_error', 'Something broke');
+
+        const callBody = JSON.parse(
+          (global.fetch as jest.Mock).mock.calls[0][1].body
+        );
+
+        expect(callBody).toMatchObject({
+          event: 'receipt_parse_error',
+          errorType: 'unexpected_error',
+          errorMessage: 'Something broke',
+          sessionId: null,
+          file: { url: null, name: null, mimeType: null },
+        });
+      });
+    });
+
+    describe('error handling', () => {
+      it('skips when webhook URL not configured', async () => {
+        delete process.env.WEBHOOK_URL;
+
+        await sendErrorNotification('test_error', 'test message');
+
+        expect(global.fetch).not.toHaveBeenCalled();
+      });
+
+      it('does not throw on fetch failure', async () => {
+        process.env.WEBHOOK_URL = 'https://example.com/webhook';
+        (global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'));
+
+        await expect(
+          sendErrorNotification('test_error', 'test message')
+        ).resolves.toBeUndefined();
+      });
+
+      it('does not throw on HTTP error', async () => {
+        process.env.WEBHOOK_URL = 'https://example.com/webhook';
+        (global.fetch as jest.Mock).mockResolvedValue({
+          ok: false,
+          status: 500,
+          statusText: 'Internal Server Error',
+        });
+
+        await expect(
+          sendErrorNotification('test_error', 'test message')
+        ).resolves.toBeUndefined();
       });
     });
   });
