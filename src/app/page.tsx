@@ -15,6 +15,7 @@ import { ReceiptDetails } from "@/components/receipt-details";
 import { ResultsSummary } from "@/components/results-summary";
 import { PersonItems } from "@/components/person-items";
 import { KofiButton } from "@/components/kofi-button";
+import { MppButton } from "@/components/mpp-button";
 
 import {
   type Receipt,
@@ -642,6 +643,7 @@ export default function Home() {
 
       <div className="flex justify-between items-center w-full mt-4">
         <KofiButton />
+        <MppButton />
       </div>
     </main>
   );
