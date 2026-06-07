@@ -1,7 +1,6 @@
 import { AlertTriangle, Info } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { type ReceiptValidationError } from "@/lib/receipt-utils";
-import { formatCurrency } from "@/lib/receipt-utils";
+import { type ReceiptValidationError, formatCurrency } from "@/lib/receipt-utils";
 
 interface ValidationErrorsProps {
   errors: ReceiptValidationError[];
