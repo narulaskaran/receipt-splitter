@@ -1,8 +1,5 @@
 import { type Receipt, type GeolocationData } from '@/types';
 
-/**
- * Context for error notifications
- */
 export interface ErrorNotificationContext {
   sessionId?: string;
   fileName?: string;
@@ -245,16 +242,10 @@ class GenericJsonFormatter implements WebhookPayloadFormatter {
   }
 }
 
-/**
- * Error payload formatter interface
- */
 export interface ErrorPayloadFormatter {
   format(errorType: string, errorMessage: string, context: ErrorNotificationContext): WebhookPayload;
 }
 
-/**
- * Slack error notification formatter
- */
 class SlackErrorFormatter implements ErrorPayloadFormatter {
   format(errorType: string, errorMessage: string, context: ErrorNotificationContext): SlackPayload {
     const blocks: SlackBlock[] = [
@@ -350,9 +341,6 @@ class SlackErrorFormatter implements ErrorPayloadFormatter {
   }
 }
 
-/**
- * Generic JSON error notification formatter
- */
 class GenericJsonErrorFormatter implements ErrorPayloadFormatter {
   format(errorType: string, errorMessage: string, context: ErrorNotificationContext): Record<string, unknown> {
     return {
@@ -515,12 +503,6 @@ export async function sendErrorNotification(
 
     const payload = formatter.format(errorType, errorMessage, context);
 
-    console.log('[Webhook] Sending error notification...', {
-      type: webhookType,
-      errorType,
-      sessionId: context.sessionId,
-    });
-
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
       controller.abort();
@@ -541,8 +523,6 @@ export async function sendErrorNotification(
         `Webhook request failed: ${response.status} ${response.statusText}. Body: ${errorText.substring(0, 200)}`
       );
     }
-
-    console.log('[Webhook] Error notification sent successfully');
   } catch (error) {
     if (error instanceof Error) {
       console.error('[Webhook] Error sending error notification (non-blocking):', error.message);
