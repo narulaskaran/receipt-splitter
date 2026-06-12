@@ -320,6 +320,123 @@ describe("ItemAssignment", () => {
     });
   });
 
+  describe("Edit Split dialog (dollar-amount mode)", () => {
+    const getEditSplitButton = (itemIndex: number) => {
+      const deleteButtons = screen.getAllByTitle(/delete item/i);
+      const deleteBtn = deleteButtons[itemIndex];
+      return deleteBtn.parentElement!.querySelector("button")! as HTMLElement;
+    };
+
+    // $30 item, two people each with 50%
+    const receipt30 = {
+      ...mockReceipt,
+      currency: "USD",
+      items: [{ name: "Drinks", price: 30, quantity: 1 }],
+      subtotal: 30,
+    };
+    const twoPeople = [
+      { id: "a", name: "Alice", items: [], totalBeforeTax: 0, tax: 0, tip: 0, finalTotal: 0 },
+      { id: "b", name: "Bob", items: [], totalBeforeTax: 0, tax: 0, tip: 0, finalTotal: 0 },
+    ];
+    const halfHalf = new Map([
+      [0, [
+        { personId: "a", sharePercentage: 50 },
+        { personId: "b", sharePercentage: 50 },
+      ]],
+    ]);
+
+    it("toggling to $ shows dollar values converted from current percentages", async () => {
+      render(
+        <ItemAssignment
+          receipt={receipt30}
+          people={twoPeople}
+          assignedItems={halfHalf}
+          unassignedItems={[]}
+          onAssignItems={jest.fn()}
+          onReceiptUpdate={jest.fn()}
+        />
+      );
+
+      fireEvent.click(getEditSplitButton(0));
+      const dialog = await screen.findByRole("dialog", { name: /Edit Split/i });
+
+      // In percent mode, inputs show 50
+      expect(within(dialog).getAllByDisplayValue("50")).toHaveLength(2);
+
+      // Toggle to $ mode
+      fireEvent.click(within(dialog).getByRole("button", { name: "$" }));
+
+      // 50% of $30 = $15.00
+      expect(within(dialog).getAllByDisplayValue("15.00")).toHaveLength(2);
+    });
+
+    it("entering dollar amounts summing to item total enables Save and calls onAssignItems with correct percentages", async () => {
+      const onAssignItems = jest.fn();
+      render(
+        <ItemAssignment
+          receipt={receipt30}
+          people={twoPeople}
+          assignedItems={new Map()}
+          unassignedItems={[0]}
+          onAssignItems={onAssignItems}
+          onReceiptUpdate={jest.fn()}
+        />
+      );
+
+      fireEvent.click(getEditSplitButton(0));
+      const dialog = await screen.findByRole("dialog", { name: /Edit Split/i });
+
+      fireEvent.click(within(dialog).getByRole("button", { name: "$" }));
+
+      const [aliceInput, bobInput] = within(dialog).getAllByRole("textbox");
+
+      // Alice: $10, Bob: $20 — total $30 = item total
+      fireEvent.change(aliceInput, { target: { value: "10" } });
+      fireEvent.change(bobInput, { target: { value: "20" } });
+
+      const saveBtn = within(dialog).getByRole("button", { name: /save assignment/i });
+      expect(saveBtn).not.toBeDisabled();
+
+      fireEvent.click(saveBtn);
+
+      expect(onAssignItems).toHaveBeenCalledWith(0, expect.arrayContaining([
+        expect.objectContaining({ personId: "a", sharePercentage: expect.closeTo(33.33, 1) }),
+        expect.objectContaining({ personId: "b", sharePercentage: expect.closeTo(66.67, 1) }),
+      ]));
+
+      // Percentages must sum to exactly 100
+      const callArgs = onAssignItems.mock.calls[0][1] as Array<{ sharePercentage: number }>;
+      const sum = callArgs.reduce((s, a) => s + a.sharePercentage, 0);
+      expect(Math.abs(sum - 100)).toBeLessThanOrEqual(0.01);
+    });
+
+    it("keeps Save disabled when dollar sum is off by more than a cent", async () => {
+      render(
+        <ItemAssignment
+          receipt={receipt30}
+          people={twoPeople}
+          assignedItems={new Map()}
+          unassignedItems={[0]}
+          onAssignItems={jest.fn()}
+          onReceiptUpdate={jest.fn()}
+        />
+      );
+
+      fireEvent.click(getEditSplitButton(0));
+      const dialog = await screen.findByRole("dialog", { name: /Edit Split/i });
+
+      fireEvent.click(within(dialog).getByRole("button", { name: "$" }));
+
+      const [aliceInput] = within(dialog).getAllByRole("textbox");
+
+      // Only $10 entered of $30 total — sum is off by $20
+      fireEvent.change(aliceInput, { target: { value: "10" } });
+
+      const saveBtn = within(dialog).getByRole("button", { name: /save assignment/i });
+      expect(saveBtn).toBeDisabled();
+    });
+  });
+
   describe("Edit Item", () => {
     it("opens edit dialog when edit button is clicked", () => {
       render(
