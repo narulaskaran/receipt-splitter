@@ -432,99 +432,89 @@ describe("validateReceiptInvariants", () => {
     });
   });
 
-  describe("negative amounts in receipt", () => {
-    it("detects negative subtotal", () => {
-      const receipt: Receipt = {
-        ...mockReceipt,
-        subtotal: -10,
-      };
-      const result = validateReceiptInvariants(receipt, new Map(), []);
+  describe("negative amounts", () => {
+    it.each([
+      // Receipt-level fields
+      {
+        label: "receipt subtotal",
+        receipt: { ...mockReceipt, subtotal: -10 } as Receipt,
+        people: [] as Person[],
+        expectedError: { type: AmountValidationError.NEGATIVE_AMOUNT, message: 'Receipt subtotal cannot be negative' },
+      },
+      {
+        label: "receipt tax",
+        receipt: { ...mockReceipt, tax: -5 } as Receipt,
+        people: [] as Person[],
+        expectedError: { type: AmountValidationError.NEGATIVE_AMOUNT, message: 'Receipt tax cannot be negative' },
+      },
+      {
+        label: "receipt tip",
+        receipt: { ...mockReceipt, tip: -2 } as Receipt,
+        people: [] as Person[],
+        expectedError: { type: AmountValidationError.NEGATIVE_AMOUNT, message: 'Receipt tip cannot be negative' },
+      },
+      {
+        label: "receipt total",
+        receipt: { ...mockReceipt, total: -100 } as Receipt,
+        people: [] as Person[],
+        expectedError: { type: AmountValidationError.NEGATIVE_AMOUNT, message: 'Receipt total cannot be negative' },
+      },
+      // Item-level fields
+      {
+        label: "item price",
+        receipt: { ...mockReceipt, items: [{ name: "Bad Item", price: -10, quantity: 1 }] } as Receipt,
+        people: [] as Person[],
+        expectedError: { type: AmountValidationError.NEGATIVE_AMOUNT, message: 'Item "Bad Item" has negative price', itemName: 'Bad Item' },
+      },
+      {
+        label: "item quantity",
+        receipt: { ...mockReceipt, items: [{ name: "Bad Quantity", price: 10, quantity: -2 }] } as Receipt,
+        people: [] as Person[],
+        expectedError: { type: AmountValidationError.NEGATIVE_AMOUNT, message: 'Item "Bad Quantity" has negative quantity', itemName: 'Bad Quantity' },
+      },
+      // Person-level fields
+      {
+        label: "person totalBeforeTax",
+        receipt: mockReceipt,
+        people: [{ id: "test", name: "Test Person", items: [], totalBeforeTax: -10, tax: 0, tip: 0, finalTotal: 0 }] as Person[],
+        expectedError: { type: AmountValidationError.NEGATIVE_AMOUNT, message: 'Person "Test Person" has negative total before tax' },
+      },
+      {
+        label: "person tax",
+        receipt: mockReceipt,
+        people: [{ id: "test", name: "Test Person", items: [], totalBeforeTax: 10, tax: -1, tip: 0, finalTotal: 9 }] as Person[],
+        expectedError: { type: AmountValidationError.NEGATIVE_AMOUNT, message: 'Person "Test Person" has negative tax' },
+      },
+      {
+        label: "person tip",
+        receipt: mockReceipt,
+        people: [{ id: "test", name: "Test Person", items: [], totalBeforeTax: 10, tax: 1, tip: -2, finalTotal: 9 }] as Person[],
+        expectedError: { type: AmountValidationError.NEGATIVE_AMOUNT, message: 'Person "Test Person" has negative tip' },
+      },
+      {
+        label: "person finalTotal",
+        receipt: mockReceipt,
+        people: [{ id: "test", name: "Test Person", items: [], totalBeforeTax: 0, tax: 0, tip: 0, finalTotal: -10 }] as Person[],
+        expectedError: { type: AmountValidationError.NEGATIVE_AMOUNT, message: 'Person "Test Person" has negative final total' },
+      },
+      {
+        label: "person item amount",
+        receipt: mockReceipt,
+        people: [{
+          id: "test",
+          name: "Test Person",
+          items: [{ itemId: 0, itemName: "Bad Item", originalPrice: 10, quantity: 1, sharePercentage: 100, amount: -10 }],
+          totalBeforeTax: 0,
+          tax: 0,
+          tip: 0,
+          finalTotal: 0,
+        }] as Person[],
+        expectedError: { type: AmountValidationError.NEGATIVE_AMOUNT, message: 'Person "Test Person" has negative amount for item "Bad Item"', itemName: 'Bad Item' },
+      },
+    ])("detects negative $label", ({ receipt, people, expectedError }) => {
+      const result = validateReceiptInvariants(receipt, new Map(), people);
       expect(result.isValid).toBe(false);
-      expect(result.errors).toContainEqual(
-        expect.objectContaining({
-          type: AmountValidationError.NEGATIVE_AMOUNT,
-          message: 'Receipt subtotal cannot be negative',
-        })
-      );
-    });
-
-    it("detects negative tax", () => {
-      const receipt: Receipt = {
-        ...mockReceipt,
-        tax: -5,
-      };
-      const result = validateReceiptInvariants(receipt, new Map(), []);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContainEqual(
-        expect.objectContaining({
-          type: AmountValidationError.NEGATIVE_AMOUNT,
-          message: 'Receipt tax cannot be negative',
-        })
-      );
-    });
-
-    it("detects negative tip", () => {
-      const receipt: Receipt = {
-        ...mockReceipt,
-        tip: -2,
-      };
-      const result = validateReceiptInvariants(receipt, new Map(), []);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContainEqual(
-        expect.objectContaining({
-          type: AmountValidationError.NEGATIVE_AMOUNT,
-          message: 'Receipt tip cannot be negative',
-        })
-      );
-    });
-
-    it("detects negative total", () => {
-      const receipt: Receipt = {
-        ...mockReceipt,
-        total: -100,
-      };
-      const result = validateReceiptInvariants(receipt, new Map(), []);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContainEqual(
-        expect.objectContaining({
-          type: AmountValidationError.NEGATIVE_AMOUNT,
-          message: 'Receipt total cannot be negative',
-        })
-      );
-    });
-  });
-
-  describe("negative amounts in items", () => {
-    it("detects negative item price", () => {
-      const receipt: Receipt = {
-        ...mockReceipt,
-        items: [{ name: "Bad Item", price: -10, quantity: 1 }],
-      };
-      const result = validateReceiptInvariants(receipt, new Map(), []);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContainEqual(
-        expect.objectContaining({
-          type: AmountValidationError.NEGATIVE_AMOUNT,
-          message: 'Item "Bad Item" has negative price',
-          itemName: 'Bad Item',
-        })
-      );
-    });
-
-    it("detects negative item quantity", () => {
-      const receipt: Receipt = {
-        ...mockReceipt,
-        items: [{ name: "Bad Quantity", price: 10, quantity: -2 }],
-      };
-      const result = validateReceiptInvariants(receipt, new Map(), []);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContainEqual(
-        expect.objectContaining({
-          type: AmountValidationError.NEGATIVE_AMOUNT,
-          message: 'Item "Bad Quantity" has negative quantity',
-          itemName: 'Bad Quantity',
-        })
-      );
+      expect(result.errors).toContainEqual(expect.objectContaining(expectedError));
     });
   });
 
@@ -649,118 +639,6 @@ describe("validateReceiptInvariants", () => {
       expect(result.errors).not.toContainEqual(
         expect.objectContaining({
           type: AmountValidationError.ITEM_SPLITS_MISMATCH,
-        })
-      );
-    });
-  });
-
-  describe("negative amounts in person data", () => {
-    it("detects negative person totalBeforeTax", () => {
-      const person: Person = {
-        id: "test",
-        name: "Test Person",
-        items: [],
-        totalBeforeTax: -10,
-        tax: 0,
-        tip: 0,
-        finalTotal: 0,
-      };
-      const result = validateReceiptInvariants(mockReceipt, new Map(), [person]);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContainEqual(
-        expect.objectContaining({
-          type: AmountValidationError.NEGATIVE_AMOUNT,
-          message: 'Person "Test Person" has negative total before tax',
-        })
-      );
-    });
-
-    it("detects negative person tax", () => {
-      const person: Person = {
-        id: "test",
-        name: "Test Person",
-        items: [],
-        totalBeforeTax: 10,
-        tax: -1,
-        tip: 0,
-        finalTotal: 9,
-      };
-      const result = validateReceiptInvariants(mockReceipt, new Map(), [person]);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContainEqual(
-        expect.objectContaining({
-          type: AmountValidationError.NEGATIVE_AMOUNT,
-          message: 'Person "Test Person" has negative tax',
-        })
-      );
-    });
-
-    it("detects negative person tip", () => {
-      const person: Person = {
-        id: "test",
-        name: "Test Person",
-        items: [],
-        totalBeforeTax: 10,
-        tax: 1,
-        tip: -2,
-        finalTotal: 9,
-      };
-      const result = validateReceiptInvariants(mockReceipt, new Map(), [person]);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContainEqual(
-        expect.objectContaining({
-          type: AmountValidationError.NEGATIVE_AMOUNT,
-          message: 'Person "Test Person" has negative tip',
-        })
-      );
-    });
-
-    it("detects negative person finalTotal", () => {
-      const person: Person = {
-        id: "test",
-        name: "Test Person",
-        items: [],
-        totalBeforeTax: 0,
-        tax: 0,
-        tip: 0,
-        finalTotal: -10,
-      };
-      const result = validateReceiptInvariants(mockReceipt, new Map(), [person]);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContainEqual(
-        expect.objectContaining({
-          type: AmountValidationError.NEGATIVE_AMOUNT,
-          message: 'Person "Test Person" has negative final total',
-        })
-      );
-    });
-
-    it("detects negative person item amount", () => {
-      const person: Person = {
-        id: "test",
-        name: "Test Person",
-        items: [
-          {
-            itemId: 0,
-            itemName: "Bad Item",
-            originalPrice: 10,
-            quantity: 1,
-            sharePercentage: 100,
-            amount: -10,
-          },
-        ],
-        totalBeforeTax: 0,
-        tax: 0,
-        tip: 0,
-        finalTotal: 0,
-      };
-      const result = validateReceiptInvariants(mockReceipt, new Map(), [person]);
-      expect(result.isValid).toBe(false);
-      expect(result.errors).toContainEqual(
-        expect.objectContaining({
-          type: AmountValidationError.NEGATIVE_AMOUNT,
-          message: 'Person "Test Person" has negative amount for item "Bad Item"',
-          itemName: 'Bad Item',
         })
       );
     });
