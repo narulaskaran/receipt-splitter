@@ -3,10 +3,12 @@ import Home from "./page";
 import { toast } from "sonner";
 import { mockReceipt, mockPeople } from "@/test/test-utils";
 
+type SerializedAssignments = [number, { personId: string; sharePercentage: number }[]][];
+
 const baseState = {
   originalReceipt: mockReceipt,
-  people: [],
-  assignedItems: [],
+  people: [] as typeof mockPeople,
+  assignedItems: [] as SerializedAssignments,
   unassignedItems: [0, 1],
   groups: [],
   isLoading: false,
@@ -115,7 +117,7 @@ describe("Home Page", () => {
         assignedItems: [
           [0, [{ personId: "a", sharePercentage: 100 }]],
           [1, [{ personId: "b", sharePercentage: 100 }]],
-        ] as unknown as [],
+        ],
         unassignedItems: [],
       });
       render(<Home />);
@@ -130,13 +132,14 @@ describe("Home Page", () => {
       expect(screen.getByRole("button", { name: /split all evenly/i })).toBeDisabled();
     });
 
-    it("fires success toast and assigns all items when clicked", () => {
+    it("assigns all items and fires success toast when clicked", () => {
       loadSession({ people: mockPeople });
       render(<Home />);
 
       fireEvent.click(screen.getByRole("button", { name: /split all evenly/i }));
 
       expect(toast.success).toHaveBeenCalledWith("All items split evenly among everyone!");
+      expect(screen.getByText("100%")).toBeInTheDocument();
     });
   });
 });
