@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { type Receipt } from "@/types";
 import { MAX_FILE_SIZE_MB, MAX_FILE_SIZE_BYTES } from "@/lib/constants";
 import imageCompression from "browser-image-compression";
+import { getSessionId } from "@/lib/session";
 
 interface ReceiptUploaderProps {
   onReceiptParsed: (receipt: Receipt) => void;
@@ -132,6 +133,7 @@ export function ReceiptUploader({
 
         const formData = new FormData();
         formData.append("file", file);
+        formData.append("sessionId", getSessionId());
 
         const response = await fetch("/api/parse-receipt", {
           method: "POST",
