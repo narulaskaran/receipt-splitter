@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ResultsSummary } from "./results-summary";
 import { mockPeople } from "@/test/test-utils";
+import { toast } from "sonner";
 
 // Note: Browser API mocks (clipboard, alert, navigator.share) are configured
 // globally in jest.setup.ts. Tests can override specific behaviors as needed.
@@ -328,7 +329,7 @@ describe("ResultsSummary", () => {
       fireEvent.click(shareButton);
 
       await waitFor(() => {
-        expect(global.alert).toHaveBeenCalledWith(
+        expect(toast.error).toHaveBeenCalledWith(
           expect.stringContaining("Failed to copy")
         );
       });
@@ -459,7 +460,7 @@ describe("ResultsSummary", () => {
       });
     });
 
-    it("handles clipboard errors with alert", async () => {
+    it("handles clipboard errors gracefully", async () => {
       (navigator.clipboard.writeText as jest.Mock).mockRejectedValueOnce(new Error("Clipboard error"));
 
       render(
@@ -474,7 +475,7 @@ describe("ResultsSummary", () => {
       fireEvent.click(shareButton);
 
       await waitFor(() => {
-        expect(global.alert).toHaveBeenCalledWith(
+        expect(toast.error).toHaveBeenCalledWith(
           expect.stringContaining("Failed to copy")
         );
       });
