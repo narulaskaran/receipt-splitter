@@ -26,6 +26,7 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@/components/ui/popover";
+import Decimal from "decimal.js";
 
 import {
   type Receipt,
@@ -38,6 +39,8 @@ import {
   calculateSubtotal,
   remapAssignmentsAfterDelete,
 } from "@/lib/receipt-utils";
+
+type SplitMode = "percent" | "amount";
 
 interface ItemAssignmentProps {
   receipt: Receipt;
@@ -88,6 +91,7 @@ export function ItemAssignment({
     new Map()
   );
   const [rawInputs, setRawInputs] = useState<Map<string, string>>(new Map());
+  const [splitMode, setSplitMode] = useState<SplitMode>("percent");
   const [selectedPeople, setSelectedPeople] = useState<
     Map<number, Set<string>>
   >(new Map());
@@ -96,6 +100,7 @@ export function ItemAssignment({
   useEffect(() => {
     if (currentItemIndex !== null && open) {
       setRawInputs(new Map()); // Clear raw inputs when dialog reinitializes
+      setSplitMode("percent"); // Reset to percent mode for each new item
       // Load existing custom percentages if available
       const existingAssignments = assignedItems.get(currentItemIndex) || [];
 
@@ -306,29 +311,73 @@ export function ItemAssignment({
   const saveAssignment = () => {
     if (currentItemIndex === null) return;
 
-    // Calculate total percentage
-    const totalPercentage = Array.from(assignments.values()).reduce(
-      (sum, value) => sum + (value || 0),
-      0
-    );
+    let assignmentArray: PersonItemAssignment[];
 
-    // Ensure total is 100%
-    if (Math.abs(totalPercentage - 100) > 0.01) {
-      toast.error("Total percentage must be 100%");
-      return;
-    }
+    if (splitMode === "amount") {
+      const item = receipt.items[currentItemIndex];
+      const itemTotal = new Decimal(item.price).times(item.quantity || 1);
 
-    // Convert to assignment array
-    const assignmentArray: PersonItemAssignment[] = [];
+      // assignments stores percentages; convert to dollar sum for validation
+      const dollarSum = Array.from(assignments.values()).reduce(
+        (sum, pct) => sum.plus(new Decimal(pct || 0).dividedBy(100).times(itemTotal)),
+        new Decimal(0)
+      );
 
-    assignments.forEach((percentage, personId) => {
-      if (percentage > 0) {
-        assignmentArray.push({
-          personId,
-          sharePercentage: percentage,
-        });
+      if (dollarSum.minus(itemTotal).abs().greaterThan(0.01)) {
+        toast.error(
+          `Dollar amounts must sum to ${formatCurrency(itemTotal.toNumber(), receipt.currency)}`
+        );
+        return;
       }
-    });
+
+      // assignments stores percentages — pass them through directly,
+      // giving the last person the remainder so they sum to exactly 100.
+      const entries = Array.from(assignments.entries()).filter(
+        ([, pct]) => pct > 0
+      );
+
+      assignmentArray = [];
+      let runningPct = new Decimal(0);
+
+      entries.forEach(([personId, pct], index) => {
+        if (index === entries.length - 1) {
+          const lastPct = new Decimal(100).minus(runningPct);
+          assignmentArray.push({
+            personId,
+            sharePercentage: +lastPct.toFixed(2),
+          });
+        } else {
+          const rounded = new Decimal(pct).toDecimalPlaces(2);
+          assignmentArray.push({
+            personId,
+            sharePercentage: rounded.toNumber(),
+          });
+          runningPct = runningPct.plus(rounded);
+        }
+      });
+    } else {
+      // Calculate total percentage
+      const totalPercentage = Array.from(assignments.values()).reduce(
+        (sum, value) => sum + (value || 0),
+        0
+      );
+
+      // Ensure total is 100%
+      if (Math.abs(totalPercentage - 100) > 0.01) {
+        toast.error("Total percentage must be 100%");
+        return;
+      }
+
+      assignmentArray = [];
+      assignments.forEach((percentage, personId) => {
+        if (percentage > 0) {
+          assignmentArray.push({
+            personId,
+            sharePercentage: percentage,
+          });
+        }
+      });
+    }
 
     // Update selected people to match assignments
     const newSelected = new Set(assignmentArray.map((a) => a.personId));
@@ -873,134 +922,206 @@ export function ItemAssignment({
 
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                Edit Split:{" "}
-                {currentItemIndex !== null
-                  ? receipt.items[currentItemIndex]?.name
-                  : ""}
-              </DialogTitle>
-            </DialogHeader>
+            {(() => {
+              const itemTotal =
+                currentItemIndex !== null
+                  ? new Decimal(
+                      receipt.items[currentItemIndex]?.price ?? 0
+                    ).times(receipt.items[currentItemIndex]?.quantity || 1)
+                  : new Decimal(0);
 
-            <div className="grid gap-4 py-4">
-              <div className="flex items-center justify-between">
-                <span className="font-medium">Item Price:</span>
-                <span>
-                  {currentItemIndex !== null
-                    ? formatCurrency(
-                        receipt.items[currentItemIndex]?.price *
-                          (receipt.items[currentItemIndex]?.quantity || 1)
-                      )
-                    : ""}
-                </span>
-              </div>
+              const totalPct = Array.from(assignments.values()).reduce(
+                (sum, val) => sum + (val || 0),
+                0
+              );
 
-              {people.map((person) => (
-                <div
-                  key={person.id}
-                  className="grid grid-cols-2 items-center gap-4"
-                >
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id={`person-${person.id}-dialog`}
-                      checked={assignments.has(person.id)}
-                      onCheckedChange={(checked) => {
-                        const newAssignments = new Map(assignments);
-                        if (checked) {
-                          newAssignments.set(person.id, 0);
-                        } else {
-                          newAssignments.delete(person.id);
-                        }
-                        setAssignments(newAssignments);
-                      }}
-                    />
-                    <Label htmlFor={`person-${person.id}-dialog`}>
-                      {person.name}
-                    </Label>
-                  </div>
-                  <div className="flex items-center">
-                    <Input
-                      id={`person-${person.id}-percent`}
-                      type="text"
-                      inputMode="decimal"
-                      value={rawInputs.has(person.id) ? rawInputs.get(person.id)! : (assignments.get(person.id) ?? "")}
-                      onChange={(e) => {
-                        const raw = e.target.value;
-                        const newRawInputs = new Map(rawInputs);
-                        const newAssignments = new Map(assignments);
-                        if (raw === "") {
-                          newRawInputs.delete(person.id);
-                          newAssignments.delete(person.id);
-                        } else {
-                          newRawInputs.set(person.id, raw);
-                          const parsed = parseFloat(raw);
-                          if (!isNaN(parsed) && parsed >= 0) {
-                            newAssignments.set(person.id, parsed);
-                          }
-                        }
-                        setRawInputs(newRawInputs);
-                        setAssignments(newAssignments);
-                      }}
-                      onBlur={() => {
-                        const newRawInputs = new Map(rawInputs);
-                        newRawInputs.delete(person.id);
-                        setRawInputs(newRawInputs);
-                      }}
-                      className="w-20 text-right"
-                    />
-                    <span className="ml-2">%</span>
-                  </div>
-                </div>
-              ))}
+              const dollarSum = new Decimal(totalPct)
+                .dividedBy(100)
+                .times(itemTotal);
 
-              <div className="flex items-center justify-between pt-2">
-                <span className="font-medium">Total:</span>
-                <span
-                  className={
-                    Math.abs(
-                      Array.from(assignments.values()).reduce(
-                        (sum, val) => sum + (val || 0),
-                        0
-                      ) - 100
-                    ) > 0.01
-                      ? "text-destructive font-medium"
-                      : "text-green-500 font-medium"
-                  }
-                >
-                  {Array.from(assignments.values()).reduce(
-                    (sum, val) => sum + (val || 0),
-                    0
-                  )}
-                  %
-                </span>
-              </div>
-            </div>
+              const isValid =
+                splitMode === "amount"
+                  ? dollarSum.minus(itemTotal).abs().lessThanOrEqualTo(0.01)
+                  : Math.abs(totalPct - 100) <= 0.01;
 
-            <DialogFooter className="flex flex-col sm:flex-row gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={splitEqually}
-                className="w-full sm:w-auto"
-              >
-                Split Equally
-              </Button>
-              <Button
-                type="button"
-                onClick={saveAssignment}
-                className="w-full sm:w-auto"
-                disabled={
-                  Math.abs(
-                    Array.from(assignments.values()).reduce(
-                      (sum, val) => sum + (val || 0),
-                      0
-                    ) - 100
-                  ) > 0.01
+              const getDisplayValue = (personId: string): string => {
+                if (rawInputs.has(personId)) return rawInputs.get(personId)!;
+                if (!assignments.has(personId)) return "";
+                const pct = assignments.get(personId)!;
+                if (splitMode === "amount") {
+                  return new Decimal(pct)
+                    .dividedBy(100)
+                    .times(itemTotal)
+                    .toFixed(2);
                 }
-              >
-                Save Assignment
-              </Button>
-            </DialogFooter>
+                return String(pct);
+              };
+
+              const handleChange = (personId: string, raw: string) => {
+                const newRawInputs = new Map(rawInputs);
+                const newAssignments = new Map(assignments);
+                if (raw === "") {
+                  newRawInputs.delete(personId);
+                  newAssignments.delete(personId);
+                } else {
+                  newRawInputs.set(personId, raw);
+                  const parsed = parseFloat(raw);
+                  if (!isNaN(parsed) && parsed >= 0) {
+                    if (splitMode === "amount") {
+                      const pct = itemTotal.isZero()
+                        ? new Decimal(0)
+                        : new Decimal(parsed)
+                            .dividedBy(itemTotal)
+                            .times(100);
+                      newAssignments.set(personId, pct.toNumber());
+                    } else {
+                      newAssignments.set(personId, parsed);
+                    }
+                  }
+                }
+                setRawInputs(newRawInputs);
+                setAssignments(newAssignments);
+              };
+
+              return (
+                <>
+                  <DialogHeader>
+                    <DialogTitle>
+                      Edit Split:{" "}
+                      {currentItemIndex !== null
+                        ? receipt.items[currentItemIndex]?.name
+                        : ""}
+                    </DialogTitle>
+                  </DialogHeader>
+
+                  <div className="grid gap-4 py-4">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">Item Price:</span>
+                      <div className="flex items-center gap-3">
+                        <span>
+                          {currentItemIndex !== null
+                            ? formatCurrency(
+                                itemTotal.toNumber(),
+                                receipt.currency
+                              )
+                            : ""}
+                        </span>
+                        <div className="flex rounded-md border overflow-hidden">
+                          <Button
+                            type="button"
+                            variant={
+                              splitMode === "percent" ? "default" : "ghost"
+                            }
+                            size="sm"
+                            className="rounded-none h-7 px-2 text-xs"
+                            onClick={() => {
+                              setSplitMode("percent");
+                              setRawInputs(new Map());
+                            }}
+                          >
+                            %
+                          </Button>
+                          <Button
+                            type="button"
+                            variant={
+                              splitMode === "amount" ? "default" : "ghost"
+                            }
+                            size="sm"
+                            className="rounded-none h-7 px-2 text-xs"
+                            onClick={() => {
+                              setSplitMode("amount");
+                              setRawInputs(new Map());
+                            }}
+                          >
+                            $
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {people.map((person) => (
+                      <div
+                        key={person.id}
+                        className="grid grid-cols-2 items-center gap-4"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id={`person-${person.id}-dialog`}
+                            checked={assignments.has(person.id)}
+                            onCheckedChange={(checked) => {
+                              const newAssignments = new Map(assignments);
+                              if (checked) {
+                                newAssignments.set(person.id, 0);
+                              } else {
+                                newAssignments.delete(person.id);
+                              }
+                              setAssignments(newAssignments);
+                            }}
+                          />
+                          <Label htmlFor={`person-${person.id}-dialog`}>
+                            {person.name}
+                          </Label>
+                        </div>
+                        <div className="flex items-center">
+                          <Input
+                            id={`person-${person.id}-${splitMode}`}
+                            type="text"
+                            inputMode="decimal"
+                            value={getDisplayValue(person.id)}
+                            onChange={(e) =>
+                              handleChange(person.id, e.target.value)
+                            }
+                            onBlur={() => {
+                              const newRawInputs = new Map(rawInputs);
+                              newRawInputs.delete(person.id);
+                              setRawInputs(newRawInputs);
+                            }}
+                            className="w-20 text-right"
+                          />
+                          <span className="ml-2">
+                            {splitMode === "percent" ? "%" : ""}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+
+                    <div className="flex items-center justify-between pt-2">
+                      <span className="font-medium">Total:</span>
+                      <span
+                        className={
+                          isValid
+                            ? "text-green-500 font-medium"
+                            : "text-destructive font-medium"
+                        }
+                      >
+                        {splitMode === "amount"
+                          ? `${formatCurrency(dollarSum.toNumber(), receipt.currency)} / ${formatCurrency(itemTotal.toNumber(), receipt.currency)}`
+                          : `${totalPct}%`}
+                      </span>
+                    </div>
+                  </div>
+
+                  <DialogFooter className="flex flex-col sm:flex-row gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={splitEqually}
+                      className="w-full sm:w-auto"
+                    >
+                      Split Equally
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={saveAssignment}
+                      className="w-full sm:w-auto"
+                      disabled={!isValid}
+                    >
+                      Save Assignment
+                    </Button>
+                  </DialogFooter>
+                </>
+              );
+            })()}
           </DialogContent>
         </Dialog>
 
