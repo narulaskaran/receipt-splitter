@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { listReceiptFiles, deleteReceiptFiles } from '@/lib/uploadthing-storage';
+import { sendErrorNotification } from '@/lib/webhook-notifications';
 
 const RETENTION_DAYS = 90;
 const BATCH_SIZE = 100;
@@ -100,6 +101,8 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('[Cleanup] Error during cleanup job:', errorMessage);
+
+    sendErrorNotification('cleanup_job_failure', `Cleanup cron job failed: ${errorMessage}`).catch(() => {});
 
     return NextResponse.json(
       {
