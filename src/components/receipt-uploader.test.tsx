@@ -147,6 +147,19 @@ describe("ReceiptUploader", () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
+  it("rejects PDFs over the size limit without compressing", async () => {
+    renderUploader();
+
+    const largePdf = new File([new ArrayBuffer(5 * 1024 * 1024)], "large.pdf", { type: "application/pdf" });
+    await userEvent.upload(getFileInput(), largePdf);
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/too large.*4\.5MB/i));
+    });
+    expect(imageCompression).not.toHaveBeenCalled();
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
   it("shows error when compression fails", async () => {
     (imageCompression as unknown as jest.Mock).mockRejectedValueOnce(new Error("Compression failed"));
 
