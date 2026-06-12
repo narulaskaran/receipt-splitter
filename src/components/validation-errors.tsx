@@ -4,10 +4,11 @@ import { type ReceiptValidationError, formatCurrency } from "@/lib/receipt-utils
 
 interface ValidationErrorsProps {
   errors: ReceiptValidationError[];
+  currencyCode?: string;
   className?: string;
 }
 
-export function ValidationErrors({ errors, className = "" }: ValidationErrorsProps) {
+export function ValidationErrors({ errors, currencyCode, className = "" }: ValidationErrorsProps) {
   if (errors.length === 0) {
     return null;
   }
@@ -64,16 +65,16 @@ export function ValidationErrors({ errors, className = "" }: ValidationErrorsPro
                   </div>
                   {error.diff !== undefined && error.tolerance !== undefined && (
                     <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                      Off by {formatCurrency(Math.abs(error.diff))}
+                      Off by {formatCurrency(Math.abs(error.diff), currencyCode)}
                       {error.expected !== undefined && error.actual !== undefined && (
                         <>
-                          {" "}(expected: {formatCurrency(error.expected)},
-                          actual: {formatCurrency(error.actual)})
+                          {" "}(expected: {formatCurrency(error.expected, currencyCode)},
+                          actual: {formatCurrency(error.actual, currencyCode)})
                         </>
                       )}
-                      <div className="flex items-center gap-1 mt-1 text-gray-500 dark:text-gray-500">
+                      <div className="flex items-center gap-1 mt-1 text-gray-500 dark:text-gray-400">
                         <Info className="h-3 w-3" />
-                        Allowed tolerance: ±{formatCurrency(error.tolerance)}
+                        Allowed tolerance: ±{formatCurrency(error.tolerance, currencyCode)}
                       </div>
                     </div>
                   )}
@@ -100,7 +101,7 @@ export function ValidationErrors({ errors, className = "" }: ValidationErrorsPro
                   </div>
                   {error.actual !== undefined && (
                     <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                      Current value: {formatCurrency(error.actual)}
+                      Current value: {formatCurrency(error.actual, currencyCode)}
                     </div>
                   )}
                 </li>

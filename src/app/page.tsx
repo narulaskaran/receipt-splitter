@@ -639,7 +639,7 @@ export default function Home() {
         </TabsContent>
 
         <TabsContent value="results" className="space-y-6">
-          <ValidationErrors errors={validationResult.errors} />
+          <ValidationErrors errors={validationResult.errors} currencyCode={state.originalReceipt?.currency} />
 
           <ResultsSummary
             people={state.people}
