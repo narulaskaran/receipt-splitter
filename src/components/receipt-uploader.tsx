@@ -7,6 +7,7 @@ import { type Receipt } from "@/types";
 import { MAX_FILE_SIZE_MB, MAX_FILE_SIZE_BYTES } from "@/lib/constants";
 import imageCompression from "browser-image-compression";
 import { getSessionId } from "@/lib/session";
+import { safeSetItem } from "@/lib/storage";
 
 interface ReceiptUploaderProps {
   onReceiptParsed: (receipt: Receipt) => void;
@@ -116,7 +117,7 @@ export function ReceiptUploader({
         const reader = new FileReader();
         reader.onload = () => {
           if (reader.result) {
-            localStorage.setItem(IMAGE_STORAGE_KEY, reader.result as string);
+            safeSetItem(IMAGE_STORAGE_KEY, reader.result as string);
             setPreviewUrl(reader.result as string);
           }
         };
