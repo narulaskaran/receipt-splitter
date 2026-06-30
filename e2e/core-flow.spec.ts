@@ -178,15 +178,14 @@ test.describe("core flow", () => {
 
     // ---- Tab 2: People ------------------------------------------------------
     await nextBtn.click();
-    await page.waitForTimeout(300); // let tab transition settle
 
     // Both people should be listed.
+    // (toBeVisible retries for 5s so no manual wait needed.)
     await expect(page.getByText("Alice")).toBeVisible();
     await expect(page.getByText("Bob")).toBeVisible();
 
     // ---- Tab 3: Assign Items ------------------------------------------------
     await nextBtn.click();
-    await page.waitForTimeout(300);
 
     // All four items should appear in the assignment table.
     // Use .first() because item names also appear in person item cards.
@@ -201,9 +200,9 @@ test.describe("core flow", () => {
 
     // ---- Tab 4: Results -----------------------------------------------------
     await nextBtn.click();
-    await page.waitForTimeout(300);
 
     // Totals must render.  Look for the formatted dollar amounts.
+    // (toBeVisible retries for 5s so no manual wait needed.)
     // Use .first() because amounts appear in both summary cards and detail rows.
     await expect(page.getByText("$33.80").first()).toBeVisible();
     await expect(page.getByText("$22.10").first()).toBeVisible();
