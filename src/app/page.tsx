@@ -34,6 +34,7 @@ import {
   getUniqueGroupEmoji,
   getRandomGroupEmojiExcluding,
 } from "@/lib/emoji-utils";
+import { safeSetItem } from "@/lib/storage";
 
 export default function Home() {
   const LOCAL_STORAGE_KEY = "receiptSplitterSession";
@@ -112,10 +113,16 @@ export default function Home() {
         },
         activeTab,
       };
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(toSave));
+      const serialized = JSON.stringify(toSave);
+      const ok = safeSetItem(LOCAL_STORAGE_KEY, serialized);
+      if (!ok) {
+        // Quota exhausted — evict the cached image (largest consumer) and retry once
+        localStorage.removeItem("receiptSplitterImage");
+        safeSetItem(LOCAL_STORAGE_KEY, serialized);
+      }
       // Check if session is not default
       const isDefault =
-        JSON.stringify(toSave) === JSON.stringify(defaultSession);
+        serialized === JSON.stringify(defaultSession);
       setHasSession(!isDefault);
     }
   }, [state, activeTab, defaultSession]);
