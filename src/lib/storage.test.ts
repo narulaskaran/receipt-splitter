@@ -1,4 +1,4 @@
-import { safeSetItem, safeGetItem } from "./storage";
+import { safeSetItem, safeGetItem, measureStorageUsage, formatBytes } from "./storage";
 
 // Store original handlers to restore after tests that override them
 let originalSetItem: typeof localStorage.setItem;
@@ -67,5 +67,51 @@ describe("safeGetItem", () => {
 
     const result = safeGetItem("testKey");
     expect(result).toBeNull();
+  });
+});
+
+describe("measureStorageUsage", () => {
+  beforeEach(() => {
+    // Restore getItem if it was mocked by a previous test
+    if (originalGetItem) localStorage.getItem = originalGetItem;
+    localStorage.clear();
+  });
+
+  it("returns 0 when localStorage is empty", () => {
+    expect(measureStorageUsage()).toBe(0);
+  });
+
+  it("counts key and value bytes (UTF-16 = 2 bytes per char)", () => {
+    localStorage.setItem("abc", "xyz");     // (3 + 3) * 2 = 12
+    expect(measureStorageUsage()).toBe(12);
+  });
+
+  it("returns combined size of multiple entries", () => {
+    localStorage.setItem("k1", "v1");       // (2 + 2) * 2 = 8
+    localStorage.setItem("key2", "val2");   // (4 + 4) * 2 = 16
+    expect(measureStorageUsage()).toBe(24);
+  });
+
+  it("does not count the key parameter of setItem, only stored keys", () => {
+    localStorage.setItem("a", "aaaa");      // (1 + 4) * 2 = 10
+    localStorage.setItem("bb", "bb");       // (2 + 2) * 2 = 8
+    expect(measureStorageUsage()).toBe(18);
+  });
+});
+
+describe("formatBytes", () => {
+  it("formats bytes", () => {
+    expect(formatBytes(0)).toBe("0 B");
+    expect(formatBytes(500)).toBe("500 B");
+  });
+
+  it("formats kilobytes", () => {
+    expect(formatBytes(1024)).toBe("1.0 KB");
+    expect(formatBytes(1536)).toBe("1.5 KB");
+  });
+
+  it("formats megabytes", () => {
+    expect(formatBytes(1048576)).toBe("1.0 MB");
+    expect(formatBytes(1572864)).toBe("1.5 MB");
   });
 });
