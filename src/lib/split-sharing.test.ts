@@ -84,6 +84,7 @@ describe("serializeSplitData", () => {
 
     expect(params.get("note")).toBe("Test Note");
     expect(params.get("phone")).toBe("5551234567");
+    expect(params.get("currency")).toBe("USD");
     expect(params.get("date")).toBeNull();
   });
 
@@ -807,11 +808,14 @@ describe("minor-unit migration (pre-implementation tests)", () => {
       people,
       "Test",
       "5551234567",
-      "2024-01-01"
+      "USD",         // currency
+      "2024-01-01"  // date
     );
 
     expect(params.get("amounts")).toBe("101,202");
     expect(params.get("total")).toBe("303");
+    expect(params.get("currency")).toBe("USD");
+    expect(params.get("date")).toBe("2024-01-01");
   });
 
   it("deserializes cents back to dollars for internal math or exposes cents variant API", () => {
