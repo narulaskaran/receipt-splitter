@@ -43,13 +43,13 @@ test('Capture validation screenshots', async ({ page }) => {
   }, MOCK_STATE);
 
   // 2. Go to the page (it should load directly into the results tab due to activeTab: "results")
-  await page.goto('http://localhost:3000');
-  
+  await page.goto('/');
+
   // Wait for content to load
   await page.waitForSelector('text=Split Validation Issues');
 
   // --- Screenshot 1: Validation Errors Component (Desktop) ---
-  const errorCard = page.locator('.border-yellow-500\/50');
+  const errorCard = page.locator('[class*="border-yellow-500/50"]');
   await errorCard.screenshot({ path: 'screenshots/validation-errors-desktop.png' });
 
   // --- Screenshot 2: Full Results View (Desktop) ---
@@ -86,10 +86,10 @@ test('Capture mobile screenshots', async ({ page }) => {
     window.localStorage.setItem('receiptSplitterSession', JSON.stringify(value));
   }, MOCK_STATE);
 
-  await page.goto('http://localhost:3000');
+  await page.goto('/');
   await page.waitForSelector('text=Split Validation Issues');
 
   // --- Screenshot 5: Validation Errors (Mobile) ---
-  const errorCard = page.locator('.border-yellow-500\/50');
+  const errorCard = page.locator('[class*="border-yellow-500/50"]');
   await errorCard.screenshot({ path: 'screenshots/validation-errors-mobile.png' });
 });
