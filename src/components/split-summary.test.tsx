@@ -13,6 +13,7 @@ const mockSplitData: SharedSplitData = {
   total: 65.0,
   note: "Pizza Palace",
   phone: "5551234567",
+  currency: "USD",
   date: "2024-01-15",
 };
 
@@ -22,6 +23,7 @@ const mockMinimalSplitData: SharedSplitData = {
   total: 25.0,
   note: "Test Split",
   phone: "5551234567",
+  currency: "USD",
 };
 
 describe("SplitSummary", () => {

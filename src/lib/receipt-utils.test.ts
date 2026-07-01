@@ -391,6 +391,7 @@ describe("validateReceiptInvariants", () => {
         tax: 1.00,
         tip: 2.00,
         total: 13.00,
+        currency: "USD",
         items: [
           { name: "Item 1", price: 3.33, quantity: 1 },
           { name: "Item 2", price: 3.33, quantity: 1 },
@@ -415,6 +416,7 @@ describe("validateReceiptInvariants", () => {
         tax: 1.00,
         tip: 2.00,
         total: 13.00,
+        currency: "USD",
         items: [
           { name: "Shared Item", price: 10.00, quantity: 1 },
         ],
@@ -527,6 +529,7 @@ describe("validateReceiptInvariants", () => {
         tax: 10.00,
         tip: 15.00,
         total: 125.00,
+        currency: "USD",
         items: [
           { name: "Item 1", price: 25, quantity: 1 },
           { name: "Item 2", price: 25, quantity: 1 },
@@ -552,6 +555,7 @@ describe("validateReceiptInvariants", () => {
         tax: 1.00,
         tip: 2.00,
         total: 13.00,
+        currency: "USD",
         items: [
           { name: "Item 1", price: 3.33, quantity: 1 },
           { name: "Item 2", price: 3.34, quantity: 1 },
@@ -573,6 +577,7 @@ describe("validateReceiptInvariants", () => {
         tax: 10.00,
         tip: 15.00,
         total: 125.00,
+        currency: "USD",
         items: [
           { name: "Shared Item", price: 100, quantity: 1 },
         ],
@@ -604,6 +609,7 @@ describe("validateReceiptInvariants", () => {
         tax: 1.00,
         tip: 2.00,
         total: 13.00,
+        currency: "USD",
         items: [
           { name: "Shared Item", price: 10.00, quantity: 1 },
         ],
@@ -629,6 +635,7 @@ describe("validateReceiptInvariants", () => {
         tax: 10.00,
         tip: 15.00,
         total: 125.00,
+        currency: "USD",
         items: [
           { name: "Unassigned Item", price: 100, quantity: 1 },
         ],
@@ -653,6 +660,7 @@ describe("validateReceiptInvariants", () => {
         tax: -1, // Negative
         tip: -2, // Negative
         total: -13, // Negative
+        currency: "USD",
         items: [
           { name: "Bad Item", price: -5, quantity: -1 }, // Both negative
         ],
@@ -673,6 +681,7 @@ describe("validateReceiptInvariants", () => {
         tax: 10,
         tip: 15,
         total: 200,  // Should be 125
+        currency: "USD",
         items: [],
       };
       const result = validateReceiptInvariants(receipt, new Map(), []);
@@ -694,6 +703,7 @@ describe("validateReceiptInvariants", () => {
         tax: 10,
         tip: 15,
         total: 125,  // Correct
+        currency: "USD",
         items: [],
       };
       const result = validateReceiptInvariants(receipt, new Map(), []);
@@ -708,6 +718,7 @@ describe("validateReceiptInvariants", () => {
         tax: 1.50,
         tip: 2.25,
         total: 13.75,  // Correct sum
+        currency: "USD",
         items: [],
       };
       const result = validateReceiptInvariants(receipt, new Map(), []);

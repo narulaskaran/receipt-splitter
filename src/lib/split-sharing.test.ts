@@ -78,11 +78,13 @@ describe("serializeSplitData", () => {
       mockPeople,
       "Test Note",
       "5551234567",
+      "USD",
       null
     );
 
     expect(params.get("note")).toBe("Test Note");
     expect(params.get("phone")).toBe("5551234567");
+    expect(params.get("currency")).toBe("USD");
     expect(params.get("date")).toBeNull();
   });
 
@@ -367,6 +369,7 @@ describe("validateSplitData", () => {
     total: 50.0,
     note: "Test Restaurant",
     phone: "5551234567",
+    currency: "USD",
     date: "2024-01-15",
   };
 
@@ -381,6 +384,7 @@ describe("validateSplitData", () => {
       total: 25.0,
       note: "Test Split",
       phone: "5551234567",
+      currency: "USD",
     };
 
     expect(validateSplitData(minimalData)).toBe(true);
@@ -488,6 +492,7 @@ describe("validateSplitData", () => {
       total: 67.52, // difference = 0.02, people = 4 → tolerance = 0.04
       note: "Love Mama",
       phone: "5551234567",
+      currency: "USD",
       date: "2025-09-05",
     };
 
@@ -503,6 +508,7 @@ describe("validateSplitData", () => {
       total: 50.06, // difference 0.06; tolerance = 5 * 0.01 = 0.05 → should fail
       note: "Test",
       phone: "5551234567",
+      currency: "USD",
     };
 
     expect(validateSplitData(data)).toBe(false);
@@ -630,6 +636,7 @@ describe("validateSplitDataDetailed", () => {
     total: 50.0,
     note: "Test Restaurant",
     phone: "5551234567",
+    currency: "USD",
     date: "2024-01-15",
   };
 
@@ -801,11 +808,14 @@ describe("minor-unit migration (pre-implementation tests)", () => {
       people,
       "Test",
       "5551234567",
-      "2024-01-01"
+      "USD",         // currency
+      "2024-01-01"  // date
     );
 
     expect(params.get("amounts")).toBe("101,202");
     expect(params.get("total")).toBe("303");
+    expect(params.get("currency")).toBe("USD");
+    expect(params.get("date")).toBe("2024-01-01");
   });
 
   it("deserializes cents back to dollars for internal math or exposes cents variant API", () => {

@@ -19,6 +19,7 @@ describe('webhook-notifications', () => {
     tax: 2.0,
     tip: 3.0,
     total: 25.0,
+    currency: 'USD',
     items: [
       { name: 'Burger', price: 10.0, quantity: 2 },
       { name: 'Fries', price: 5.0, quantity: 1 },
