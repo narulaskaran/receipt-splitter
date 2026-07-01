@@ -10,6 +10,7 @@
     "lint": "next lint",
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
+    "test:e2e": "playwright test --project=chromium",
     "generate-icons": "node scripts/generate-icons.js",
     "screenshots": "node scripts/screenshot-harness.js"
   },
