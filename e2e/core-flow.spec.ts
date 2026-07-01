@@ -160,7 +160,7 @@ test.describe("core flow", () => {
     }, mockSession);
 
     // 3. Navigate to the app.
-    await page.goto("http://localhost:3000");
+    await page.goto("/");
     await page.waitForLoadState("networkidle");
 
     // ---- Tab 1: Upload ------------------------------------------------------
