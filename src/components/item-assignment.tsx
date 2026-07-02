@@ -10,15 +10,6 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -26,7 +17,6 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@/components/ui/popover";
-import Decimal from "decimal.js";
 
 import {
   type Receipt,
@@ -38,9 +28,11 @@ import {
   formatCurrency,
   calculateSubtotal,
   remapAssignmentsAfterDelete,
+  distributeEqualShares,
 } from "@/lib/receipt-utils";
-
-type SplitMode = "percent" | "amount";
+import { EditSplitDialog } from "./edit-split-dialog";
+import { EditItemDialog } from "./edit-item-dialog";
+import { AddItemDialog } from "./add-item-dialog";
 
 interface ItemAssignmentProps {
   receipt: Receipt;
@@ -74,118 +66,9 @@ export function ItemAssignment({
   const [currentEditItemIndex, setCurrentEditItemIndex] = useState<
     number | null
   >(null);
-  const [editedItem, setEditedItem] = useState<{
-    price: number;
-    quantity: number;
-  } | null>(null);
-  const [newItem, setNewItem] = useState<{
-    name: string;
-    price: number;
-    quantity: number;
-  }>({
-    name: "",
-    price: 0,
-    quantity: 1,
-  });
-  const [assignments, setAssignments] = useState<Map<string, number>>(
-    new Map()
-  );
-  const [rawInputs, setRawInputs] = useState<Map<string, string>>(new Map());
-  const [splitMode, setSplitMode] = useState<SplitMode>("percent");
   const [selectedPeople, setSelectedPeople] = useState<
     Map<number, Set<string>>
   >(new Map());
-
-  // Apply selections to assignments when the dialog opens
-  useEffect(() => {
-    if (currentItemIndex !== null && open) {
-      setRawInputs(new Map()); // Clear raw inputs when dialog reinitializes
-      setSplitMode("percent"); // Reset to percent mode for each new item
-      // Load existing custom percentages if available
-      const existingAssignments = assignedItems.get(currentItemIndex) || [];
-
-      if (existingAssignments.length > 0) {
-        const newAssignments = new Map<string, number>();
-        existingAssignments.forEach((a) => {
-          newAssignments.set(a.personId, a.sharePercentage);
-        });
-        setAssignments(newAssignments);
-      } else {
-        // No existing assignments — initialize with equal split for selected people
-        const selected = selectedPeople.get(currentItemIndex) || new Set();
-
-        if (selected.size > 0) {
-          const peopleToAssign = Array.from(selected);
-          const equalShare = +(100 / peopleToAssign.length).toFixed(2);
-
-          const newAssignments = new Map<string, number>();
-          let runningSum = 0;
-
-          peopleToAssign.forEach((personId, index) => {
-            // Last person gets the remainder to ensure total is exactly 100%
-            if (index === peopleToAssign.length - 1) {
-              const lastShare = +(100 - runningSum).toFixed(2);
-              newAssignments.set(personId, lastShare);
-            } else {
-              newAssignments.set(personId, equalShare);
-              runningSum += equalShare;
-            }
-          });
-
-          setAssignments(newAssignments);
-        }
-      }
-    }
-    // Only re-initialize when the dialog opens or switches to a different item.
-    // Intentionally excluding selectedPeople and assignedItems to prevent
-    // in-flight edits from being reset by parent prop updates.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentItemIndex, open]);
-
-  // Handle split equally between selected people
-  const splitEqually = () => {
-    if (currentItemIndex === null) return;
-
-    // Get selected people (those with any value assigned)
-    let selectedPeopleIds = Array.from(assignments.keys());
-
-    // If none are selected, select all people
-    if (selectedPeopleIds.length === 0) {
-      selectedPeopleIds = people.map((p) => p.id);
-      if (selectedPeopleIds.length === 0) {
-        toast.error("No people to assign");
-        return;
-      }
-      // Update assignments state to include all people with 0% (will be set below)
-      const newAssignments = new Map(assignments);
-      selectedPeopleIds.forEach((personId) => {
-        newAssignments.set(personId, 0);
-      });
-      setAssignments(newAssignments);
-    }
-
-    // Calculate equal share with 2 decimal places
-    const equalShare = +(100 / selectedPeopleIds.length).toFixed(2);
-
-    // Distribute shares equally
-    const newAssignments = new Map<string, number>();
-    let runningSum = 0;
-
-    // Assign equal shares
-    selectedPeopleIds.forEach((personId, index) => {
-      // Last person gets the remainder to ensure total is exactly 100%
-      if (index === selectedPeopleIds.length - 1) {
-        const lastShare = +(100 - runningSum).toFixed(2);
-        newAssignments.set(personId, lastShare);
-      } else {
-        newAssignments.set(personId, equalShare);
-        runningSum += equalShare;
-      }
-    });
-
-    setAssignments(newAssignments);
-    setRawInputs(new Map()); // Clear raw inputs when split equally is applied
-  };
 
   // Check if all members of a group are selected for an item
   const isGroupFullySelected = (itemIndex: number, group: Group): boolean => {
@@ -227,27 +110,7 @@ export function ItemAssignment({
     // Auto-assign equal shares immediately
     if (newSelected.size > 0) {
       const peopleToAssign = Array.from(newSelected);
-      const equalShare = +(100 / peopleToAssign.length).toFixed(2);
-
-      const assignments: PersonItemAssignment[] = [];
-      let runningSum = 0;
-
-      peopleToAssign.forEach((personId, index) => {
-        // Last person gets the remainder to ensure total is exactly 100%
-        if (index === peopleToAssign.length - 1) {
-          const lastShare = +(100 - runningSum).toFixed(2);
-          assignments.push({
-            personId,
-            sharePercentage: lastShare,
-          });
-        } else {
-          assignments.push({
-            personId,
-            sharePercentage: equalShare,
-          });
-          runningSum += equalShare;
-        }
-      });
+      const assignments = distributeEqualShares(peopleToAssign);
 
       // Call the parent handler to update assignments
       onAssignItems(itemIndex, assignments);
@@ -277,27 +140,7 @@ export function ItemAssignment({
     // Auto-assign equal shares immediately
     if (newSelected.size > 0) {
       const peopleToAssign = Array.from(newSelected);
-      const equalShare = +(100 / peopleToAssign.length).toFixed(2);
-
-      const assignments: PersonItemAssignment[] = [];
-      let runningSum = 0;
-
-      peopleToAssign.forEach((personId, index) => {
-        // Last person gets the remainder to ensure total is exactly 100%
-        if (index === peopleToAssign.length - 1) {
-          const lastShare = +(100 - runningSum).toFixed(2);
-          assignments.push({
-            personId,
-            sharePercentage: lastShare,
-          });
-        } else {
-          assignments.push({
-            personId,
-            sharePercentage: equalShare,
-          });
-          runningSum += equalShare;
-        }
-      });
+      const assignments = distributeEqualShares(peopleToAssign);
 
       // Call the parent handler to update assignments
       onAssignItems(itemIndex, assignments);
@@ -307,88 +150,13 @@ export function ItemAssignment({
     }
   };
 
-  // Save the assignment
-  const saveAssignment = () => {
-    if (currentItemIndex === null) return;
-
-    let assignmentArray: PersonItemAssignment[];
-
-    if (splitMode === "amount") {
-      const item = receipt.items[currentItemIndex];
-      const itemTotal = new Decimal(item.price).times(item.quantity || 1);
-
-      // assignments stores percentages; convert to dollar sum for validation
-      const dollarSum = Array.from(assignments.values()).reduce(
-        (sum, pct) => sum.plus(new Decimal(pct || 0).dividedBy(100).times(itemTotal)),
-        new Decimal(0)
-      );
-
-      if (dollarSum.minus(itemTotal).abs().greaterThan(0.01)) {
-        toast.error(
-          `Dollar amounts must sum to ${formatCurrency(itemTotal.toNumber(), receipt.currency)}`
-        );
-        return;
-      }
-
-      // assignments stores percentages — pass them through directly,
-      // giving the last person the remainder so they sum to exactly 100.
-      const entries = Array.from(assignments.entries()).filter(
-        ([, pct]) => pct > 0
-      );
-
-      assignmentArray = [];
-      let runningPct = new Decimal(0);
-
-      entries.forEach(([personId, pct], index) => {
-        if (index === entries.length - 1) {
-          const lastPct = new Decimal(100).minus(runningPct);
-          assignmentArray.push({
-            personId,
-            sharePercentage: +lastPct.toFixed(2),
-          });
-        } else {
-          const rounded = new Decimal(pct).toDecimalPlaces(2);
-          assignmentArray.push({
-            personId,
-            sharePercentage: rounded.toNumber(),
-          });
-          runningPct = runningPct.plus(rounded);
-        }
-      });
-    } else {
-      // Calculate total percentage
-      const totalPercentage = Array.from(assignments.values()).reduce(
-        (sum, value) => sum + (value || 0),
-        0
-      );
-
-      // Ensure total is 100%
-      if (Math.abs(totalPercentage - 100) > 0.01) {
-        toast.error("Total percentage must be 100%");
-        return;
-      }
-
-      assignmentArray = [];
-      assignments.forEach((percentage, personId) => {
-        if (percentage > 0) {
-          assignmentArray.push({
-            personId,
-            sharePercentage: percentage,
-          });
-        }
-      });
-    }
-
-    // Update selected people to match assignments
-    const newSelected = new Set(assignmentArray.map((a) => a.personId));
+  // Handle split save from dialog
+  const handleSaveSplit = (itemIndex: number, assignments: PersonItemAssignment[]) => {
+    const newSelected = new Set(assignments.map((a) => a.personId));
     const newSelectedPeople = new Map(selectedPeople);
-    newSelectedPeople.set(currentItemIndex, newSelected);
+    newSelectedPeople.set(itemIndex, newSelected);
     setSelectedPeople(newSelectedPeople);
-
-    // Call the parent handler
-    onAssignItems(currentItemIndex, assignmentArray);
-
-    // Close dialog
+    onAssignItems(itemIndex, assignments);
     setOpen(false);
     setCurrentItemIndex(null);
   };
@@ -438,25 +206,20 @@ export function ItemAssignment({
 
   // Handle item edit
   const handleEditItem = (index: number) => {
-    const item = receipt.items[index];
     setCurrentEditItemIndex(index);
-    setEditedItem({
-      price: item.price,
-      quantity: item.quantity || 1,
-    });
     setEditItemDialogOpen(true);
   };
 
   // Save item edit
-  const saveItemEdit = () => {
-    if (currentEditItemIndex === null || !editedItem) return;
+  const saveItemEdit = (price: number, quantity: number) => {
+    if (currentEditItemIndex === null) return;
 
     const updatedReceipt = { ...receipt };
     updatedReceipt.items = [...receipt.items];
     updatedReceipt.items[currentEditItemIndex] = {
       ...updatedReceipt.items[currentEditItemIndex],
-      price: editedItem.price,
-      quantity: editedItem.quantity,
+      price,
+      quantity,
     };
 
     // Recalculate subtotal using Decimal.js
@@ -466,7 +229,6 @@ export function ItemAssignment({
     onReceiptUpdate(updatedReceipt);
     setEditItemDialogOpen(false);
     setCurrentEditItemIndex(null);
-    setEditedItem(null);
     toast.success("Item updated successfully");
   };
 
@@ -489,27 +251,22 @@ export function ItemAssignment({
 
   // Handle adding a new item
   const handleAddItem = () => {
-    setNewItem({
-      name: "",
-      price: 0,
-      quantity: 1,
-    });
     setAddItemDialogOpen(true);
   };
 
   // Save new item
-  const saveNewItem = () => {
-    if (!newItem.name.trim()) {
+  const saveNewItem = (name: string, price: number, quantity: number) => {
+    if (!name.trim()) {
       toast.error("Item name is required");
       return;
     }
 
-    if (newItem.price < 0) {
+    if (price < 0) {
       toast.error("Price must be positive");
       return;
     }
 
-    if (newItem.quantity < 1) {
+    if (quantity < 1) {
       toast.error("Quantity must be at least 1");
       return;
     }
@@ -518,9 +275,9 @@ export function ItemAssignment({
     updatedReceipt.items = [
       ...receipt.items,
       {
-        name: newItem.name.trim(),
-        price: newItem.price,
-        quantity: newItem.quantity,
+        name: name.trim(),
+        price,
+        quantity,
       },
     ];
 
@@ -530,8 +287,7 @@ export function ItemAssignment({
     // Update the receipt
     onReceiptUpdate(updatedReceipt);
     setAddItemDialogOpen(false);
-    setNewItem({ name: "", price: 0, quantity: 1 });
-    toast.success(`Added "${newItem.name}"`);
+    toast.success(`Added "${name.trim()}"`);
   };
 
   return (
@@ -920,372 +676,65 @@ export function ItemAssignment({
           </>
         )}
 
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent>
-            {(() => {
-              const itemTotal =
-                currentItemIndex !== null
-                  ? new Decimal(
-                      receipt.items[currentItemIndex]?.price ?? 0
-                    ).times(receipt.items[currentItemIndex]?.quantity || 1)
-                  : new Decimal(0);
+        <EditSplitDialog
+          open={open}
+          onOpenChange={setOpen}
+          itemIndex={currentItemIndex ?? 0}
+          itemName={
+            currentItemIndex !== null
+              ? receipt.items[currentItemIndex]?.name
+              : ""
+          }
+          itemPrice={
+            currentItemIndex !== null
+              ? receipt.items[currentItemIndex]?.price ?? 0
+              : 0
+          }
+          itemQuantity={
+            currentItemIndex !== null
+              ? receipt.items[currentItemIndex]?.quantity ?? 1
+              : 1
+          }
+          currency={receipt.currency}
+          people={people}
+          existingAssignments={
+            currentItemIndex !== null
+              ? assignedItems.get(currentItemIndex) || []
+              : []
+          }
+          onSave={handleSaveSplit}
+        />
 
-              const totalPct = Array.from(assignments.values()).reduce(
-                (sum, val) => sum + (val || 0),
-                0
-              );
+        <EditItemDialog
+          open={editItemDialogOpen}
+          onOpenChange={setEditItemDialogOpen}
+          itemName={
+            currentEditItemIndex !== null
+              ? receipt.items[currentEditItemIndex]?.name
+              : ""
+          }
+          initialPrice={
+            currentEditItemIndex !== null
+              ? receipt.items[currentEditItemIndex]?.price ?? 0
+              : 0
+          }
+          initialQuantity={
+            currentEditItemIndex !== null
+              ? receipt.items[currentEditItemIndex]?.quantity ?? 1
+              : 1
+          }
+          onSave={(price, quantity) =>
+            saveItemEdit(price, quantity)
+          }
+        />
 
-              const dollarSum = new Decimal(totalPct)
-                .dividedBy(100)
-                .times(itemTotal);
-
-              const isValid =
-                splitMode === "amount"
-                  ? dollarSum.minus(itemTotal).abs().lessThanOrEqualTo(0.01)
-                  : Math.abs(totalPct - 100) <= 0.01;
-
-              const getDisplayValue = (personId: string): string => {
-                if (rawInputs.has(personId)) return rawInputs.get(personId)!;
-                if (!assignments.has(personId)) return "";
-                const pct = assignments.get(personId)!;
-                if (splitMode === "amount") {
-                  return new Decimal(pct)
-                    .dividedBy(100)
-                    .times(itemTotal)
-                    .toFixed(2);
-                }
-                return String(pct);
-              };
-
-              const handleChange = (personId: string, raw: string) => {
-                const newRawInputs = new Map(rawInputs);
-                const newAssignments = new Map(assignments);
-                if (raw === "") {
-                  newRawInputs.delete(personId);
-                  newAssignments.delete(personId);
-                } else {
-                  newRawInputs.set(personId, raw);
-                  const parsed = parseFloat(raw);
-                  if (!isNaN(parsed) && parsed >= 0) {
-                    if (splitMode === "amount") {
-                      const pct = itemTotal.isZero()
-                        ? new Decimal(0)
-                        : new Decimal(parsed)
-                            .dividedBy(itemTotal)
-                            .times(100);
-                      newAssignments.set(personId, pct.toNumber());
-                    } else {
-                      newAssignments.set(personId, parsed);
-                    }
-                  }
-                }
-                setRawInputs(newRawInputs);
-                setAssignments(newAssignments);
-              };
-
-              return (
-                <>
-                  <DialogHeader>
-                    <DialogTitle>
-                      Edit Split:{" "}
-                      {currentItemIndex !== null
-                        ? receipt.items[currentItemIndex]?.name
-                        : ""}
-                    </DialogTitle>
-                  </DialogHeader>
-
-                  <div className="grid gap-4 py-4">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">Item Price:</span>
-                      <div className="flex items-center gap-3">
-                        <span>
-                          {currentItemIndex !== null
-                            ? formatCurrency(
-                                itemTotal.toNumber(),
-                                receipt.currency
-                              )
-                            : ""}
-                        </span>
-                        <div className="flex rounded-md border overflow-hidden">
-                          <Button
-                            type="button"
-                            variant={
-                              splitMode === "percent" ? "default" : "ghost"
-                            }
-                            size="sm"
-                            className="rounded-none h-7 px-2 text-xs"
-                            onClick={() => {
-                              setSplitMode("percent");
-                              setRawInputs(new Map());
-                            }}
-                          >
-                            %
-                          </Button>
-                          <Button
-                            type="button"
-                            variant={
-                              splitMode === "amount" ? "default" : "ghost"
-                            }
-                            size="sm"
-                            className="rounded-none h-7 px-2 text-xs"
-                            onClick={() => {
-                              setSplitMode("amount");
-                              setRawInputs(new Map());
-                            }}
-                          >
-                            $
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {people.map((person) => (
-                      <div
-                        key={person.id}
-                        className="grid grid-cols-2 items-center gap-4"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            id={`person-${person.id}-dialog`}
-                            checked={assignments.has(person.id)}
-                            onCheckedChange={(checked) => {
-                              const newAssignments = new Map(assignments);
-                              if (checked) {
-                                newAssignments.set(person.id, 0);
-                              } else {
-                                newAssignments.delete(person.id);
-                              }
-                              setAssignments(newAssignments);
-                            }}
-                          />
-                          <Label htmlFor={`person-${person.id}-dialog`}>
-                            {person.name}
-                          </Label>
-                        </div>
-                        <div className="flex items-center">
-                          <Input
-                            id={`person-${person.id}-${splitMode}`}
-                            type="text"
-                            inputMode="decimal"
-                            value={getDisplayValue(person.id)}
-                            onChange={(e) =>
-                              handleChange(person.id, e.target.value)
-                            }
-                            onBlur={() => {
-                              const newRawInputs = new Map(rawInputs);
-                              newRawInputs.delete(person.id);
-                              setRawInputs(newRawInputs);
-                            }}
-                            className="w-20 text-right"
-                          />
-                          <span className="ml-2">
-                            {splitMode === "percent" ? "%" : ""}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-
-                    <div className="flex items-center justify-between pt-2">
-                      <span className="font-medium">Total:</span>
-                      <span
-                        className={
-                          isValid
-                            ? "text-green-500 font-medium"
-                            : "text-destructive font-medium"
-                        }
-                      >
-                        {splitMode === "amount"
-                          ? `${formatCurrency(dollarSum.toNumber(), receipt.currency)} / ${formatCurrency(itemTotal.toNumber(), receipt.currency)}`
-                          : `${totalPct}%`}
-                      </span>
-                    </div>
-                  </div>
-
-                  <DialogFooter className="flex flex-col sm:flex-row gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={splitEqually}
-                      className="w-full sm:w-auto"
-                    >
-                      Split Equally
-                    </Button>
-                    <Button
-                      type="button"
-                      onClick={saveAssignment}
-                      className="w-full sm:w-auto"
-                      disabled={!isValid}
-                    >
-                      Save Assignment
-                    </Button>
-                  </DialogFooter>
-                </>
-              );
-            })()}
-          </DialogContent>
-        </Dialog>
-
-        {/* New item edit dialog */}
-        <Dialog open={editItemDialogOpen} onOpenChange={setEditItemDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>
-                Edit Item:{" "}
-                {currentEditItemIndex !== null
-                  ? receipt.items[currentEditItemIndex]?.name
-                  : ""}
-              </DialogTitle>
-            </DialogHeader>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                saveItemEdit();
-              }}
-            >
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="item-price">Item Price</Label>
-                  <Input
-                    id="item-price"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={editedItem?.price || ""}
-                    onChange={(e) =>
-                      setEditedItem({
-                        ...editedItem!,
-                        price: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="item-quantity">Quantity</Label>
-                  <Input
-                    id="item-quantity"
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={editedItem?.quantity || ""}
-                    onChange={(e) =>
-                      setEditedItem({
-                        ...editedItem!,
-                        quantity: parseInt(e.target.value) || 1,
-                      })
-                    }
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">Total:</span>
-                  <span>
-                    {editedItem
-                      ? formatCurrency(editedItem.price * editedItem.quantity)
-                      : ""}
-                  </span>
-                </div>
-              </div>
-
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => setEditItemDialogOpen(false)}
-                  type="button"
-                >
-                  Cancel
-                </Button>
-                <Button type="submit">Save Changes</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-
-        {/* Add new item dialog */}
-        <Dialog open={addItemDialogOpen} onOpenChange={setAddItemDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Add New Item</DialogTitle>
-            </DialogHeader>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                saveNewItem();
-              }}
-            >
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="new-item-name">Item Name</Label>
-                  <Input
-                    id="new-item-name"
-                    type="text"
-                    value={newItem.name}
-                    onChange={(e) =>
-                      setNewItem({
-                        ...newItem,
-                        name: e.target.value,
-                      })
-                    }
-                    placeholder="e.g., Burger, Pizza, Salad"
-                    autoFocus
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="new-item-price">Price</Label>
-                  <Input
-                    id="new-item-price"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={newItem.price}
-                    onChange={(e) =>
-                      setNewItem({
-                        ...newItem,
-                        price: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="new-item-quantity">Quantity</Label>
-                  <Input
-                    id="new-item-quantity"
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={newItem.quantity}
-                    onChange={(e) =>
-                      setNewItem({
-                        ...newItem,
-                        quantity: parseInt(e.target.value) || 1,
-                      })
-                    }
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">Total:</span>
-                  <span>{formatCurrency(newItem.price * newItem.quantity)}</span>
-                </div>
-              </div>
-
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => setAddItemDialogOpen(false)}
-                  type="button"
-                >
-                  Cancel
-                </Button>
-                <Button type="submit">Add Item</Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <AddItemDialog
+          open={addItemDialogOpen}
+          onOpenChange={setAddItemDialogOpen}
+          onSave={(name, price, quantity) =>
+            saveNewItem(name, price, quantity)
+          }
+        />
       </CardContent>
     </Card>
   );
