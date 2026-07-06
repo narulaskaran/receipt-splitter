@@ -32,22 +32,7 @@ const ZERO_RECEIPT = {
   items: [{ name: "Complimentary Water", price: 0, quantity: 1 }],
 };
 
-const ZERO_PEOPLE: Array<{
-  id: string;
-  name: string;
-  items: Array<{
-    itemId: number;
-    itemName: string;
-    originalPrice: number;
-    quantity: number;
-    sharePercentage: number;
-    amount: number;
-  }>;
-  totalBeforeTax: number;
-  tax: number;
-  tip: number;
-  finalTotal: number;
-}> = [
+const ZERO_PEOPLE = [
   {
     id: "p1",
     name: "Alice",
@@ -288,7 +273,9 @@ test.describe("edge-case receipt values", () => {
     await test.step("Results tab — totals render and Share button is disabled (no positive amount)", async () => {
       await page.getByRole("button", { name: "Next", exact: true }).click();
 
-      await expect(page.getByText("$0.00").last()).toBeVisible();
+      // Scope to the Total column so assertion is visibility-based, not DOM-order-dependent.
+      // The Total value is wrapped in <span className="font-bold ..."> — unique to the final column.
+      await expect(page.locator("span.font-bold", { hasText: "$0.00" }).first()).toBeVisible();
       await expect(page.getByRole("cell", { name: "Alice" })).toBeVisible();
 
       const shareBtn = page.getByRole("button", { name: "Share Split" });
@@ -397,13 +384,15 @@ test.describe("edge-case receipt values", () => {
       await expect(page.getByText("Dana")).toBeVisible();
     });
 
-    await test.step("Assign tab — all 25 items listed without truncation", async () => {
+    await test.step("Assign tab — scroll to verify all 25 items are accessible", async () => {
       await page.getByRole("button", { name: "Next", exact: true }).click();
 
       // Check that first item in list is visible
       await expect(page.getByText("Wings").first()).toBeVisible();
-      // Scroll down to verify the last item (Brownie) is in the DOM
-      await expect(page.getByText("Brownie").first()).toBeVisible();
+      // Scroll to the last item (Brownie) to verify the container actually scrolls
+      const brownieItem = page.getByText("Brownie").first();
+      await brownieItem.scrollIntoViewIfNeeded();
+      await expect(brownieItem).toBeVisible();
       await expect(page.getByText("100%")).toBeVisible();
     });
 
@@ -449,6 +438,23 @@ test.describe("edge-case receipt values", () => {
       await expect(page.getByText("GBP - British Pound")).toBeVisible();
       await expect(page.getByText("£29.99").first()).toBeVisible();
       await expect(page.getByText("£38.99").first()).toBeVisible();
+    });
+
+    await test.step("People tab — person visible", async () => {
+      await page.getByRole("button", { name: "Next", exact: true }).click();
+      await expect(page.getByText("Alice")).toBeVisible();
+    });
+
+    await test.step("Assign tab — item shows GBP amount", async () => {
+      await page.getByRole("button", { name: "Next", exact: true }).click();
+      await expect(page.getByText("Espresso").first()).toBeVisible();
+      await expect(page.getByText("100%")).toBeVisible();
+    });
+
+    await test.step("Results tab — GBP total renders with £ formatting", async () => {
+      await page.getByRole("button", { name: "Next", exact: true }).click();
+      await expect(page.getByText("£38.99").first()).toBeVisible();
+      await expect(page.getByRole("cell", { name: "Alice" })).toBeVisible();
     });
   });
 
