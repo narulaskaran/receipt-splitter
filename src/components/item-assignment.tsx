@@ -723,17 +723,15 @@ export function ItemAssignment({
               ? receipt.items[currentEditItemIndex]?.quantity ?? 1
               : 1
           }
-          onSave={(price, quantity) =>
-            saveItemEdit(price, quantity)
-          }
+          currency={receipt.currency}
+          onSave={saveItemEdit}
         />
 
         <AddItemDialog
           open={addItemDialogOpen}
           onOpenChange={setAddItemDialogOpen}
-          onSave={(name, price, quantity) =>
-            saveNewItem(name, price, quantity)
-          }
+          currency={receipt.currency}
+          onSave={saveNewItem}
         />
       </CardContent>
     </Card>

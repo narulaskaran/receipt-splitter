@@ -226,21 +226,14 @@ export function EditSplitDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>
-            Edit Split: {itemName}
-            {itemQuantity > 1 ? ` (x${itemQuantity})` : ""}
-          </DialogTitle>
+          <DialogTitle>Edit Split: {itemName}</DialogTitle>
         </DialogHeader>
-        {(() => {
-          return (
-            <>
-              <div className="grid gap-4 py-4">
-                <div className="flex items-center justify-between">
-                  <span className="font-medium">Item Total:</span>
-                  <span>
-                    {formatCurrency(itemTotal.toNumber(), currency)}
-                  </span>
-                </div>
+        <>
+          <div className="grid gap-4 py-4">
+            <div className="flex items-center justify-between">
+              <span className="font-medium">Item Price:</span>
+              <div className="flex items-center gap-3">
+                <span>{formatCurrency(itemTotal.toNumber(), currency)}</span>
                 <div className="flex rounded-md border overflow-hidden">
                   <Button
                     type="button"
@@ -268,92 +261,90 @@ export function EditSplitDialog({
                   </Button>
                 </div>
               </div>
+            </div>
 
-              {people.map((person) => (
-                <div
-                  key={person.id}
-                  className="grid grid-cols-2 items-center gap-4"
-                >
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id={`person-${person.id}-dialog`}
-                      checked={assignments.has(person.id)}
-                      onCheckedChange={(checked) => {
-                        const newAssignments = new Map(assignments);
-                        if (checked) {
-                          newAssignments.set(person.id, 0);
-                        } else {
-                          newAssignments.delete(person.id);
-                        }
-                        setAssignments(newAssignments);
-                      }}
-                    />
-                    <Label htmlFor={`person-${person.id}-dialog`}>
-                      {person.name}
-                    </Label>
-                  </div>
-                  <div className="flex items-center">
-                    <Input
-                      id={`person-${person.id}-${splitMode}`}
-                      type="text"
-                      inputMode="decimal"
-                      value={getDisplayValue(person.id)}
-                      onChange={(e) =>
-                        handleChange(person.id, e.target.value)
+            {people.map((person) => (
+              <div
+                key={person.id}
+                className="grid grid-cols-2 items-center gap-4"
+              >
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id={`person-${person.id}-dialog`}
+                    checked={assignments.has(person.id)}
+                    onCheckedChange={(checked) => {
+                      const newAssignments = new Map(assignments);
+                      if (checked) {
+                        newAssignments.set(person.id, 0);
+                      } else {
+                        newAssignments.delete(person.id);
                       }
-                      onBlur={() => {
-                        const newRawInputs = new Map(rawInputs);
-                        newRawInputs.delete(person.id);
-                        setRawInputs(newRawInputs);
-                      }}
-                      className="w-20 text-right"
-                    />
-                    <span className="ml-2">
-                      {splitMode === "percent" ? "%" : ""}
-                    </span>
-                  </div>
+                      setAssignments(newAssignments);
+                    }}
+                  />
+                  <Label htmlFor={`person-${person.id}-dialog`}>
+                    {person.name}
+                  </Label>
                 </div>
-              ))}
-
-              <div className="flex items-center justify-between pt-2">
-                <span className="font-medium">Total:</span>
-                <span
-                  className={
-                    isValid
-                      ? "text-green-500 font-medium"
-                      : "text-destructive font-medium"
-                  }
-                >
-                  {splitMode === "amount"
-                    ? `${formatCurrency(
-                        dollarSum.toNumber(),
-                        currency
-                      )} / ${formatCurrency(itemTotal.toNumber(), currency)}`
-                    : `${totalPct}%`}
-                </span>
+                <div className="flex items-center">
+                  <Input
+                    id={`person-${person.id}-${splitMode}`}
+                    type="text"
+                    inputMode="decimal"
+                    value={getDisplayValue(person.id)}
+                    onChange={(e) => handleChange(person.id, e.target.value)}
+                    onBlur={() => {
+                      const newRawInputs = new Map(rawInputs);
+                      newRawInputs.delete(person.id);
+                      setRawInputs(newRawInputs);
+                    }}
+                    className="w-20 text-right"
+                  />
+                  <span className="ml-2">
+                    {splitMode === "percent" ? "%" : ""}
+                  </span>
+                </div>
               </div>
+            ))}
 
-              <DialogFooter className="flex flex-col sm:flex-row gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={splitEqually}
-                  className="w-full sm:w-auto"
-                >
-                  Split Equally
-                </Button>
-                <Button
-                  type="button"
-                  onClick={saveAssignment}
-                  className="w-full sm:w-auto"
-                  disabled={!isValid}
-                >
-                  Save Assignment
-                </Button>
-              </DialogFooter>
-            </>
-          );
-        })()}
+            <div className="flex items-center justify-between pt-2">
+              <span className="font-medium">Total:</span>
+              <span
+                className={
+                  isValid
+                    ? "text-green-500 font-medium"
+                    : "text-destructive font-medium"
+                }
+              >
+                {splitMode === "amount"
+                  ? `${formatCurrency(
+                      dollarSum.toNumber(),
+                      currency
+                    )} / ${formatCurrency(itemTotal.toNumber(), currency)}`
+                  : `${totalPct}%`}
+              </span>
+            </div>
+          </div>
+
+          <DialogFooter className="flex flex-col sm:flex-row gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={splitEqually}
+              className="w-full sm:w-auto"
+            >
+              Split Equally
+            </Button>
+            <Button
+              type="button"
+              onClick={saveAssignment}
+              className="w-full sm:w-auto"
+              disabled={!isValid}
+            >
+              Save Assignment
+            </Button>
+          </DialogFooter>
+        </>
       </DialogContent>
     </Dialog>
   );

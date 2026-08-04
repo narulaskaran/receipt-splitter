@@ -14,12 +14,14 @@ import { formatCurrency } from "@/lib/receipt-utils";
 interface AddItemDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  currency: string;
   onSave: (name: string, price: number, quantity: number) => void;
 }
 
 export function AddItemDialog({
   open,
   onOpenChange,
+  currency,
   onSave,
 }: AddItemDialogProps) {
   const [name, setName] = useState("");
@@ -86,7 +88,7 @@ export function AddItemDialog({
 
             <div className="flex items-center justify-between">
               <span className="font-medium">Total:</span>
-              <span>{formatCurrency(price * quantity)}</span>
+              <span>{formatCurrency(price * quantity, currency)}</span>
             </div>
           </div>
 

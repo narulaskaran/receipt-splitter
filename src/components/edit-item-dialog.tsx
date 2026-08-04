@@ -17,6 +17,7 @@ interface EditItemDialogProps {
   itemName: string;
   initialPrice: number;
   initialQuantity: number;
+  currency: string;
   onSave: (price: number, quantity: number) => void;
 }
 
@@ -26,6 +27,7 @@ export function EditItemDialog({
   itemName,
   initialPrice,
   initialQuantity,
+  currency,
   onSave,
 }: EditItemDialogProps) {
   const [price, setPrice] = useState(initialPrice);
@@ -79,7 +81,7 @@ export function EditItemDialog({
 
             <div className="flex items-center justify-between">
               <span className="font-medium">Total:</span>
-              <span>{formatCurrency(price * quantity)}</span>
+              <span>{formatCurrency(price * quantity, currency)}</span>
             </div>
           </div>
 
