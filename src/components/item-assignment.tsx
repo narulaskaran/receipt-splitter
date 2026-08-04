@@ -679,7 +679,7 @@ export function ItemAssignment({
         <EditSplitDialog
           open={open}
           onOpenChange={setOpen}
-          itemIndex={currentItemIndex ?? 0}
+          itemIndex={currentItemIndex}
           itemName={
             currentItemIndex !== null
               ? receipt.items[currentItemIndex]?.name
@@ -700,6 +700,11 @@ export function ItemAssignment({
           existingAssignments={
             currentItemIndex !== null
               ? assignedItems.get(currentItemIndex) || []
+              : []
+          }
+          selectedPersonIds={
+            currentItemIndex !== null
+              ? Array.from(selectedPeople.get(currentItemIndex) || [])
               : []
           }
           onSave={handleSaveSplit}

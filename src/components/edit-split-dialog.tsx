@@ -21,13 +21,14 @@ type SplitMode = "percent" | "amount";
 interface EditSplitDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  itemIndex: number;
+  itemIndex: number | null;
   itemName: string;
   itemPrice: number;
   itemQuantity: number;
   currency: string;
   people: Person[];
   existingAssignments: PersonItemAssignment[];
+  selectedPersonIds: string[];
   onSave: (itemIndex: number, assignments: PersonItemAssignment[]) => void;
 }
 
@@ -41,6 +42,7 @@ export function EditSplitDialog({
   currency,
   people,
   existingAssignments,
+  selectedPersonIds,
   onSave,
 }: EditSplitDialogProps) {
   const [assignments, setAssignments] = useState<Map<string, number>>(
@@ -62,6 +64,14 @@ export function EditSplitDialog({
         existingAssignments.forEach((a) => {
           newAssignments.set(a.personId, a.sharePercentage);
         });
+        setAssignments(newAssignments);
+      } else if (selectedPersonIds.length > 0) {
+        const newAssignments = new Map(
+          distributeEqualShares(selectedPersonIds).map((a) => [
+            a.personId,
+            a.sharePercentage,
+          ])
+        );
         setAssignments(newAssignments);
       } else {
         setAssignments(new Map());
@@ -140,6 +150,8 @@ export function EditSplitDialog({
   };
 
   const saveAssignment = () => {
+    if (itemIndex === null) return;
+
     let assignmentArray: PersonItemAssignment[];
 
     if (splitMode === "amount") {

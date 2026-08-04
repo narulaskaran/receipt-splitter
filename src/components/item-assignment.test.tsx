@@ -353,6 +353,7 @@ describe("ItemAssignment", () => {
       expect(bobCheckbox).toBeChecked();
       expect(bobInput).toHaveDisplayValue("50");
     });
+
   });
 
   describe("Edit Split dialog (dollar-amount mode)", () => {
