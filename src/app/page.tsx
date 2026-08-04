@@ -34,6 +34,12 @@ import {
   getUniqueGroupEmoji,
   getRandomGroupEmojiExcluding,
 } from "@/lib/emoji-utils";
+import {
+  RECEIPT_IMAGE_STORAGE_KEY,
+  safeGetItem,
+  safeRemoveItem,
+  safeSetItem,
+} from "@/lib/storage";
 
 export default function Home() {
   const LOCAL_STORAGE_KEY = "receiptSplitterSession";
@@ -77,7 +83,7 @@ export default function Home() {
 
   // Restore session from localStorage on mount
   useEffect(() => {
-    const session = localStorage.getItem(LOCAL_STORAGE_KEY);
+    const session = safeGetItem(LOCAL_STORAGE_KEY);
     if (session) {
       try {
         const parsed = JSON.parse(session);
@@ -112,18 +118,24 @@ export default function Home() {
         },
         activeTab,
       };
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(toSave));
+      const serialized = JSON.stringify(toSave);
+      const ok = safeSetItem(LOCAL_STORAGE_KEY, serialized);
+      if (!ok) {
+        // Quota exhausted — evict the cached image (largest consumer) and retry once
+        safeRemoveItem(RECEIPT_IMAGE_STORAGE_KEY);
+        safeSetItem(LOCAL_STORAGE_KEY, serialized);
+      }
       // Check if session is not default
       const isDefault =
-        JSON.stringify(toSave) === JSON.stringify(defaultSession);
+        serialized === JSON.stringify(defaultSession);
       setHasSession(!isDefault);
     }
   }, [state, activeTab, defaultSession]);
 
   // Handler for New Split button
   const handleNewSplit = () => {
-    localStorage.removeItem(LOCAL_STORAGE_KEY);
-    localStorage.removeItem("receiptSplitterImage");
+    safeRemoveItem(LOCAL_STORAGE_KEY);
+    safeRemoveItem(RECEIPT_IMAGE_STORAGE_KEY);
     setState({
       originalReceipt: null,
       people: [],

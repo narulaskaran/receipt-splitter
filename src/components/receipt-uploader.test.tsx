@@ -9,10 +9,18 @@ jest.mock("browser-image-compression", () => jest.fn());
 describe("ReceiptUploader", () => {
   let mockOnReceiptParsed: jest.Mock;
   let mockSetIsLoading: jest.Mock;
+  let originalSetItem: typeof localStorage.setItem;
 
   beforeEach(() => {
     mockOnReceiptParsed = jest.fn();
     mockSetIsLoading = jest.fn();
+  });
+
+  afterEach(() => {
+    if (originalSetItem) {
+      localStorage.setItem = originalSetItem;
+      originalSetItem = undefined as never;
+    }
   });
 
   function renderUploader() {
@@ -172,5 +180,32 @@ describe("ReceiptUploader", () => {
       expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(/Compression failed/));
     });
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("continues with preview when image caching fails due to QuotaExceededError", async () => {
+    originalSetItem = localStorage.setItem;
+    localStorage.setItem = jest.fn((key: string, value: string) => {
+      if (key === "receiptSplitterImage") {
+        throw new DOMException("Quota exceeded", "QuotaExceededError");
+      }
+      return originalSetItem(key, value);
+    }) as typeof localStorage.setItem;
+
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ restaurant: "Test Restaurant", total: 100, items: [], subtotal: 100, tax: 0, tip: 0, currency: "USD" }),
+    });
+
+    renderUploader();
+
+    const imageFile = new File([new ArrayBuffer(1024)], "test.jpg", { type: "image/jpeg" });
+    await userEvent.upload(getFileInput(), imageFile);
+
+    // Should still show preview and call fetch — caching is best-effort
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalled();
+    });
+    // No error toast for caching failure
+    expect(toast.error).not.toHaveBeenCalled();
   });
 });

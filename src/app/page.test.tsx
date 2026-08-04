@@ -2,6 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import Home from "./page";
 import { toast } from "sonner";
 import { mockReceipt, mockPeople } from "@/test/test-utils";
+import { RECEIPT_IMAGE_STORAGE_KEY } from "@/lib/storage";
 
 type SerializedAssignments = [number, { personId: string; sharePercentage: number }[]][];
 
@@ -23,6 +24,15 @@ function loadSession(overrides: Partial<typeof baseState> = {}, activeTab = "upl
 }
 
 describe("Home Page", () => {
+  let originalSetItem: typeof localStorage.setItem;
+
+  afterEach(() => {
+    if (originalSetItem) {
+      localStorage.setItem = originalSetItem;
+      originalSetItem = undefined as never;
+    }
+  });
+
   describe("empty state", () => {
     it("starts on the upload tab with all downstream tabs and nav disabled", () => {
       render(<Home />);
@@ -60,6 +70,40 @@ describe("Home Page", () => {
       localStorage.setItem("receiptSplitterSession", "invalid json {");
       render(<Home />);
       expect(screen.getByRole("tab", { name: /upload receipt/i })).toHaveAttribute("data-state", "active");
+    });
+
+    it("evicts the cached image and retries when saving the session fails", async () => {
+      let sessionWriteFailures = 0;
+      originalSetItem = localStorage.setItem;
+      localStorage.setItem = jest.fn((key: string, value: string) => {
+        if (key === "receiptSplitterSession" && sessionWriteFailures === 0) {
+          sessionWriteFailures += 1;
+          throw new DOMException("Quota exceeded", "QuotaExceededError");
+        }
+        return originalSetItem(key, value);
+      }) as typeof localStorage.setItem;
+
+      render(<Home />);
+
+      await waitFor(() => {
+        expect(localStorage.getItem("receiptSplitterSession")).not.toBeNull();
+      });
+      expect(localStorage.removeItem).toHaveBeenCalledWith(RECEIPT_IMAGE_STORAGE_KEY);
+      expect(sessionWriteFailures).toBe(1);
+    });
+
+    it("continues rendering when the session retry also fails", () => {
+      originalSetItem = localStorage.setItem;
+      localStorage.setItem = jest.fn((key: string) => {
+        if (key === "receiptSplitterSession") {
+          throw new DOMException("Quota exceeded", "QuotaExceededError");
+        }
+      }) as typeof localStorage.setItem;
+
+      render(<Home />);
+
+      expect(screen.getByRole("tab", { name: /upload receipt/i })).toHaveAttribute("data-state", "active");
+      expect(localStorage.removeItem).toHaveBeenCalledWith(RECEIPT_IMAGE_STORAGE_KEY);
     });
   });
 
