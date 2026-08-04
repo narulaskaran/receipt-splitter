@@ -1,8 +1,25 @@
-import { safeSetItem, safeGetItem, measureStorageUsage, formatBytes } from "./storage";
+import {
+  safeSetItem,
+  safeGetItem,
+  safeRemoveItem,
+  measureStorageUsage,
+  formatBytes,
+} from "./storage";
 
 // Store original handlers to restore after tests that override them
 let originalSetItem: typeof localStorage.setItem;
 let originalGetItem: typeof localStorage.getItem;
+
+afterEach(() => {
+  if (originalSetItem) {
+    localStorage.setItem = originalSetItem;
+    originalSetItem = undefined as never;
+  }
+  if (originalGetItem) {
+    localStorage.getItem = originalGetItem;
+    originalGetItem = undefined as never;
+  }
+});
 
 describe("safeSetItem", () => {
   beforeEach(() => {
@@ -40,6 +57,24 @@ describe("safeSetItem", () => {
     expect(result).toBe(false);
   });
 
+  it("returns false when measuring storage usage throws", () => {
+    const setItem = localStorage.setItem;
+    localStorage.setItem = jest.fn(() => {
+      throw new Error("Storage unavailable");
+    });
+    const originalKey = localStorage.key;
+    localStorage.key = jest.fn(() => {
+      throw new Error("Storage unavailable");
+    }) as typeof localStorage.key;
+
+    try {
+      expect(safeSetItem("testKey", "testValue")).toBe(false);
+    } finally {
+      localStorage.setItem = setItem;
+      localStorage.key = originalKey;
+    }
+  });
+
   it("integrated: safeSetItem then safeGetItem roundtrip", () => {
     const ok = safeSetItem("roundtripKey", "roundtripValue");
     expect(ok).toBe(true);
@@ -67,6 +102,27 @@ describe("safeGetItem", () => {
 
     const result = safeGetItem("testKey");
     expect(result).toBeNull();
+  });
+});
+
+describe("safeRemoveItem", () => {
+  it("returns true and removes the value on success", () => {
+    localStorage.setItem("testKey", "testValue");
+    expect(safeRemoveItem("testKey")).toBe(true);
+    expect(localStorage.getItem("testKey")).toBeNull();
+  });
+
+  it("returns false when removeItem throws", () => {
+    const removeItem = localStorage.removeItem;
+    localStorage.removeItem = jest.fn(() => {
+      throw new Error("Storage unavailable");
+    }) as typeof localStorage.removeItem;
+
+    try {
+      expect(safeRemoveItem("testKey")).toBe(false);
+    } finally {
+      localStorage.removeItem = removeItem;
+    }
   });
 });
 

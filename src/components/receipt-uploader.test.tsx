@@ -9,10 +9,18 @@ jest.mock("browser-image-compression", () => jest.fn());
 describe("ReceiptUploader", () => {
   let mockOnReceiptParsed: jest.Mock;
   let mockSetIsLoading: jest.Mock;
+  let originalSetItem: typeof localStorage.setItem;
 
   beforeEach(() => {
     mockOnReceiptParsed = jest.fn();
     mockSetIsLoading = jest.fn();
+  });
+
+  afterEach(() => {
+    if (originalSetItem) {
+      localStorage.setItem = originalSetItem;
+      originalSetItem = undefined as never;
+    }
   });
 
   function renderUploader() {
@@ -175,8 +183,7 @@ describe("ReceiptUploader", () => {
   });
 
   it("continues with preview when image caching fails due to QuotaExceededError", async () => {
-    // Override setItem directly (not spyOn) so global clearAllMocks doesn't interfere
-    const originalSetItem = localStorage.setItem;
+    originalSetItem = localStorage.setItem;
     localStorage.setItem = jest.fn((key: string, value: string) => {
       if (key === "receiptSplitterImage") {
         throw new DOMException("Quota exceeded", "QuotaExceededError");

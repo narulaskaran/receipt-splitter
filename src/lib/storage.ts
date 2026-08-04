@@ -1,3 +1,5 @@
+export const RECEIPT_IMAGE_STORAGE_KEY = "receiptSplitterImage";
+
 /**
  * Safe localStorage wrapper that handles QuotaExceededError.
  * Returns true on success, false on failure (logs the error to console).
@@ -43,6 +45,15 @@ export function safeGetItem(key: string): string | null {
   }
 }
 
+export function safeRemoveItem(key: string): boolean {
+  try {
+    localStorage.removeItem(key);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Returns the approximate total bytes used by all keys and values in
  * localStorage. Each character is counted as 2 bytes (UTF-16), which
@@ -53,19 +64,23 @@ export function safeGetItem(key: string): string | null {
  * decide whether to pre-emptively evict the cached receipt image.
  */
 export function measureStorageUsage(): number {
-  let total = 0;
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (key) {
-      // Each JS string character is 2 bytes (UTF-16)
-      total += key.length * 2;
-      const value = localStorage.getItem(key);
-      if (value) {
-        total += value.length * 2;
+  try {
+    let total = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key) {
+        // Each JS string character is 2 bytes (UTF-16)
+        total += key.length * 2;
+        const value = localStorage.getItem(key);
+        if (value) {
+          total += value.length * 2;
+        }
       }
     }
+    return total;
+  } catch {
+    return 0;
   }
-  return total;
 }
 
 /**

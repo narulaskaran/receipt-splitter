@@ -7,7 +7,12 @@ import { type Receipt } from "@/types";
 import { MAX_FILE_SIZE_MB, MAX_FILE_SIZE_BYTES } from "@/lib/constants";
 import imageCompression from "browser-image-compression";
 import { getSessionId } from "@/lib/session";
-import { safeSetItem } from "@/lib/storage";
+import {
+  RECEIPT_IMAGE_STORAGE_KEY,
+  safeGetItem,
+  safeRemoveItem,
+  safeSetItem,
+} from "@/lib/storage";
 
 interface ReceiptUploaderProps {
   onReceiptParsed: (receipt: Receipt) => void;
@@ -27,11 +32,10 @@ export function ReceiptUploader({
 }: ReceiptUploaderProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isCompressing, setIsCompressing] = useState(false);
-  const IMAGE_STORAGE_KEY = "receiptSplitterImage";
 
   // Restore preview image from localStorage on mount
   useEffect(() => {
-    const savedImage = localStorage.getItem(IMAGE_STORAGE_KEY);
+    const savedImage = safeGetItem(RECEIPT_IMAGE_STORAGE_KEY);
     if (savedImage) {
       setPreviewUrl(savedImage);
     }
@@ -45,7 +49,7 @@ export function ReceiptUploader({
       prevResetImageTrigger.current !== resetImageTrigger
     ) {
       setPreviewUrl(null);
-      localStorage.removeItem(IMAGE_STORAGE_KEY);
+      safeRemoveItem(RECEIPT_IMAGE_STORAGE_KEY);
     }
     prevResetImageTrigger.current = resetImageTrigger;
   }, [resetImageTrigger]);
@@ -117,7 +121,7 @@ export function ReceiptUploader({
         const reader = new FileReader();
         reader.onload = () => {
           if (reader.result) {
-            safeSetItem(IMAGE_STORAGE_KEY, reader.result as string);
+            safeSetItem(RECEIPT_IMAGE_STORAGE_KEY, reader.result as string);
             setPreviewUrl(reader.result as string);
           }
         };
@@ -125,7 +129,7 @@ export function ReceiptUploader({
       } else {
         // For PDFs, just set a placeholder preview
         setPreviewUrl("pdf-placeholder");
-        localStorage.removeItem(IMAGE_STORAGE_KEY);
+        safeRemoveItem(RECEIPT_IMAGE_STORAGE_KEY);
       }
 
       // Parse receipt
