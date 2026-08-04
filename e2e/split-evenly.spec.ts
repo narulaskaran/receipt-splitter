@@ -197,7 +197,7 @@ test.describe("Split All Evenly flow", () => {
     await test.step("click Split All Evenly — toast confirms", async () => {
       await page.getByRole("button", { name: /split all evenly/i }).click();
       // Wait for toast to appear
-      await expect(page.getByText("All items split evenly among everyone!")).toBeVisible({ timeout: 5000 });
+      await expect(page.getByText("All items split evenly among everyone!").first()).toBeVisible({ timeout: 5000 });
     });
 
     await test.step("progress shows 100% after split", async () => {
@@ -209,15 +209,11 @@ test.describe("Split All Evenly flow", () => {
       const resultsTab = page.getByRole("tab", { name: /results/i });
       await resultsTab.click();
 
-      // Each person's Total column renders with $5.00
-      // Scope assertion to the Total column cell (span.font-bold) to avoid
-      // picking up hidden mobile-only subtotal elements.
-      const totals = page.locator("span.font-bold");
-      // After sorting by finalTotal (highest first), both are $5.00 so order is unstable.
-      // Just verify at least one $5.00 total exists per person row.
-      await expect(page.getByRole("cell", { name: "Alice" })).toBeVisible();
-      await expect(page.getByRole("cell", { name: "Bob" })).toBeVisible();
-      await expect(totals.filter({ hasText: "$5.00" }).first()).toBeVisible();
+      // Verify the total on each person's result row.
+      const aliceRow = page.getByRole("row").filter({ hasText: "Alice" });
+      const bobRow = page.getByRole("row").filter({ hasText: "Bob" });
+      await expect(aliceRow).toContainText("$5.00");
+      await expect(bobRow).toContainText("$5.00");
     });
   });
 
@@ -244,7 +240,7 @@ test.describe("Split All Evenly flow", () => {
 
     await test.step("click Split All Evenly", async () => {
       await page.getByRole("button", { name: /split all evenly/i }).click();
-      await expect(page.getByText("All items split evenly among everyone!")).toBeVisible({ timeout: 5000 });
+      await expect(page.getByText("All items split evenly among everyone!").first()).toBeVisible({ timeout: 5000 });
     });
 
     await test.step("progress shows 100%", async () => {
@@ -254,11 +250,12 @@ test.describe("Split All Evenly flow", () => {
     await test.step("Results tab — all three people show $4.00 total", async () => {
       await page.getByRole("tab", { name: /results/i }).click();
 
-      const totals = page.locator("span.font-bold");
-      await expect(page.getByRole("cell", { name: "Alice" })).toBeVisible();
-      await expect(page.getByRole("cell", { name: "Bob" })).toBeVisible();
-      await expect(page.getByRole("cell", { name: "Charlie" })).toBeVisible();
-      await expect(totals.filter({ hasText: "$4.00" }).first()).toBeVisible();
+      const aliceRow = page.getByRole("row").filter({ hasText: "Alice" });
+      const bobRow = page.getByRole("row").filter({ hasText: "Bob" });
+      const charlieRow = page.getByRole("row").filter({ hasText: "Charlie" });
+      await expect(aliceRow).toContainText("$4.00");
+      await expect(bobRow).toContainText("$4.00");
+      await expect(charlieRow).toContainText("$4.00");
     });
   });
 
@@ -333,7 +330,7 @@ test.describe("Split All Evenly flow", () => {
 
     await test.step("click Split All Evenly", async () => {
       await page.getByRole("button", { name: /split all evenly/i }).click();
-      await expect(page.getByText("All items split evenly among everyone!")).toBeVisible({ timeout: 5000 });
+      await expect(page.getByText("All items split evenly among everyone!").first()).toBeVisible({ timeout: 5000 });
     });
 
     await test.step("progress shows 100% after split", async () => {
@@ -343,13 +340,10 @@ test.describe("Split All Evenly flow", () => {
     await test.step("Results tab — Alice $7.50, Bob $2.50", async () => {
       await page.getByRole("tab", { name: /results/i }).click();
 
-      const totals = page.locator("span.font-bold");
-      await expect(page.getByRole("cell", { name: "Alice" })).toBeVisible();
-      await expect(page.getByRole("cell", { name: "Bob" })).toBeVisible();
       // Alice: $5.00 (item 0) + $2.50 (half of item 1) = $7.50
-      await expect(totals.filter({ hasText: "$7.50" }).first()).toBeVisible();
+      await expect(page.getByRole("row").filter({ hasText: "Alice" })).toContainText("$7.50");
       // Bob: $2.50 (half of item 1)
-      await expect(totals.filter({ hasText: "$2.50" }).first()).toBeVisible();
+      await expect(page.getByRole("row").filter({ hasText: "Bob" })).toContainText("$2.50");
     });
   });
 });
