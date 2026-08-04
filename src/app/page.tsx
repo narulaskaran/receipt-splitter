@@ -422,21 +422,27 @@ export default function Home() {
     }
   };
 
-  // Split all items evenly among all people
+  // Split all unassigned items evenly among all people
   const splitAllItemsEvenly = () => {
     if (!state.originalReceipt || state.people.length === 0) return;
 
     setState((prevState) => {
       if (!prevState.originalReceipt) return prevState;
 
-      // Create new assignments map
-      const newAssignedItems = new Map();
+      // No unassigned items — nothing to do
+      if (prevState.unassignedItems.length === 0) {
+        toast.info("No unassigned items to split evenly!");
+        return prevState;
+      }
+
+      // Start from existing assignments
+      const newAssignedItems = new Map(prevState.assignedItems);
 
       // Calculate equal share percentage with 2 decimal places
       const equalShare = +(100 / prevState.people.length).toFixed(2);
 
-      // For each item in the receipt
-      prevState.originalReceipt.items.forEach((_, itemIndex) => {
+      // Only split unassigned items, preserving existing assignments
+      prevState.unassignedItems.forEach((itemIndex) => {
         // Create assignments for all people
         const assignments: PersonItemAssignment[] = [];
 
@@ -464,7 +470,7 @@ export default function Home() {
         newAssignedItems.set(itemIndex, assignments);
       });
 
-      // No unassigned items since all are assigned
+      // No unassigned items since all are now assigned
       const unassignedItems: number[] = [];
 
       // Recalculate people totals
