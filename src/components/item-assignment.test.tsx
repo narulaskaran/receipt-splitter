@@ -105,6 +105,41 @@ describe("ItemAssignment", () => {
       expect(toast.error).toHaveBeenCalledWith("Item name is required");
     });
 
+    it("resets the form when reopened", () => {
+      render(
+        <ItemAssignment
+          receipt={mockReceipt}
+          people={mockPeople}
+          assignedItems={new Map()}
+          unassignedItems={[]}
+          onAssignItems={jest.fn()}
+          onReceiptUpdate={jest.fn()}
+        />
+      );
+
+      const addButton = screen.getByRole("button", { name: /add item/i });
+      fireEvent.click(addButton);
+
+      const dialog = screen.getByRole("dialog");
+      fireEvent.change(within(dialog).getByLabelText(/item name/i), {
+        target: { value: "Pizza" },
+      });
+      fireEvent.change(within(dialog).getByLabelText(/price/i), {
+        target: { value: "12.99" },
+      });
+      fireEvent.change(within(dialog).getByLabelText(/quantity/i), {
+        target: { value: "2" },
+      });
+      fireEvent.click(within(dialog).getByRole("button", { name: /cancel/i }));
+
+      fireEvent.click(addButton);
+      const reopenedDialog = screen.getByRole("dialog");
+
+      expect(within(reopenedDialog).getByLabelText(/item name/i)).toHaveValue("");
+      expect(within(reopenedDialog).getByLabelText(/price/i)).toHaveValue(0);
+      expect(within(reopenedDialog).getByLabelText(/quantity/i)).toHaveValue(1);
+    });
+
     // Note: Price/quantity validation tests removed because HTML5 min attributes
     // and onChange fallbacks (|| 0, || 1) prevent invalid values from reaching
     // the validation logic in saveNewItem()
