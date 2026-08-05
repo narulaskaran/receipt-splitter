@@ -7,6 +7,7 @@ import {
   AmountValidationError,
   calculateSubtotal,
   remapAssignmentsAfterDelete,
+  distributeEqualShares,
 } from "./receipt-utils";
 import { mockPeople, mockReceipt, mockAssignedItems } from "@/test/test-utils";
 import { type PersonItemAssignment, type Receipt, type Person } from "@/types";
@@ -43,6 +44,24 @@ describe("receipt-utils", () => {
       [0, [{ personId: "a", sharePercentage: 50 }]],
     ]);
     expect(getUnassignedItems(mockReceipt, incomplete)).toContain(0);
+  });
+
+  it("distributes equal shares with the remainder on the last person", () => {
+    expect(distributeEqualShares(["a", "b", "c"])).toEqual([
+      { personId: "a", sharePercentage: 33.33 },
+      { personId: "b", sharePercentage: 33.33 },
+      { personId: "c", sharePercentage: 33.34 },
+    ]);
+    expect(distributeEqualShares(["a", "b", "c", "d", "e", "f", "g"]))
+      .toEqual([
+        { personId: "a", sharePercentage: 14.29 },
+        { personId: "b", sharePercentage: 14.29 },
+        { personId: "c", sharePercentage: 14.29 },
+        { personId: "d", sharePercentage: 14.29 },
+        { personId: "e", sharePercentage: 14.29 },
+        { personId: "f", sharePercentage: 14.29 },
+        { personId: "g", sharePercentage: 14.26 },
+      ]);
   });
 });
 

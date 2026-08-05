@@ -63,6 +63,31 @@ export function fixMultiQuantityPrices(
 }
 
 /**
+ * Distributes equal percentage shares among a list of people.
+ * Uses a running sum approach so the last person receives the remainder,
+ * ensuring the total is exactly 100%.
+ */
+export function distributeEqualShares(personIds: string[]): PersonItemAssignment[] {
+  if (personIds.length === 0) return [];
+
+  const equalShare = +(100 / personIds.length).toFixed(2);
+  const assignments: PersonItemAssignment[] = [];
+  let runningSum = 0;
+
+  personIds.forEach((personId, index) => {
+    if (index === personIds.length - 1) {
+      const lastShare = +(100 - runningSum).toFixed(2);
+      assignments.push({ personId, sharePercentage: lastShare });
+    } else {
+      assignments.push({ personId, sharePercentage: equalShare });
+      runningSum += equalShare;
+    }
+  });
+
+  return assignments;
+}
+
+/**
  * Calculates the proportion of tax and tip each person should pay based on their items
  */
 export function calculatePersonTotals(
