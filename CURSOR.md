@@ -395,6 +395,8 @@ GitHub Actions workflow runs on every push and pull request to ensure code quali
 - **Test Execution**: Full test suite validation
 - **Quality Gates**: All checks must pass before merging
 
+Dependabot opens weekly grouped npm upgrade PRs. Patch and minor PRs auto-squash-merge once the required CI job (`build-and-test`) is green. Major version upgrades stay manual.
+
 ## Test Coverage
 
 Comprehensive test coverage including:
