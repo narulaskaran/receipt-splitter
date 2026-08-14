@@ -1,0 +1,30 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+    groups:
+      next-toolchain:
+        patterns:
+          - next
+          - eslint-config-next
+          - "@next/*"
+
+      radix:
+        patterns:
+          - "@radix-ui/*"
+
+      testing:
+        patterns:
+          - jest
+          - jest-*
+          - "@testing-library/*"
+          - "@types/jest"
+          - ts-jest
+          - "@babel/*"
+          - identity-obj-proxy
+          - "@playwright/test"
+          - playwright
