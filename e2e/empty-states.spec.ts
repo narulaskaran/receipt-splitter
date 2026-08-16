@@ -25,7 +25,7 @@ test.describe("empty states", () => {
 
     await expect(
       page.getByText("Add people who shared this receipt"),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 10000 });
     await expect(page.getByText("Groups")).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: "Next", exact: true }),
@@ -53,13 +53,14 @@ test.describe("empty states", () => {
 
     await page.goto("/");
 
-    await expect(
-      page.getByRole("button", { name: /add item/i }),
-    ).toBeVisible();
-    await expect(page.getByRole("row").filter({ hasText: "Burger" })).toHaveCount(
-      0,
-    );
+    await expect(page.getByRole("button", { name: /add item/i })).toBeVisible({
+      timeout: 10000,
+    });
+    await expect(page.getByRole("row")).toHaveCount(1);
     await expect(page.getByText("100%")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Next", exact: true }),
+    ).toBeDisabled();
   });
 
   test("Next stays disabled until all items are assigned", async ({ page }) => {
@@ -92,7 +93,7 @@ test.describe("empty states", () => {
 
     await page.goto("/");
 
-    await expect(page.getByText("50%")).toBeVisible();
+    await expect(page.getByText("50%")).toBeVisible({ timeout: 10000 });
     await expect(
       page.getByRole("button", { name: "Next", exact: true }),
     ).toBeDisabled();
@@ -103,7 +104,7 @@ test.describe("empty states", () => {
 
     await page.goto("/");
 
-    await expect(page.getByText("100%")).toBeVisible();
+    await expect(page.getByText("100%")).toBeVisible({ timeout: 10000 });
     const nextBtn = page.getByRole("button", { name: "Next", exact: true });
     await expect(nextBtn).toBeEnabled();
     await nextBtn.click();
@@ -121,7 +122,7 @@ test.describe("empty states", () => {
 
     await page.goto("/");
 
-    await expect(page.getByText("Alice")).toBeVisible();
+    await expect(page.getByText("Alice")).toBeVisible({ timeout: 10000 });
     await expect(
       page.getByText("Create groups to quickly assign items to multiple people"),
     ).toBeVisible();

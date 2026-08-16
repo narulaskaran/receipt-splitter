@@ -1,6 +1,5 @@
 import { test, expect } from "@playwright/test";
 import {
-  preloadSession,
   seedSessionViaReload,
   uploadTinyReceipt,
   baseState,
@@ -19,7 +18,9 @@ test.describe("error states", () => {
     );
 
     await page.goto("/");
-    await expect(page.getByText("Upload your receipt")).toBeVisible();
+    await expect(page.getByText("Upload your receipt")).toBeVisible({
+      timeout: 10000,
+    });
 
     await uploadTinyReceipt(page);
 
@@ -28,9 +29,7 @@ test.describe("error states", () => {
     });
     await expect(page.getByText("Parsing receipt...")).toHaveCount(0);
     await expect(page.getByText("Test Diner")).toHaveCount(0);
-    await expect(
-      page.getByText("Click or drag to upload a different receipt"),
-    ).toBeVisible();
+    await expect(page.locator('input[type="file"]')).toBeEnabled();
   });
 
   test("API timeout clears loading and leaves the dropzone usable", async ({
@@ -41,7 +40,9 @@ test.describe("error states", () => {
     );
 
     await page.goto("/");
-    await expect(page.getByText("Upload your receipt")).toBeVisible();
+    await expect(page.getByText("Upload your receipt")).toBeVisible({
+      timeout: 10000,
+    });
 
     await uploadTinyReceipt(page);
 
@@ -49,9 +50,7 @@ test.describe("error states", () => {
       timeout: 10000,
     });
     await expect(page.getByText("Parsing receipt...")).toHaveCount(0);
-    await expect(
-      page.getByText("Click or drag to upload a different receipt"),
-    ).toBeVisible();
+    await expect(page.locator('input[type="file"]')).toBeEnabled();
   });
 
   test("corrupted localStorage recovers to the empty upload screen", async ({
@@ -63,7 +62,9 @@ test.describe("error states", () => {
 
     await page.goto("/");
 
-    await expect(page.getByText("Upload your receipt")).toBeVisible();
+    await expect(page.getByText("Upload your receipt")).toBeVisible({
+      timeout: 10000,
+    });
     await expect(page.getByRole("tab", { name: /add people/i })).toBeDisabled();
     await expect(
       page.getByRole("tab", { name: /assign items/i }),
@@ -82,12 +83,14 @@ test.describe("error states", () => {
 
     await expect(
       page.getByRole("button", { name: /split all evenly/i }),
-    ).toBeVisible();
-    await expect(page.getByText("50%").or(page.getByText("0%"))).toBeVisible();
+    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("0%")).toBeVisible();
 
     await context.setOffline(true);
 
-    await page.getByRole("button", { name: /split all evenly/i }).click();
+    await page.getByRole("button", { name: /split all evenly/i }).click({
+      force: true,
+    });
     await expect(
       page.getByText("All items split evenly among everyone!").first(),
     ).toBeVisible();

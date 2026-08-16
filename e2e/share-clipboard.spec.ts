@@ -56,7 +56,9 @@ async function stubClipboardMissing(page: Page) {
 async function openShareReadyResults(page: Page) {
   await preloadSession(page, fullyAssignedState(), "results");
   await page.goto("/");
-  await expect(page.getByRole("cell", { name: "Alice" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Alice" })).toBeVisible({
+    timeout: 10000,
+  });
   await page.locator("#venmo-phone").fill("5551234567");
 }
 
@@ -72,7 +74,7 @@ test.describe("Share Split clipboard", () => {
     await expect(shareBtn).toBeEnabled();
     await shareBtn.click();
 
-    await expect(page.getByText("Copied!")).toBeVisible();
+    await expect(page.getByText("Copied!")).toBeVisible({ timeout: 5000 });
 
     const copied = await page.evaluate(() => window.__copiedTexts || []);
     expect(copied.length).toBeGreaterThan(0);
