@@ -225,6 +225,17 @@ The application includes optional observability features that are designed to fa
 - Deletes files older than 90 days from UploadThing
 - Protected by optional `CRON_SECRET` authentication
 
+### Rate Limiting (`/api/parse-receipt`)
+`POST /api/parse-receipt` is public and proxies a paid Anthropic call. Inbound limiting is a **Vercel WAF custom rule**, not application code:
+
+- **Rule name:** Rate limit parse-receipt
+- **Match:** path equals `/api/parse-receipt` AND method is `POST`
+- **Limit:** 10 requests / 10 minutes per IP (fixed window)
+- **Exceeded action:** HTTP 429 (blocked at the edge, before the function or Anthropic runs)
+- **Config:** Vercel dashboard Firewall, or `npx vercel@latest firewall` (global CLI 48.x does not include this command)
+
+There is no default per-endpoint rate limit. Platform DDoS mitigation is always on, but it does not cap a slow script that burns API credit. WAF counters are per-region.
+
 ### Key Files
 - `src/lib/uploadthing-storage.ts` - Upload, delete, list files
 - `src/lib/webhook-notifications.ts` - Slack/JSON webhook sender
