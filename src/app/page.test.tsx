@@ -282,6 +282,14 @@ describe("Home Page", () => {
       await userEvent.upload(input!, file);
     }
 
+    function goToPeopleTab() {
+      fireEvent.click(screen.getByRole("button", { name: /next/i }));
+      expect(screen.getByRole("tab", { name: /add people/i })).toHaveAttribute(
+        "data-state",
+        "active"
+      );
+    }
+
     it("keeps people when a second same-currency receipt is parsed", async () => {
       loadV2({ people: mockPeople });
       render(<Home />);
@@ -291,10 +299,10 @@ describe("Home Page", () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText("Second Cafe")).toBeInTheDocument();
+        expect(screen.getAllByText("Second Cafe").length).toBeGreaterThan(0);
       });
 
-      fireEvent.click(screen.getByRole("tab", { name: /add people/i }));
+      goToPeopleTab();
       expect(screen.getByText("Alice")).toBeInTheDocument();
       expect(screen.getByText("Bob")).toBeInTheDocument();
       expect(screen.getByText(/2 receipts · USD/)).toBeInTheDocument();
@@ -314,9 +322,9 @@ describe("Home Page", () => {
         );
       });
       expect(screen.queryByText("Paris Bistro")).not.toBeInTheDocument();
-      expect(screen.getByText("Testaurant")).toBeInTheDocument();
+      expect(screen.getAllByText("Testaurant").length).toBeGreaterThan(0);
 
-      fireEvent.click(screen.getByRole("tab", { name: /add people/i }));
+      goToPeopleTab();
       expect(screen.getByText("Alice")).toBeInTheDocument();
       expect(screen.getByText("Bob")).toBeInTheDocument();
       expect(screen.getByText(/1 receipt · USD/)).toBeInTheDocument();
@@ -346,7 +354,7 @@ describe("Home Page", () => {
         expect(screen.queryByText("Second Cafe")).not.toBeInTheDocument();
       });
 
-      fireEvent.click(screen.getByRole("tab", { name: /add people/i }));
+      goToPeopleTab();
       expect(screen.getByText("Alice")).toBeInTheDocument();
       expect(screen.getByText("Bob")).toBeInTheDocument();
     });
@@ -380,10 +388,10 @@ describe("Home Page", () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText("New Place")).toBeInTheDocument();
+        expect(screen.getAllByText("New Place").length).toBeGreaterThan(0);
       });
 
-      fireEvent.click(screen.getByRole("tab", { name: /add people/i }));
+      goToPeopleTab();
       expect(screen.queryByText("Alice")).not.toBeInTheDocument();
       expect(screen.queryByText("Bob")).not.toBeInTheDocument();
     });
