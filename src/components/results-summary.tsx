@@ -19,12 +19,19 @@ import {
 
 import { useState } from "react";
 
+export interface ReceiptBreakdown {
+  name: string;
+  date: string | null;
+  people: Person[];
+}
+
 interface ResultsSummaryProps {
   people: Person[];
   receiptName: string | null;
   receiptDate: string | null;
   currencyCode?: string;
   validationResult?: ReceiptValidationResult;
+  receiptBreakdown?: ReceiptBreakdown[];
 }
 
 export function ResultsSummary({
@@ -33,6 +40,7 @@ export function ResultsSummary({
   receiptDate,
   currencyCode,
   validationResult,
+  receiptBreakdown,
 }: ResultsSummaryProps) {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [shareStatus, setShareStatus] = useState<
@@ -40,6 +48,7 @@ export function ResultsSummary({
   >("idle");
   // Sort people by final total (highest first)
   const sortedPeople = [...people].sort((a, b) => b.finalTotal - a.finalTotal);
+  const showBreakdown = (receiptBreakdown?.length ?? 0) > 1;
 
   // Create a shareable text summary
   const createShareText = (): string => {
@@ -47,7 +56,9 @@ export function ResultsSummary({
 
     // Add receipt info
     if (receiptName) {
-      text += `Receipt for ${receiptName}\n`;
+      text += showBreakdown
+        ? `Receipts for ${receiptName}\n`
+        : `Receipt for ${receiptName}\n`;
     }
 
     if (receiptDate) {
@@ -60,6 +71,18 @@ export function ResultsSummary({
     sortedPeople.forEach((person) => {
       text += `${person.name}: ${formatCurrency(person.finalTotal, currencyCode)}\n`;
     });
+
+    if (showBreakdown && receiptBreakdown) {
+      text += "\n";
+      receiptBreakdown.forEach((receipt) => {
+        text += `${receipt.name}:\n`;
+        [...receipt.people]
+          .sort((a, b) => b.finalTotal - a.finalTotal)
+          .forEach((person) => {
+            text += `  ${person.name}: ${formatCurrency(person.finalTotal, currencyCode)}\n`;
+          });
+      });
+    }
 
     return text;
   };
@@ -238,6 +261,51 @@ export function ResultsSummary({
           </div>
         </CardHeader>
         <CardContent className="p-6">
+          <div className="flex flex-col gap-6">
+          {showBreakdown && receiptBreakdown ? (
+            <div
+              data-testid="receipt-breakdown"
+              className="flex flex-col gap-4"
+            >
+              {receiptBreakdown.map((receipt, index) => {
+                const sortedReceiptPeople = [...receipt.people].sort(
+                  (a, b) => b.finalTotal - a.finalTotal
+                );
+                return (
+                  <div key={`${receipt.name}-${receipt.date ?? "no-date"}-${index}`} className="flex flex-col gap-2">
+                    <div className="font-medium text-sm sm:text-base">
+                      {receipt.name}
+                    </div>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="min-w-[100px]">Person</TableHead>
+                            <TableHead className="text-right min-w-[80px] font-semibold">
+                              Total
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {sortedReceiptPeople.map((person) => (
+                            <TableRow key={person.id}>
+                              <TableCell className="font-medium py-2">
+                                {person.name}
+                              </TableCell>
+                              <TableCell className="text-right py-2">
+                                {formatCurrency(person.finalTotal, currencyCode)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
+
           {/* Mobile-friendly responsive table */}
           <div className="overflow-x-auto">
             <Table>
@@ -293,6 +361,7 @@ export function ResultsSummary({
                 ))}
               </TableBody>
             </Table>
+          </div>
           </div>
         </CardContent>
       </Card>

@@ -11,6 +11,9 @@ import {
   sessionCurrency,
   validateReceiptCurrency,
   calculateSessionPersonTotals,
+  calculatePerReceiptPersonTotals,
+  sessionShareNote,
+  sessionShareDate,
   validateSessionAssignments,
   getSessionUnassigned,
   validateSessionInvariants,
@@ -860,6 +863,71 @@ describe("session-level receipt helpers", () => {
     expect(getSessionUnassigned([storedA, storedB], incompleteB)).toEqual([
       { receiptId: "rec-b", itemIndex: 0 },
     ]);
+  });
+
+  it("calculatePerReceiptPersonTotals Alice totals sum to the session total", () => {
+    const perReceipt = calculatePerReceiptPersonTotals(
+      [storedA, storedB],
+      mockPeople,
+      bothAssigned
+    );
+    const session = calculateSessionPersonTotals(
+      [storedA, storedB],
+      mockPeople,
+      bothAssigned
+    );
+
+    expect(perReceipt).toHaveLength(2);
+    expect(perReceipt[0].stored).toBe(storedA);
+    expect(perReceipt[1].stored).toBe(storedB);
+
+    const aliceSum =
+      perReceipt[0].people[0].finalTotal + perReceipt[1].people[0].finalTotal;
+    expect(session[0].finalTotal).toBe(aliceSum);
+    expect(aliceSum).toBeGreaterThan(0);
+  });
+
+  it("sessionShareNote uses defaults, joins names, and truncates to MAX_NOTE_LENGTH", () => {
+    expect(sessionShareNote([])).toBe("Receipt Split");
+    expect(sessionShareNote([storedA])).toBe("Cafe A");
+    expect(
+      sessionShareNote([{ id: "x", receipt: { ...receiptA, restaurant: null } }])
+    ).toBe("Receipt Split");
+    expect(sessionShareNote([storedA, storedB])).toBe("Cafe A, Cafe B");
+    expect(
+      sessionShareNote([
+        { id: "x", receipt: { ...receiptA, restaurant: null } },
+        storedB,
+      ])
+    ).toBe("Untitled, Cafe B");
+
+    const longA = "A".repeat(60);
+    const longB = "B".repeat(60);
+    const truncated = sessionShareNote([
+      { id: "a", receipt: { ...receiptA, restaurant: longA } },
+      { id: "b", receipt: { ...receiptB, restaurant: longB } },
+    ]);
+    expect(truncated.length).toBe(100);
+    expect(truncated.endsWith("...")).toBe(true);
+    expect(truncated.startsWith("A")).toBe(true);
+  });
+
+  it("sessionShareDate keeps identical dates and returns null when dates disagree", () => {
+    expect(sessionShareDate([])).toBeNull();
+    expect(sessionShareDate([storedA])).toBe("2024-01-01");
+    expect(
+      sessionShareDate([
+        storedA,
+        { id: "rec-c", receipt: { ...receiptB, date: "2024-01-01" } },
+      ])
+    ).toBe("2024-01-01");
+    expect(sessionShareDate([storedA, storedB])).toBeNull();
+    expect(
+      sessionShareDate([
+        { id: "a", receipt: { ...receiptA, date: null } },
+        { id: "b", receipt: { ...receiptB, date: null } },
+      ])
+    ).toBeNull();
   });
 
   it("validateSessionInvariants concatenates per-receipt errors and treats empty as valid", () => {

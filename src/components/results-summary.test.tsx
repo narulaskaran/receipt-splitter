@@ -601,4 +601,88 @@ describe("ResultsSummary", () => {
       expect(rows).toHaveLength(11); // Header + 10 people
     });
   });
+
+  describe("Per-receipt breakdown", () => {
+    const alice = {
+      ...mockPeople[0],
+      name: "Alice",
+      finalTotal: 60,
+    };
+    const coffeePeople = [
+      { ...mockPeople[0], name: "Alice", finalTotal: 25 },
+    ];
+    const lunchPeople = [
+      { ...mockPeople[0], name: "Alice", finalTotal: 35 },
+    ];
+    const twoReceiptBreakdown = [
+      { name: "Coffee Shop", date: "2024-01-01", people: coffeePeople },
+      { name: "Lunch Place", date: "2024-01-01", people: lunchPeople },
+    ];
+
+    it("shows both restaurant names and per-receipt amounts for two receipts", () => {
+      render(
+        <ResultsSummary
+          people={[alice]}
+          receiptName="Coffee Shop, Lunch Place"
+          receiptDate="2024-01-01"
+          receiptBreakdown={twoReceiptBreakdown}
+        />
+      );
+
+      expect(screen.getByTestId("receipt-breakdown")).toBeInTheDocument();
+      expect(screen.getByText("Coffee Shop")).toBeInTheDocument();
+      expect(screen.getByText("Lunch Place")).toBeInTheDocument();
+      expect(screen.getByText("$25.00")).toBeInTheDocument();
+      expect(screen.getByText("$35.00")).toBeInTheDocument();
+      expect(screen.getByText("$60.00")).toBeInTheDocument();
+    });
+
+    it("does not show a per-receipt section for a single receipt", () => {
+      render(
+        <ResultsSummary
+          people={[alice]}
+          receiptName="Coffee Shop"
+          receiptDate="2024-01-01"
+          receiptBreakdown={[twoReceiptBreakdown[0]]}
+        />
+      );
+
+      expect(screen.queryByTestId("receipt-breakdown")).not.toBeInTheDocument();
+      expect(screen.queryByText("Coffee Shop")).not.toBeInTheDocument();
+    });
+
+    it("titles share text with Receipts for when multiple receipts are present", async () => {
+      const originalShare = navigator.share;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (navigator as any).share;
+
+      try {
+        render(
+          <ResultsSummary
+            people={[alice]}
+            receiptName="Coffee Shop, Lunch Place"
+            receiptDate="2024-01-01"
+            receiptBreakdown={twoReceiptBreakdown}
+          />
+        );
+
+        fireEvent.click(screen.getByRole("button", { name: /share text/i }));
+
+        await waitFor(() => {
+          const clipboardContent = (navigator.clipboard.writeText as jest.Mock).mock.calls[0][0];
+          expect(clipboardContent).toContain("Receipts for Coffee Shop, Lunch Place");
+          expect(clipboardContent).toContain("Alice:");
+          expect(clipboardContent).toContain("$60.00");
+          expect(clipboardContent).toContain("Coffee Shop:");
+          expect(clipboardContent).toContain("Lunch Place:");
+        });
+      } finally {
+        Object.defineProperty(navigator, "share", {
+          value: originalShare,
+          writable: true,
+          configurable: true,
+        });
+      }
+    });
+  });
 });

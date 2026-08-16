@@ -28,6 +28,9 @@ import {
   getUnassignedItems,
   getSessionUnassigned,
   calculateSessionPersonTotals,
+  calculatePerReceiptPersonTotals,
+  sessionShareNote,
+  sessionShareDate,
   validateSessionAssignments,
   validateSessionInvariants,
   sessionCurrency,
@@ -184,6 +187,20 @@ export default function Home() {
       state.people
     );
   }, [state.receipts, state.assignedItems, state.people]);
+
+  const receiptBreakdown = useMemo(
+    () =>
+      calculatePerReceiptPersonTotals(
+        state.receipts,
+        state.people,
+        state.assignedItems
+      ).map(({ stored, people }) => ({
+        name: stored.receipt.restaurant || "Untitled receipt",
+        date: stored.receipt.date,
+        people,
+      })),
+    [state.receipts, state.people, state.assignedItems]
+  );
 
   // Restore session from localStorage on mount
   useEffect(() => {
@@ -721,13 +738,14 @@ export default function Home() {
 
           <ResultsSummary
             people={state.people}
-            receiptName={activeReceipt?.restaurant || null}
-            receiptDate={activeReceipt?.date || null}
-            currencyCode={activeReceipt?.currency}
+            receiptName={sessionShareNote(state.receipts)}
+            receiptDate={sessionShareDate(state.receipts)}
+            currencyCode={sessionCurrency(state.receipts)}
             validationResult={validationResult}
+            receiptBreakdown={receiptBreakdown}
           />
 
-          <PersonItems people={state.people} currencyCode={activeReceipt?.currency} />
+          <PersonItems people={state.people} currencyCode={sessionCurrency(state.receipts)} />
         </TabsContent>
       </Tabs>
 

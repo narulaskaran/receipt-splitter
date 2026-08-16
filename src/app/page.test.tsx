@@ -717,4 +717,57 @@ describe("Home Page", () => {
       expect(toast.info).not.toHaveBeenCalled();
     });
   });
+
+  describe("multi-receipt results tab", () => {
+    it("shows per-receipt restaurant names and amounts plus a day total", () => {
+      const receiptA = createMockReceipt({
+        restaurant: "Coffee Shop",
+        date: "2024-06-01",
+        items: [{ name: "Latte", price: 20, quantity: 1 }],
+        subtotal: 20,
+        tax: 0,
+        tip: 0,
+        total: 20,
+      });
+      const receiptB = createMockReceipt({
+        restaurant: "Lunch Place",
+        date: "2024-06-01",
+        items: [{ name: "Burger", price: 30, quantity: 1 }],
+        subtotal: 30,
+        tax: 0,
+        tip: 0,
+        total: 30,
+      });
+
+      localStorage.setItem(
+        "receiptSplitterSession",
+        JSON.stringify({
+          version: 2,
+          state: {
+            receipts: [
+              { id: "r1", receipt: receiptA },
+              { id: "r2", receipt: receiptB },
+            ],
+            people: mockPeople,
+            assignedItems: [
+              ["r1", [[0, [{ personId: "a", sharePercentage: 100 }]]]],
+              ["r2", [[0, [{ personId: "a", sharePercentage: 100 }]]]],
+            ],
+            groups: [],
+            isLoading: false,
+            error: null,
+          },
+          activeTab: "results",
+        })
+      );
+
+      render(<Home />);
+
+      expect(screen.getByTestId("receipt-breakdown")).toBeInTheDocument();
+      expect(screen.getByText("Coffee Shop")).toBeInTheDocument();
+      expect(screen.getByText("Lunch Place")).toBeInTheDocument();
+      expect(screen.getByText("$20.00")).toBeInTheDocument();
+      expect(screen.getByText("$30.00")).toBeInTheDocument();
+    });
+  });
 });

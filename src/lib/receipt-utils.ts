@@ -620,6 +620,62 @@ export function calculateSessionPersonTotals(
 }
 
 /**
+ * Per-receipt person totals for the Results breakdown.
+ * Always delegates tax/tip math to calculatePersonTotals.
+ */
+export function calculatePerReceiptPersonTotals(
+  receipts: StoredReceipt[],
+  people: Person[],
+  assignedItems: Map<string, ItemAssignments>
+): { stored: StoredReceipt; people: Person[] }[] {
+  return receipts.map((stored) => ({
+    stored,
+    people: calculatePersonTotals(
+      stored.receipt,
+      people,
+      assignedItems.get(stored.id) ?? new Map(),
+      stored.id
+    ),
+  }));
+}
+
+/**
+ * Share-URL note for a session. Truncated to MAX_NOTE_LENGTH when needed.
+ */
+export function sessionShareNote(receipts: StoredReceipt[]): string {
+  if (receipts.length === 0) {
+    return "Receipt Split";
+  }
+  if (receipts.length === 1) {
+    return receipts[0].receipt.restaurant || "Receipt Split";
+  }
+
+  const joined = receipts
+    .map((stored) => stored.receipt.restaurant || "Untitled")
+    .join(", ");
+
+  if (joined.length <= VALIDATION_LIMITS.MAX_NOTE_LENGTH) {
+    return joined;
+  }
+
+  const ellipsis = "...";
+  return `${joined.slice(0, VALIDATION_LIMITS.MAX_NOTE_LENGTH - ellipsis.length)}${ellipsis}`;
+}
+
+/**
+ * Share-URL date for a session. Omitted when receipts disagree on date.
+ */
+export function sessionShareDate(receipts: StoredReceipt[]): string | null {
+  if (receipts.length === 0) {
+    return null;
+  }
+
+  const firstDate = receipts[0].receipt.date;
+  const allSame = receipts.every((stored) => stored.receipt.date === firstDate);
+  return allSame ? firstDate : null;
+}
+
+/**
  * True when every receipt in the session is fully assigned.
  * Empty sessions are not fully assigned.
  */
