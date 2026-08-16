@@ -25,7 +25,7 @@ A web application for easily splitting receipts among friends and groups. No app
 
 ## Technology Stack
 
-- **Framework**: Next.js 15.3.1 with App Router
+- **Framework**: Next.js 16.3.0 with App Router
 - **Language**: TypeScript with strict type checking
 - **Styling**: Tailwind CSS with custom CSS variables
 - **UI Components**: shadcn/ui component library
