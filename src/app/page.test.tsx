@@ -38,6 +38,7 @@ describe("Home Page", () => {
     it("starts on the upload tab with all downstream tabs and nav disabled", () => {
       render(<Home />);
       expect(screen.getByRole("tab", { name: /upload receipt/i })).toHaveAttribute("data-state", "active");
+      expect(screen.getByText(/upload receipts, add people, and split the day/i)).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: /add people/i })).toBeDisabled();
       expect(screen.getByRole("tab", { name: /assign items/i })).toBeDisabled();
       expect(screen.getByRole("tab", { name: /results/i })).toBeDisabled();
@@ -771,6 +772,10 @@ describe("Home Page", () => {
 
       render(<Home />);
 
+      expect(screen.getByRole("tab", { name: /results/i })).toHaveAttribute(
+        "data-state",
+        "active"
+      );
       expect(screen.getByRole("heading", { name: "Day total" })).toBeInTheDocument();
       expect(screen.getByRole("heading", { name: "By receipt" })).toBeInTheDocument();
       expect(
