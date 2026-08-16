@@ -1,7 +1,13 @@
 import { useState, useEffect } from "react";
 import { Check, AlertCircle, Pencil, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Table,
   TableHeader,
@@ -40,6 +46,9 @@ interface ItemAssignmentProps {
   groups?: Group[];
   assignedItems: Map<number, PersonItemAssignment[]>;
   unassignedItems: number[];
+  title?: string;
+  subtitle?: string;
+  onSplitEvenly?: () => void;
   onAssignItems: (
     itemIndex: number,
     assignments: PersonItemAssignment[]
@@ -56,6 +65,9 @@ export function ItemAssignment({
   groups = [],
   assignedItems,
   unassignedItems,
+  title = receipt.restaurant || "Untitled receipt",
+  subtitle,
+  onSplitEvenly,
   onAssignItems,
   onReceiptUpdate,
 }: ItemAssignmentProps) {
@@ -292,12 +304,27 @@ export function ItemAssignment({
 
   return (
     <Card className="w-full">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-xl">Assign Items</CardTitle>
-        <Button variant="outline" size="sm" onClick={handleAddItem}>
-          <Plus className="h-4 w-4 mr-1" />
-          Add Item
-        </Button>
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 space-y-1">
+          <CardTitle className="text-xl">{title}</CardTitle>
+          {subtitle ? <CardDescription>{subtitle}</CardDescription> : null}
+        </div>
+        <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
+          {onSplitEvenly ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onSplitEvenly}
+              disabled={people.length === 0 || unassignedItems.length === 0}
+            >
+              Split evenly
+            </Button>
+          ) : null}
+          <Button variant="outline" size="sm" onClick={handleAddItem}>
+            <Plus className="h-4 w-4 mr-1" />
+            Add Item
+          </Button>
+        </div>
       </CardHeader>
 
       <CardContent>

@@ -82,13 +82,13 @@ test.describe("error states", () => {
     await seedSessionViaReload(page, baseState(), "assign");
 
     await expect(
-      page.getByRole("button", { name: /split all evenly/i }),
+      page.getByRole("button", { name: /split evenly/i }),
     ).toBeVisible({ timeout: 10000 });
     await expect(page.getByText("0%")).toBeVisible();
 
     await context.setOffline(true);
 
-    await page.getByRole("button", { name: /split all evenly/i }).click({
+    await page.getByRole("button", { name: /split evenly/i }).click({
       force: true,
     });
     await expect(

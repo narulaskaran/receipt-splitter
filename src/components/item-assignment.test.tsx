@@ -533,4 +533,88 @@ describe("ItemAssignment", () => {
       expect(toast.success).toHaveBeenCalledWith("Item updated successfully");
     });
   });
+
+  describe("Split evenly button", () => {
+    it("is not rendered when onSplitEvenly is omitted", () => {
+      render(
+        <ItemAssignment
+          receipt={mockReceipt}
+          people={mockPeople}
+          assignedItems={new Map()}
+          unassignedItems={[0, 1]}
+          onAssignItems={jest.fn()}
+          onReceiptUpdate={jest.fn()}
+        />
+      );
+      expect(
+        screen.queryByRole("button", { name: /split evenly/i })
+      ).not.toBeInTheDocument();
+    });
+
+    it("calls onSplitEvenly when clicked", () => {
+      const onSplitEvenly = jest.fn();
+      render(
+        <ItemAssignment
+          receipt={mockReceipt}
+          people={mockPeople}
+          assignedItems={new Map()}
+          unassignedItems={[0, 1]}
+          onAssignItems={jest.fn()}
+          onReceiptUpdate={jest.fn()}
+          onSplitEvenly={onSplitEvenly}
+        />
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: /split evenly/i }));
+      expect(onSplitEvenly).toHaveBeenCalledTimes(1);
+    });
+
+    it("is disabled when there are no people", () => {
+      render(
+        <ItemAssignment
+          receipt={mockReceipt}
+          people={[]}
+          assignedItems={new Map()}
+          unassignedItems={[0]}
+          onAssignItems={jest.fn()}
+          onReceiptUpdate={jest.fn()}
+          onSplitEvenly={jest.fn()}
+        />
+      );
+      expect(screen.getByRole("button", { name: /split evenly/i })).toBeDisabled();
+    });
+
+    it("is disabled when there are no unassigned items", () => {
+      render(
+        <ItemAssignment
+          receipt={mockReceipt}
+          people={mockPeople}
+          assignedItems={mockAssignedItems}
+          unassignedItems={[]}
+          onAssignItems={jest.fn()}
+          onReceiptUpdate={jest.fn()}
+          onSplitEvenly={jest.fn()}
+        />
+      );
+      expect(screen.getByRole("button", { name: /split evenly/i })).toBeDisabled();
+    });
+
+    it("renders title and subtitle on the card header", () => {
+      render(
+        <ItemAssignment
+          receipt={mockReceipt}
+          people={mockPeople}
+          assignedItems={new Map()}
+          unassignedItems={[0, 1]}
+          title="Starbucks"
+          subtitle="#2"
+          onAssignItems={jest.fn()}
+          onReceiptUpdate={jest.fn()}
+          onSplitEvenly={jest.fn()}
+        />
+      );
+      expect(screen.getByText("Starbucks")).toBeInTheDocument();
+      expect(screen.getByText("#2")).toBeInTheDocument();
+    });
+  });
 });
