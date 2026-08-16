@@ -23,15 +23,17 @@ import {
   type PersonItemAssignment,
   type ReceiptState,
   type Group,
-  type ItemAssignments,
+  type StoredReceipt,
 } from "@/types";
 import {
   getUnassignedItems,
+  getSessionUnassigned,
   calculateSessionPersonTotals,
   validateSessionAssignments,
   validateSessionInvariants,
   sessionCurrency,
   validateReceiptCurrency,
+  distributeEqualShares,
 } from "@/lib/receipt-utils";
 import { MAX_RECEIPTS_PER_SESSION } from "@/lib/constants";
 import {
@@ -158,6 +160,22 @@ function updateReceiptInState(
   };
 }
 
+function getAssignCardSubtitle(
+  receipts: StoredReceipt[],
+  index: number
+): string | undefined {
+  const stored = receipts[index];
+  const name = stored.receipt.restaurant || "Untitled receipt";
+  const isDuplicate =
+    receipts.filter(
+      (r) => (r.receipt.restaurant || "Untitled receipt") === name
+    ).length > 1;
+  if (isDuplicate) {
+    return `#${index + 1}`;
+  }
+  return stored.receipt.date || undefined;
+}
+
 export default function Home() {
   const [state, setState] = useState<ReceiptState>(emptyReceiptState);
   const [activeTab, setActiveTab] = useState("upload");
@@ -171,13 +189,6 @@ export default function Home() {
   }, [state]);
 
   const activeReceipt = state.receipts[0]?.receipt ?? null;
-  const activeId = state.receipts[0]?.id;
-  const activeAssignments: ItemAssignments = activeId
-    ? (state.assignedItems.get(activeId) ?? new Map())
-    : new Map();
-  const unassignedItems = activeReceipt
-    ? getUnassignedItems(activeReceipt, activeAssignments)
-    : [];
 
   const validationResult = useMemo(() => {
     return validateSessionInvariants(
@@ -244,15 +255,18 @@ export default function Home() {
     state.assignedItems
   );
 
-  // Calculate progress
+  // Calculate progress across every receipt in the session
   const calculateProgress = (): number => {
-    if (!activeReceipt) return 0;
+    if (state.receipts.length === 0) return 0;
 
-    const totalItems = activeReceipt.items.length;
-    if (totalItems === 0) return 100;
-
-    const assignedItemCount = totalItems - unassignedItems.length;
-    return (assignedItemCount / totalItems) * 100;
+    const totalItems = state.receipts.reduce(
+      (n, r) => n + r.receipt.items.length,
+      0
+    );
+    const unassigned = getSessionUnassigned(state.receipts, state.assignedItems);
+    return totalItems === 0
+      ? 100
+      : ((totalItems - unassigned.length) / totalItems) * 100;
   };
 
   // Handle receipt upload — append to the current outing (people/groups stay)
@@ -361,14 +375,16 @@ export default function Home() {
     return true;
   };
 
-  // Handle item assignments
+  // Handle item assignments for a specific receipt
   const handleAssignItems = (
+    receiptId: string,
     itemIndex: number,
     assignments: PersonItemAssignment[]
   ) => {
     setState((prevState) => {
-      const receiptId = prevState.receipts[0]?.id;
-      if (!receiptId) return prevState;
+      if (!prevState.receipts.some((stored) => stored.id === receiptId)) {
+        return prevState;
+      }
 
       const nextOuter = new Map(prevState.assignedItems);
       const inner = new Map(nextOuter.get(receiptId) ?? []);
@@ -380,7 +396,7 @@ export default function Home() {
       }
       nextOuter.set(receiptId, inner);
 
-      return {
+      const next = {
         ...prevState,
         assignedItems: nextOuter,
         people: calculateSessionPersonTotals(
@@ -389,6 +405,8 @@ export default function Home() {
           nextOuter
         ),
       };
+      stateRef.current = next;
+      return next;
     });
   };
 
@@ -503,53 +521,25 @@ export default function Home() {
     }
   };
 
-  // Split all unassigned items evenly among all people
-  const splitAllItemsEvenly = () => {
-    if (state.receipts.length === 0 || state.people.length === 0) return;
-
+  // Split unassigned items on one receipt evenly among all people
+  const splitItemsEvenlyForReceipt = (receiptId: string) => {
     setState((prevState) => {
-      const receiptId = prevState.receipts[0]?.id;
-      const receipt = prevState.receipts[0]?.receipt;
-      if (!receiptId || !receipt) return prevState;
+      const stored = prevState.receipts.find((r) => r.id === receiptId);
+      if (!stored || prevState.people.length === 0) return prevState;
 
       const inner = new Map(prevState.assignedItems.get(receiptId) ?? []);
-      const currentlyUnassigned = getUnassignedItems(receipt, inner);
+      const currentlyUnassigned = getUnassignedItems(stored.receipt, inner);
 
-      // No unassigned items — nothing to do
       if (currentlyUnassigned.length === 0) {
         toast.info("No unassigned items to split evenly!");
         return prevState;
       }
 
-      // Calculate equal share percentage with 2 decimal places
-      const equalShare = +(100 / prevState.people.length).toFixed(2);
-
-      // Only split unassigned items, preserving existing assignments
+      const equalAssignments = distributeEqualShares(
+        prevState.people.map((p) => p.id)
+      );
       currentlyUnassigned.forEach((itemIndex) => {
-        // Create assignments for all people
-        const assignments: PersonItemAssignment[] = [];
-
-        // Calculate the sum to ensure it adds up to exactly 100%
-        let runningSum = 0;
-
-        prevState.people.forEach((person, personIndex) => {
-          // For the last person, ensure the total is exactly 100%
-          if (personIndex === prevState.people.length - 1) {
-            const lastShare = +(100 - runningSum).toFixed(2);
-            assignments.push({
-              personId: person.id,
-              sharePercentage: lastShare,
-            });
-          } else {
-            assignments.push({
-              personId: person.id,
-              sharePercentage: equalShare,
-            });
-            runningSum += equalShare;
-          }
-        });
-
-        inner.set(itemIndex, assignments);
+        inner.set(itemIndex, equalAssignments.map((a) => ({ ...a })));
       });
 
       const nextOuter = new Map(prevState.assignedItems);
@@ -557,7 +547,7 @@ export default function Home() {
 
       toast.success("All items split evenly among everyone!");
 
-      return {
+      const next = {
         ...prevState,
         assignedItems: nextOuter,
         people: calculateSessionPersonTotals(
@@ -566,10 +556,9 @@ export default function Home() {
           nextOuter
         ),
       };
+      stateRef.current = next;
+      return next;
     });
-
-    // Don't automatically move to results tab anymore
-    // setActiveTab("results");
   };
 
   const hasReceipt = state.receipts.length > 0;
@@ -659,26 +648,15 @@ export default function Home() {
             </TabsTrigger>
           </TabsList>
 
-          {activeReceipt && (
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full">
-              <div className="flex items-center gap-2 w-full sm:w-auto">
-                <Progress
-                  value={calculateProgress()}
-                  className="w-full sm:w-48"
-                />
-                <span className="text-sm whitespace-nowrap w-12">
-                  {Math.round(calculateProgress())}%
-                </span>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={splitAllItemsEvenly}
-                disabled={state.people.length === 0}
-                className="whitespace-nowrap w-full sm:w-auto"
-              >
-                Split All Evenly
-              </Button>
+          {hasReceipt && (
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Progress
+                value={calculateProgress()}
+                className="w-full sm:w-48"
+              />
+              <span className="text-sm whitespace-nowrap w-12">
+                {Math.round(calculateProgress())}%
+              </span>
             </div>
           )}
         </div>
@@ -724,19 +702,29 @@ export default function Home() {
         </TabsContent>
 
         <TabsContent value="assign" className="space-y-6">
-          {activeReceipt && activeId && (
-            <ItemAssignment
-              receipt={activeReceipt}
-              people={state.people}
-              groups={state.groups}
-              assignedItems={activeAssignments}
-              unassignedItems={unassignedItems}
-              onAssignItems={handleAssignItems}
-              onReceiptUpdate={(receipt, remapped) =>
-                handleReceiptUpdate(activeId, receipt, remapped)
-              }
-            />
-          )}
+          {state.receipts.map((stored, index) => {
+            const inner = state.assignedItems.get(stored.id) ?? new Map();
+            const unassigned = getUnassignedItems(stored.receipt, inner);
+            return (
+              <ItemAssignment
+                key={stored.id}
+                receipt={stored.receipt}
+                title={stored.receipt.restaurant || "Untitled receipt"}
+                subtitle={getAssignCardSubtitle(state.receipts, index)}
+                people={state.people}
+                groups={state.groups}
+                assignedItems={inner}
+                unassignedItems={unassigned}
+                onAssignItems={(itemIndex, assignments) =>
+                  handleAssignItems(stored.id, itemIndex, assignments)
+                }
+                onReceiptUpdate={(receipt, remapped) =>
+                  handleReceiptUpdate(stored.id, receipt, remapped)
+                }
+                onSplitEvenly={() => splitItemsEvenlyForReceipt(stored.id)}
+              />
+            );
+          })}
         </TabsContent>
 
         <TabsContent value="results" className="space-y-6">

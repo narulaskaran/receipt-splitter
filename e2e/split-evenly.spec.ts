@@ -189,13 +189,13 @@ test.describe("Split All Evenly flow", () => {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
 
-      const splitBtn = page.getByRole("button", { name: /split all evenly/i });
+      const splitBtn = page.getByRole("button", { name: /split evenly/i });
       await expect(splitBtn).toBeVisible({ timeout: 10000 });
       await expect(splitBtn).toBeEnabled();
     });
 
     await test.step("click Split All Evenly — toast confirms", async () => {
-      await page.getByRole("button", { name: /split all evenly/i }).click();
+      await page.getByRole("button", { name: /split evenly/i }).click();
       // Wait for toast to appear
       await expect(page.getByText("All items split evenly among everyone!").first()).toBeVisible({ timeout: 5000 });
     });
@@ -233,13 +233,13 @@ test.describe("Split All Evenly flow", () => {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
 
-      const splitBtn = page.getByRole("button", { name: /split all evenly/i });
+      const splitBtn = page.getByRole("button", { name: /split evenly/i });
       await expect(splitBtn).toBeVisible({ timeout: 10000 });
       await expect(splitBtn).toBeEnabled();
     });
 
     await test.step("click Split All Evenly", async () => {
-      await page.getByRole("button", { name: /split all evenly/i }).click();
+      await page.getByRole("button", { name: /split evenly/i }).click();
       await expect(page.getByText("All items split evenly among everyone!").first()).toBeVisible({ timeout: 5000 });
     });
 
@@ -277,19 +277,13 @@ test.describe("Split All Evenly flow", () => {
       }, "assign");
     });
 
-    await test.step("Assign tab — Split All Evenly button visible and enabled", async () => {
+    await test.step("Assign tab — Split evenly button is visible and disabled", async () => {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
 
-      const splitBtn = page.getByRole("button", { name: /split all evenly/i });
+      const splitBtn = page.getByRole("button", { name: /split evenly/i });
       await expect(splitBtn).toBeVisible({ timeout: 10000 });
-      await expect(splitBtn).toBeEnabled();
-    });
-
-    await test.step("click Split All Evenly — info toast says no unassigned items", async () => {
-      await page.getByRole("button", { name: /split all evenly/i }).click();
-      // With 0 items, progress is already 100% and there are no unassigned items
-      await expect(page.getByText("No unassigned items to split evenly!")).toBeVisible({ timeout: 5000 });
+      await expect(splitBtn).toBeDisabled();
     });
 
     await test.step("progress stays at 100% (empty receipt rounds to 100%)", async () => {
@@ -319,7 +313,7 @@ test.describe("Split All Evenly flow", () => {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
 
-      const splitBtn = page.getByRole("button", { name: /split all evenly/i });
+      const splitBtn = page.getByRole("button", { name: /split evenly/i });
       await expect(splitBtn).toBeVisible({ timeout: 10000 });
       await expect(splitBtn).toBeEnabled();
     });
@@ -329,7 +323,7 @@ test.describe("Split All Evenly flow", () => {
     });
 
     await test.step("click Split All Evenly", async () => {
-      await page.getByRole("button", { name: /split all evenly/i }).click();
+      await page.getByRole("button", { name: /split evenly/i }).click();
       await expect(page.getByText("All items split evenly among everyone!").first()).toBeVisible({ timeout: 5000 });
     });
 

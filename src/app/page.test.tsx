@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import Home from "./page";
 import { toast } from "sonner";
@@ -51,10 +51,10 @@ describe("Home Page", () => {
       expect(screen.getByText(/drag and drop or click to select/i)).toBeInTheDocument();
     });
 
-    it("hides the progress bar and Split All Evenly button", () => {
+    it("hides the progress bar and Split evenly button", () => {
       render(<Home />);
       expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: /split all evenly/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /split evenly/i })).not.toBeInTheDocument();
     });
   });
 
@@ -210,18 +210,18 @@ describe("Home Page", () => {
     });
   });
 
-  describe("Split All Evenly button", () => {
+  describe("Split evenly button", () => {
     it("is disabled when no people are added", () => {
-      loadSession();
+      loadSession({}, "assign");
       render(<Home />);
-      expect(screen.getByRole("button", { name: /split all evenly/i })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /split evenly/i })).toBeDisabled();
     });
 
     it("assigns all items and fires success toast when clicked", () => {
-      loadSession({ people: mockPeople });
+      loadSession({ people: mockPeople }, "assign");
       render(<Home />);
 
-      fireEvent.click(screen.getByRole("button", { name: /split all evenly/i }));
+      fireEvent.click(screen.getByRole("button", { name: /split evenly/i }));
 
       expect(toast.success).toHaveBeenCalledWith("All items split evenly among everyone!");
       expect(screen.getByText("100%")).toBeInTheDocument();
@@ -476,6 +476,94 @@ describe("Home Page", () => {
         expect(screen.getByText(/EUR - Euro/)).toBeInTheDocument();
       });
       expect(toast.error).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("multi-receipt assign tab", () => {
+    const receiptA = createMockReceipt({
+      restaurant: "Alpha Grill",
+      date: "2024-06-01",
+      items: [{ name: "Steak", price: 20, quantity: 1 }],
+      subtotal: 20,
+      tax: 0,
+      tip: 0,
+      total: 20,
+    });
+    const receiptB = createMockReceipt({
+      restaurant: "Beta Cafe",
+      date: "2024-06-02",
+      items: [{ name: "Latte", price: 5, quantity: 1 }],
+      subtotal: 5,
+      tax: 0,
+      tip: 0,
+      total: 5,
+    });
+
+    function loadTwoReceipts(assignedItems?: unknown) {
+      localStorage.setItem(
+        "receiptSplitterSession",
+        JSON.stringify({
+          version: 2,
+          state: {
+            receipts: [
+              { id: "r1", receipt: receiptA },
+              { id: "r2", receipt: receiptB },
+            ],
+            people: mockPeople,
+            assignedItems: assignedItems ?? [
+              ["r1", []],
+              ["r2", []],
+            ],
+            groups: [],
+            isLoading: false,
+            error: null,
+          },
+          activeTab: "assign",
+        })
+      );
+    }
+
+    function cardFor(name: string) {
+      return screen.getByText(name).closest("[data-slot='card']") as HTMLElement;
+    }
+
+    it("renders both restaurant names as assignment cards", () => {
+      loadTwoReceipts();
+      render(<Home />);
+      expect(screen.getByText("Alpha Grill")).toBeInTheDocument();
+      expect(screen.getByText("Beta Cafe")).toBeInTheDocument();
+    });
+
+    it("split evenly on one receipt does not assign items on the other", () => {
+      loadTwoReceipts();
+      render(<Home />);
+
+      fireEvent.click(
+        within(cardFor("Alpha Grill")).getByRole("button", { name: /split evenly/i })
+      );
+
+      expect(toast.success).toHaveBeenCalledWith(
+        "All items split evenly among everyone!"
+      );
+      expect(
+        within(cardFor("Alpha Grill")).queryAllByText(/unassigned/i)
+      ).toHaveLength(0);
+      expect(
+        within(cardFor("Beta Cafe")).getAllByText(/unassigned/i).length
+      ).toBeGreaterThan(0);
+      expect(
+        within(cardFor("Beta Cafe")).getByRole("button", { name: /split evenly/i })
+      ).toBeEnabled();
+      expect(screen.getByText("50%")).toBeInTheDocument();
+    });
+
+    it("progress reflects items across both receipts", () => {
+      loadTwoReceipts([
+        ["r1", [[0, [{ personId: "a", sharePercentage: 100 }]]]],
+        ["r2", []],
+      ]);
+      render(<Home />);
+      expect(screen.getByText("50%")).toBeInTheDocument();
     });
   });
 });
