@@ -4,7 +4,11 @@ import { UploadCloud, Loader2, FileText } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { type Receipt } from "@/types";
-import { MAX_FILE_SIZE_MB, MAX_FILE_SIZE_BYTES } from "@/lib/constants";
+import {
+  MAX_FILE_SIZE_MB,
+  MAX_FILE_SIZE_BYTES,
+  MAX_RECEIPTS_PER_SESSION,
+} from "@/lib/constants";
 import imageCompression from "browser-image-compression";
 import { getSessionId } from "@/lib/session";
 import {
@@ -19,19 +23,139 @@ interface ReceiptUploaderProps {
   isLoading: boolean;
   setIsLoading: (isLoading: boolean) => void;
   resetImageTrigger?: number;
+  /** How many more receipts the session can accept. Defaults to the session cap. */
+  maxRemaining?: number;
 }
 
 const MAX_COMPRESSION_FILE_SIZE_MB = 50;
 const COMPRESSION_TARGET_SIZE_MB = 4;
+
+async function prepareReceiptFile(
+  file: File,
+  setIsCompressing: (value: boolean) => void
+): Promise<File | null> {
+  if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
+    toast.error("Please upload an image or PDF file");
+    return null;
+  }
+
+  const fileSizeMB = file.size / (1024 * 1024);
+
+  // Attempt client-side compression for images that exceed the upload limit
+  if (file.type.startsWith("image/") && file.size > MAX_FILE_SIZE_BYTES) {
+    if (fileSizeMB > MAX_COMPRESSION_FILE_SIZE_MB) {
+      toast.error(
+        `File is too large to compress (${fileSizeMB.toFixed(1)}MB). Maximum is ${MAX_COMPRESSION_FILE_SIZE_MB}MB.`
+      );
+      return null;
+    }
+
+    try {
+      setIsCompressing(true);
+      const compressed = await imageCompression(file, {
+        maxSizeMB: COMPRESSION_TARGET_SIZE_MB,
+        maxWidthOrHeight: 2048,
+        useWebWorker: true,
+      });
+      const originalSize = fileSizeMB.toFixed(1);
+      const newSize = (compressed.size / (1024 * 1024)).toFixed(1);
+      if (compressed.size > MAX_FILE_SIZE_BYTES) {
+        toast.error(
+          `Compressed from ${originalSize}MB to ${newSize}MB, but it's still over the ${MAX_FILE_SIZE_MB}MB limit. Please use a smaller or lower-resolution image.`
+        );
+        return null;
+      }
+      toast.success(`Compressed from ${originalSize}MB to ${newSize}MB`);
+      return compressed;
+    } catch (error) {
+      console.error("Image compression error:", error);
+      toast.error(
+        `File is too large (${fileSizeMB.toFixed(1)}MB). Maximum size is ${MAX_FILE_SIZE_MB}MB. Compression failed — please use a smaller file.`
+      );
+      return null;
+    } finally {
+      setIsCompressing(false);
+    }
+  }
+
+  if (file.size > MAX_FILE_SIZE_BYTES) {
+    toast.error(
+      `File is too large. Maximum size is ${MAX_FILE_SIZE_MB}MB. Your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`
+    );
+    return null;
+  }
+
+  return file;
+}
+
+async function parseReceiptFile(file: File): Promise<Receipt> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("sessionId", getSessionId());
+
+  const response = await fetch("/api/parse-receipt", {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    if (response.status === 413) {
+      throw new Error(
+        `File is too large. Maximum size is ${MAX_FILE_SIZE_MB}MB. Please compress your image or use a smaller file.`
+      );
+    }
+    const errorData = await response.json();
+    throw new Error(errorData.error || "Failed to parse receipt");
+  }
+
+  return response.json();
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+      } else {
+        reject(new Error("Failed to read file"));
+      }
+    };
+    reader.onerror = () => {
+      reject(reader.error ?? new Error("Failed to read file"));
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function updatePreview(
+  file: File,
+  setPreviewUrl: (url: string) => void
+): Promise<void> {
+  if (file.type.startsWith("image/")) {
+    const dataUrl = await readFileAsDataUrl(file);
+    safeSetItem(RECEIPT_IMAGE_STORAGE_KEY, dataUrl);
+    setPreviewUrl(dataUrl);
+    return;
+  }
+
+  setPreviewUrl("pdf-placeholder");
+  safeRemoveItem(RECEIPT_IMAGE_STORAGE_KEY);
+}
 
 export function ReceiptUploader({
   onReceiptParsed,
   isLoading,
   setIsLoading,
   resetImageTrigger,
+  maxRemaining = MAX_RECEIPTS_PER_SESSION,
 }: ReceiptUploaderProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isCompressing, setIsCompressing] = useState(false);
+  const [parseProgress, setParseProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
 
   // Restore preview image from localStorage on mount
   useEffect(() => {
@@ -58,118 +182,57 @@ export function ReceiptUploader({
     async (acceptedFiles: File[]) => {
       if (acceptedFiles.length === 0) return;
 
-      // Get the first file
-      let file = acceptedFiles[0];
-
-      // Check file type
-      if (!file.type.startsWith("image/") && file.type !== "application/pdf") {
-        toast.error("Please upload an image or PDF file");
-        return;
-      }
-
-      const fileSizeMB = file.size / (1024 * 1024);
-
-      // Attempt client-side compression for images that exceed the upload limit
-      if (file.type.startsWith("image/") && file.size > MAX_FILE_SIZE_BYTES) {
-        if (fileSizeMB > MAX_COMPRESSION_FILE_SIZE_MB) {
-          toast.error(
-            `File is too large to compress (${fileSizeMB.toFixed(1)}MB). Maximum is ${MAX_COMPRESSION_FILE_SIZE_MB}MB.`
-          );
-          return;
-        }
-
-        try {
-          setIsCompressing(true);
-          const compressed = await imageCompression(file, {
-            maxSizeMB: COMPRESSION_TARGET_SIZE_MB,
-            maxWidthOrHeight: 2048,
-            useWebWorker: true,
-          });
-          const originalSize = fileSizeMB.toFixed(1);
-          const newSize = (compressed.size / (1024 * 1024)).toFixed(1);
-          if (compressed.size > MAX_FILE_SIZE_BYTES) {
-            toast.error(
-              `Compressed from ${originalSize}MB to ${newSize}MB, but it's still over the ${MAX_FILE_SIZE_MB}MB limit. Please use a smaller or lower-resolution image.`
-            );
-            return;
-          }
-          toast.success(
-            `Compressed from ${originalSize}MB to ${newSize}MB`
-          );
-          file = compressed;
-        } catch (error) {
-          console.error("Image compression error:", error);
-          toast.error(
-            `File is too large (${fileSizeMB.toFixed(1)}MB). Maximum size is ${MAX_FILE_SIZE_MB}MB. Compression failed — please use a smaller file.`
-          );
-          return;
-        } finally {
-          setIsCompressing(false);
-        }
-      }
-
-      // Final size check (after potential compression)
-      if (file.size > MAX_FILE_SIZE_BYTES) {
+      if (maxRemaining <= 0) {
         toast.error(
-          `File is too large. Maximum size is ${MAX_FILE_SIZE_MB}MB. Your file is ${(file.size / (1024 * 1024)).toFixed(1)}MB.`
+          `This split already has ${MAX_RECEIPTS_PER_SESSION} receipts. Remove one to add another.`
         );
         return;
       }
 
-      // Convert image to Base64 and store in localStorage (skip for PDFs)
-      if (file.type.startsWith("image/")) {
-        const reader = new FileReader();
-        reader.onload = () => {
-          if (reader.result) {
-            safeSetItem(RECEIPT_IMAGE_STORAGE_KEY, reader.result as string);
-            setPreviewUrl(reader.result as string);
-          }
-        };
-        reader.readAsDataURL(file);
-      } else {
-        // For PDFs, just set a placeholder preview
-        setPreviewUrl("pdf-placeholder");
-        safeRemoveItem(RECEIPT_IMAGE_STORAGE_KEY);
+      if (acceptedFiles.length > maxRemaining) {
+        toast.error(
+          `Only ${maxRemaining} more receipt${maxRemaining === 1 ? "" : "s"} can be added (maximum ${MAX_RECEIPTS_PER_SESSION} per split). Extra files were skipped.`
+        );
       }
 
-      // Parse receipt
+      const filesToProcess = acceptedFiles.slice(0, maxRemaining);
+
+      setIsLoading(true);
       try {
-        setIsLoading(true);
+        for (let i = 0; i < filesToProcess.length; i++) {
+          const file = filesToProcess[i];
+          setParseProgress({
+            current: i + 1,
+            total: filesToProcess.length,
+          });
+          try {
+            const prepared = await prepareReceiptFile(file, setIsCompressing);
+            if (!prepared) continue;
 
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("sessionId", getSessionId());
-
-        const response = await fetch("/api/parse-receipt", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (!response.ok) {
-          // Handle 413 specifically - the server may not return JSON for this error
-          if (response.status === 413) {
-            throw new Error(
-              `File is too large. Maximum size is ${MAX_FILE_SIZE_MB}MB. Please compress your image or use a smaller file.`
-            );
+            const receipt = await parseReceiptFile(prepared);
+            try {
+              await updatePreview(prepared, setPreviewUrl);
+            } catch {
+              // Preview caching is best-effort and must not block a successful parse
+            }
+            onReceiptParsed(receipt);
+          } catch (error) {
+            console.error("Receipt parsing error:", error);
+            const errorMessage =
+              error instanceof Error
+                ? error.message
+                : "Failed to parse receipt. Please try again.";
+            const prefix =
+              filesToProcess.length > 1 ? `${file.name}: ` : "";
+            toast.error(`${prefix}${errorMessage}`);
           }
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to parse receipt");
         }
-
-        const receiptData = await response.json();
-        onReceiptParsed(receiptData);
-      } catch (error) {
-        console.error("Receipt parsing error:", error);
-        const errorMessage =
-          error instanceof Error
-            ? error.message
-            : "Failed to parse receipt. Please try again.";
-        toast.error(errorMessage);
       } finally {
+        setParseProgress(null);
         setIsLoading(false);
       }
     },
-    [onReceiptParsed, setIsLoading]
+    [onReceiptParsed, setIsLoading, maxRemaining]
   );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -178,11 +241,15 @@ export function ReceiptUploader({
       "image/*": [".jpeg", ".jpg", ".png", ".heif", ".heic", ".webp"],
       "application/pdf": [".pdf"],
     },
-    maxFiles: 1,
+    multiple: true,
     disabled: isLoading || isCompressing,
   });
 
   const isBusy = isLoading || isCompressing;
+  const parsingLabel =
+    parseProgress && parseProgress.total > 1
+      ? `Parsing receipt ${parseProgress.current} of ${parseProgress.total}...`
+      : "Parsing receipt...";
 
   return (
     <Card className="w-full">
@@ -217,19 +284,28 @@ export function ReceiptUploader({
               {isLoading ? (
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  <p>Parsing receipt...</p>
+                  <p>{parsingLabel}</p>
                 </div>
               ) : (
-                <p>Click or drag to upload a different receipt</p>
+                <p>Click or drag to add another receipt</p>
               )}
             </div>
           ) : (
             <div className="flex flex-col items-center">
-              <UploadCloud className="h-12 w-12 mb-4 text-muted-foreground" />
-              <p className="mb-1 font-medium">Upload your receipt</p>
-              <p className="text-sm text-muted-foreground">
-                Drag and drop or click to select
-              </p>
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-12 w-12 mb-4 animate-spin text-primary" />
+                  <p className="mb-1 font-medium">{parsingLabel}</p>
+                </>
+              ) : (
+                <>
+                  <UploadCloud className="h-12 w-12 mb-4 text-muted-foreground" />
+                  <p className="mb-1 font-medium">Upload your receipts</p>
+                  <p className="text-sm text-muted-foreground">
+                    Drag and drop or click to select one or more files
+                  </p>
+                </>
+              )}
             </div>
           )}
         </div>

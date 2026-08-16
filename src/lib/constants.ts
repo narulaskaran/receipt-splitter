@@ -8,3 +8,6 @@
  */
 export const MAX_FILE_SIZE_MB = 4.5;
 export const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
+/** Maximum number of receipts that can be added to a single split session. */
+export const MAX_RECEIPTS_PER_SESSION = 10;

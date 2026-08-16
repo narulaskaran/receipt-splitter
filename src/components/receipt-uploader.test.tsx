@@ -42,7 +42,7 @@ describe("ReceiptUploader", () => {
 
   it("renders upload prompt", () => {
     renderUploader();
-    expect(screen.getByText(/upload your receipt/i)).toBeInTheDocument();
+    expect(screen.getByText(/upload your receipts/i)).toBeInTheDocument();
   });
 
   it("accepts PDF files", async () => {
@@ -207,5 +207,158 @@ describe("ReceiptUploader", () => {
     });
     // No error toast for caching failure
     expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("dropping two files calls onReceiptParsed twice", async () => {
+    (global.fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          restaurant: "First",
+          total: 10,
+          items: [],
+          currency: "USD",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          restaurant: "Second",
+          total: 20,
+          items: [],
+          currency: "USD",
+        }),
+      });
+
+    renderUploader();
+
+    const file1 = new File(["a"], "one.jpg", { type: "image/jpeg" });
+    const file2 = new File(["b"], "two.jpg", { type: "image/jpeg" });
+    await userEvent.upload(getFileInput(), [file1, file2]);
+
+    await waitFor(() => {
+      expect(mockOnReceiptParsed).toHaveBeenCalledTimes(2);
+    });
+    expect(mockOnReceiptParsed).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ restaurant: "First" })
+    );
+    expect(mockOnReceiptParsed).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ restaurant: "Second" })
+    );
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("parses files sequentially so the second fetch waits on the first", async () => {
+    let resolveFirst: ((value: unknown) => void) | undefined;
+    const firstGate = new Promise((resolve) => {
+      resolveFirst = resolve;
+    });
+
+    (global.fetch as jest.Mock)
+      .mockImplementationOnce(async () => {
+        await firstGate;
+        return {
+          ok: true,
+          json: async () => ({
+            restaurant: "First",
+            total: 10,
+            items: [],
+            currency: "USD",
+          }),
+        };
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          restaurant: "Second",
+          total: 20,
+          items: [],
+          currency: "USD",
+        }),
+      });
+
+    renderUploader();
+
+    const file1 = new File(["a"], "one.jpg", { type: "image/jpeg" });
+    const file2 = new File(["b"], "two.jpg", { type: "image/jpeg" });
+    await userEvent.upload(getFileInput(), [file1, file2]);
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+    expect(mockOnReceiptParsed).not.toHaveBeenCalled();
+
+    resolveFirst?.(undefined);
+
+    await waitFor(() => {
+      expect(mockOnReceiptParsed).toHaveBeenCalledTimes(2);
+    });
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("continues parsing remaining files when one parse fails", async () => {
+    (global.fetch as jest.Mock)
+      .mockRejectedValueOnce(new Error("Failed to parse receipt"))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          restaurant: "Second",
+          total: 20,
+          items: [],
+          currency: "USD",
+        }),
+      });
+
+    renderUploader();
+
+    const file1 = new File(["a"], "one.jpg", { type: "image/jpeg" });
+    const file2 = new File(["b"], "two.jpg", { type: "image/jpeg" });
+    await userEvent.upload(getFileInput(), [file1, file2]);
+
+    await waitFor(() => {
+      expect(mockOnReceiptParsed).toHaveBeenCalledTimes(1);
+    });
+    expect(mockOnReceiptParsed).toHaveBeenCalledWith(
+      expect.objectContaining({ restaurant: "Second" })
+    );
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.stringMatching(/one\.jpg: Failed to parse receipt/)
+    );
+  });
+
+  it("skips extra files beyond maxRemaining and still parses the rest", async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        restaurant: "Only",
+        total: 10,
+        items: [],
+        currency: "USD",
+      }),
+    });
+
+    render(
+      <ReceiptUploader
+        onReceiptParsed={mockOnReceiptParsed}
+        isLoading={false}
+        setIsLoading={mockSetIsLoading}
+        resetImageTrigger={0}
+        maxRemaining={1}
+      />
+    );
+
+    const file1 = new File(["a"], "one.jpg", { type: "image/jpeg" });
+    const file2 = new File(["b"], "two.jpg", { type: "image/jpeg" });
+    await userEvent.upload(getFileInput(), [file1, file2]);
+
+    await waitFor(() => {
+      expect(mockOnReceiptParsed).toHaveBeenCalledTimes(1);
+    });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(toast.error).toHaveBeenCalledWith(
+      expect.stringMatching(/Only 1 more receipt/)
+    );
   });
 });
