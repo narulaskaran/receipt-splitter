@@ -40,6 +40,8 @@ export interface PersonItem {
   quantity: number;
   sharePercentage: number;
   amount: number;
+  receiptId?: string;
+  receiptName?: string;
 }
 
 // Group types
@@ -50,20 +52,26 @@ export interface Group {
   emoji?: string;
 }
 
-// UI State types
-export interface ReceiptState {
-  originalReceipt: Receipt | null;
-  people: Person[];
-  assignedItems: Map<number, PersonItemAssignment[]>;
-  unassignedItems: number[];
-  groups: Group[];
-  isLoading: boolean;
-  error: string | null;
-}
-
 export interface PersonItemAssignment {
   personId: string;
   sharePercentage: number;
+}
+
+// UI State types
+export interface StoredReceipt {
+  id: string; // crypto.randomUUID()
+  receipt: Receipt;
+}
+
+export type ItemAssignments = Map<number, PersonItemAssignment[]>;
+
+export interface ReceiptState {
+  receipts: StoredReceipt[];
+  people: Person[];
+  groups: Group[];
+  assignedItems: Map<string, ItemAssignments>; // receiptId -> itemIndex -> shares
+  isLoading: boolean;
+  error: string | null;
 }
 
 // Util type for keeping track of item assignments

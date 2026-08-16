@@ -122,6 +122,29 @@ describe("Home Page", () => {
       });
       expect(screen.getByRole("tab", { name: /add people/i })).toHaveAttribute("data-state", "active");
     });
+
+    it("restores a v2 session with receipts[]", () => {
+      const receiptId = "00000000-0000-4000-8000-000000000000";
+      localStorage.setItem(
+        "receiptSplitterSession",
+        JSON.stringify({
+          version: 2,
+          state: {
+            receipts: [{ id: receiptId, receipt: mockReceipt }],
+            people: mockPeople,
+            assignedItems: [[receiptId, []]],
+            groups: [],
+            isLoading: false,
+            error: null,
+          },
+          activeTab: "people",
+        })
+      );
+      render(<Home />);
+      expect(screen.getByRole("tab", { name: /add people/i })).toHaveAttribute("data-state", "active");
+      expect(screen.getByRole("tab", { name: /add people/i })).toBeEnabled();
+      expect(screen.getByRole("tab", { name: /assign items/i })).toBeEnabled();
+    });
   });
 
   describe("New Split button", () => {

@@ -7,7 +7,7 @@
  * - Helper functions for setting up specific test conditions
  * - Re-exports of testing-library for convenience
  */
-import { type Person, type Receipt, type PersonItemAssignment, type Group } from "@/types";
+import { type Person, type Receipt, type PersonItemAssignment, type Group, type StoredReceipt, type ItemAssignments } from "@/types";
 
 // =============================================================================
 // Mock Data: People
@@ -101,6 +101,21 @@ export function createMockAssignments(
     map.set(itemIndex, existing);
   }
   return map;
+}
+
+/** Wrap a receipt as a session-level StoredReceipt */
+export function createStoredReceipt(
+  receipt: Receipt = mockReceipt,
+  id = crypto.randomUUID()
+): StoredReceipt {
+  return { id, receipt };
+}
+
+/** Build a session-level assignedItems map (receiptId -> item assignments) */
+export function createSessionAssignments(
+  ...entries: Array<[string, ItemAssignments]>
+): Map<string, ItemAssignments> {
+  return new Map(entries);
 }
 
 // =============================================================================

@@ -1,5 +1,5 @@
 import Decimal from 'decimal.js';
-import { type Person, type Receipt, type ReceiptItem, type PersonItem, type PersonItemAssignment } from '@/types';
+import { type Person, type Receipt, type ReceiptItem, type PersonItem, type PersonItemAssignment, type StoredReceipt, type ItemAssignments } from '@/types';
 import { VALIDATION_LIMITS } from './split-sharing';
 import { formatCurrency as formatCurrencyNew } from './currency';
 
@@ -93,7 +93,8 @@ export function distributeEqualShares(personIds: string[]): PersonItemAssignment
 export function calculatePersonTotals(
   receipt: Receipt,
   people: Person[],
-  assignedItems: Map<number, PersonItemAssignment[]>
+  assignedItems: Map<number, PersonItemAssignment[]>,
+  receiptId?: string
 ): Person[] {
   // Convert receipt values to Decimal for precision
   const subtotal = new Decimal(receipt.subtotal || 0);
@@ -134,6 +135,8 @@ export function calculatePersonTotals(
         quantity: item.quantity || 1,
         sharePercentage: sharePercentage,
         amount: personShare.toNumber(),
+        receiptName: receipt.restaurant ?? undefined,
+        receiptId,
       });
     });
     
@@ -538,6 +541,136 @@ export function validateReceiptInvariants(
       }
     });
   });
+
+  return {
+    isValid: errors.length === 0,
+    errors,
+  };
+}
+
+/**
+ * Session currency is the first receipt's currency. Mixed-currency splits
+ * are not supported; later receipts must match this code.
+ */
+export function sessionCurrency(receipts: StoredReceipt[]): string | undefined {
+  return receipts[0]?.receipt.currency;
+}
+
+/**
+ * True when the session has no currency yet, or the receipt's currency
+ * matches (case-insensitive, trimmed).
+ */
+export function validateReceiptCurrency(
+  receipt: Receipt,
+  currency: string | undefined
+): boolean {
+  if (currency === undefined || currency.trim() === "") {
+    return true;
+  }
+  return receipt.currency.trim().toUpperCase() === currency.trim().toUpperCase();
+}
+
+/**
+ * Aggregates per-receipt person totals across a session.
+ * Always delegates tax/tip math to calculatePersonTotals.
+ */
+export function calculateSessionPersonTotals(
+  receipts: StoredReceipt[],
+  people: Person[],
+  assignedItems: Map<string, ItemAssignments>
+): Person[] {
+  const totals = people.map((person) => ({
+    ...person,
+    items: [] as PersonItem[],
+    totalBeforeTax: new Decimal(0),
+    tax: new Decimal(0),
+    tip: new Decimal(0),
+    finalTotal: new Decimal(0),
+  }));
+
+  const indexById = new Map(people.map((person, index) => [person.id, index]));
+
+  for (const stored of receipts) {
+    const inner = assignedItems.get(stored.id) ?? new Map();
+    const perReceipt = calculatePersonTotals(
+      stored.receipt,
+      people,
+      inner,
+      stored.id
+    );
+
+    for (const person of perReceipt) {
+      const index = indexById.get(person.id);
+      if (index === undefined) continue;
+      totals[index].items = totals[index].items.concat(person.items);
+      totals[index].totalBeforeTax = totals[index].totalBeforeTax.add(person.totalBeforeTax);
+      totals[index].tax = totals[index].tax.add(person.tax);
+      totals[index].tip = totals[index].tip.add(person.tip);
+      totals[index].finalTotal = totals[index].finalTotal.add(person.finalTotal);
+    }
+  }
+
+  return totals.map((person) => ({
+    ...person,
+    totalBeforeTax: person.totalBeforeTax.toNumber(),
+    tax: person.tax.toNumber(),
+    tip: person.tip.toNumber(),
+    finalTotal: person.finalTotal.toNumber(),
+  }));
+}
+
+/**
+ * True when every receipt in the session is fully assigned.
+ * Empty sessions are not fully assigned.
+ */
+export function validateSessionAssignments(
+  receipts: StoredReceipt[],
+  assignedItems: Map<string, ItemAssignments>
+): boolean {
+  if (receipts.length === 0) return false;
+  return receipts.every((stored) =>
+    validateItemAssignments(
+      stored.receipt,
+      assignedItems.get(stored.id) ?? new Map()
+    )
+  );
+}
+
+export function getSessionUnassigned(
+  receipts: StoredReceipt[],
+  assignedItems: Map<string, ItemAssignments>
+): { receiptId: string; itemIndex: number }[] {
+  const unassigned: { receiptId: string; itemIndex: number }[] = [];
+
+  for (const stored of receipts) {
+    const inner = assignedItems.get(stored.id) ?? new Map();
+    for (const itemIndex of getUnassignedItems(stored.receipt, inner)) {
+      unassigned.push({ receiptId: stored.id, itemIndex });
+    }
+  }
+
+  return unassigned;
+}
+
+/**
+ * Runs per-receipt invariant checks and concatenates errors.
+ * An empty session is valid.
+ */
+export function validateSessionInvariants(
+  receipts: StoredReceipt[],
+  assignedItems: Map<string, ItemAssignments>,
+  people: Person[]
+): ReceiptValidationResult {
+  if (receipts.length === 0) {
+    return { isValid: true, errors: [] };
+  }
+
+  const errors: ReceiptValidationError[] = [];
+  for (const stored of receipts) {
+    const inner = assignedItems.get(stored.id) ?? new Map();
+    const result = validateReceiptInvariants(stored.receipt, inner, people);
+    errors.push(...result.errors);
+  }
 
   return {
     isValid: errors.length === 0,
