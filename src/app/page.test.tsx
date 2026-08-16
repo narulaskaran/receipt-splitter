@@ -72,7 +72,21 @@ describe("Home Page", () => {
       expect(screen.getByRole("tab", { name: /upload receipt/i })).toHaveAttribute("data-state", "active");
     });
 
+    it("does not overwrite a restored session with empty default state", async () => {
+      loadSession({ people: mockPeople }, "people");
+      render(<Home />);
+
+      await waitFor(() => {
+        const raw = localStorage.getItem("receiptSplitterSession");
+        expect(raw).toBeTruthy();
+        const parsed = JSON.parse(raw as string);
+        expect(parsed.activeTab).toBe("people");
+        expect(parsed.state.people).toHaveLength(mockPeople.length);
+      });
+    });
+
     it("evicts the cached image and retries when saving the session fails", async () => {
+      loadSession({ people: mockPeople }, "people");
       let sessionWriteFailures = 0;
       originalSetItem = localStorage.setItem;
       localStorage.setItem = jest.fn((key: string, value: string) => {
@@ -86,13 +100,14 @@ describe("Home Page", () => {
       render(<Home />);
 
       await waitFor(() => {
+        expect(sessionWriteFailures).toBe(1);
         expect(localStorage.getItem("receiptSplitterSession")).not.toBeNull();
       });
       expect(localStorage.removeItem).toHaveBeenCalledWith(RECEIPT_IMAGE_STORAGE_KEY);
-      expect(sessionWriteFailures).toBe(1);
     });
 
-    it("continues rendering when the session retry also fails", () => {
+    it("continues rendering when the session retry also fails", async () => {
+      loadSession({ people: mockPeople }, "people");
       originalSetItem = localStorage.setItem;
       localStorage.setItem = jest.fn((key: string) => {
         if (key === "receiptSplitterSession") {
@@ -102,8 +117,10 @@ describe("Home Page", () => {
 
       render(<Home />);
 
-      expect(screen.getByRole("tab", { name: /upload receipt/i })).toHaveAttribute("data-state", "active");
-      expect(localStorage.removeItem).toHaveBeenCalledWith(RECEIPT_IMAGE_STORAGE_KEY);
+      await waitFor(() => {
+        expect(localStorage.removeItem).toHaveBeenCalledWith(RECEIPT_IMAGE_STORAGE_KEY);
+      });
+      expect(screen.getByRole("tab", { name: /add people/i })).toHaveAttribute("data-state", "active");
     });
   });
 

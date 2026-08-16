@@ -208,7 +208,6 @@ export function ReceiptUploader({
               {previewUrl === "pdf-placeholder" ? (
                 <FileText className="h-32 w-32 mb-4 text-muted-foreground" />
               ) : (
-                /* eslint-disable-next-line @next/next/no-img-element */
                 <img
                   src={previewUrl}
                   alt="Receipt preview"

@@ -102,12 +102,17 @@ export default function Home() {
     } else {
       setHasSession(false);
     }
-    isFirstLoad.current = false;
   }, [defaultSession]);
 
   // Save session to localStorage on state or tab change
   useEffect(() => {
-    if (isFirstLoad.current) return;
+    // Skip the initial mount so we don't serialize empty state over a restored session.
+    // Restore and save both run after first paint; flipping this flag in the restore
+    // effect would let save run in the same cycle with the default empty state.
+    if (isFirstLoad.current) {
+      isFirstLoad.current = false;
+      return;
+    }
     // Only save if not loading
     if (!state.isLoading) {
       const toSave = {
