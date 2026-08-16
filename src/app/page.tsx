@@ -8,10 +8,10 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, ArrowRight, UploadCloud, Users, ListChecks, DollarSign } from "lucide-react";
 
 import { ReceiptUploader } from "@/components/receipt-uploader";
+import { ParsedReceiptsList } from "@/components/parsed-receipts-list";
 import { PeopleManager } from "@/components/people-manager";
 import { GroupManager } from "@/components/group-manager";
 import { ItemAssignment } from "@/components/item-assignment";
-import { ReceiptDetails } from "@/components/receipt-details";
 import { ResultsSummary } from "@/components/results-summary";
 import { PersonItems } from "@/components/person-items";
 import { KofiButton } from "@/components/kofi-button";
@@ -30,7 +30,10 @@ import {
   calculateSessionPersonTotals,
   validateSessionAssignments,
   validateSessionInvariants,
+  sessionCurrency,
+  validateReceiptCurrency,
 } from "@/lib/receipt-utils";
+import { MAX_RECEIPTS_PER_SESSION } from "@/lib/constants";
 import {
   getUniqueGroupEmoji,
   getRandomGroupEmojiExcluding,
@@ -49,12 +52,122 @@ import {
   isDefaultSession,
 } from "@/lib/session-persistence";
 
+type ParseResult =
+  | { status: "added"; next: ReceiptState }
+  | { status: "capped"; next: ReceiptState }
+  | { status: "mismatch"; next: ReceiptState; pinned: string };
+
+function addParsedReceipt(prev: ReceiptState, receipt: Receipt): ParseResult {
+  if (prev.receipts.length >= MAX_RECEIPTS_PER_SESSION) {
+    return { status: "capped", next: prev };
+  }
+
+  const pinned = sessionCurrency(prev.receipts);
+  if (!validateReceiptCurrency(receipt, pinned)) {
+    return { status: "mismatch", next: prev, pinned: pinned as string };
+  }
+
+  const id = crypto.randomUUID();
+  if (prev.receipts.length === 0) {
+    return {
+      status: "added",
+      next: {
+        receipts: [{ id, receipt }],
+        people: [],
+        groups: [],
+        assignedItems: new Map([[id, new Map()]]),
+        isLoading: prev.isLoading,
+        error: null,
+      },
+    };
+  }
+
+  const nextAssigned = new Map(prev.assignedItems);
+  nextAssigned.set(id, new Map());
+  const nextReceipts = [...prev.receipts, { id, receipt }];
+  return {
+    status: "added",
+    next: {
+      ...prev,
+      receipts: nextReceipts,
+      assignedItems: nextAssigned,
+      people: calculateSessionPersonTotals(
+        nextReceipts,
+        prev.people,
+        nextAssigned
+      ),
+      error: null,
+    },
+  };
+}
+
+function removeReceiptFromState(
+  prev: ReceiptState,
+  receiptId: string
+): ReceiptState {
+  const nextReceipts = prev.receipts.filter((stored) => stored.id !== receiptId);
+  const nextAssigned = new Map(prev.assignedItems);
+  nextAssigned.delete(receiptId);
+  return {
+    ...prev,
+    receipts: nextReceipts,
+    assignedItems: nextAssigned,
+    people: calculateSessionPersonTotals(
+      nextReceipts,
+      prev.people,
+      nextAssigned
+    ),
+  };
+}
+
+function updateReceiptInState(
+  prev: ReceiptState,
+  receiptId: string,
+  updatedReceipt: Receipt,
+  remappedAssignments?: Map<number, PersonItemAssignment[]>
+): ReceiptState {
+  const existing = prev.receipts.find((stored) => stored.id === receiptId);
+  if (!existing) return prev;
+
+  const currencyChanged = existing.receipt.currency !== updatedReceipt.currency;
+  const nextReceipts = prev.receipts.map((stored) => {
+    if (stored.id === receiptId) {
+      return { ...stored, receipt: updatedReceipt };
+    }
+    if (currencyChanged) {
+      return {
+        ...stored,
+        receipt: { ...stored.receipt, currency: updatedReceipt.currency },
+      };
+    }
+    return stored;
+  });
+
+  const nextOuter = new Map(prev.assignedItems);
+  if (remappedAssignments) {
+    nextOuter.set(receiptId, remappedAssignments);
+  }
+
+  return {
+    ...prev,
+    receipts: nextReceipts,
+    assignedItems: nextOuter,
+    people: calculateSessionPersonTotals(
+      nextReceipts,
+      prev.people,
+      nextOuter
+    ),
+  };
+}
+
 export default function Home() {
   const [state, setState] = useState<ReceiptState>(emptyReceiptState);
   const [activeTab, setActiveTab] = useState("upload");
   const [hasSession, setHasSession] = useState(false);
   const isFirstLoad = useRef(true);
   const [resetImageTrigger, setResetImageTrigger] = useState(0);
+  const stateRef = useRef(state);
+  stateRef.current = state;
 
   const activeReceipt = state.receipts[0]?.receipt ?? null;
   const activeId = state.receipts[0]?.id;
@@ -116,7 +229,9 @@ export default function Home() {
   const handleNewSplit = () => {
     safeRemoveItem(SESSION_STORAGE_KEY);
     safeRemoveItem(RECEIPT_IMAGE_STORAGE_KEY);
-    setState(emptyReceiptState());
+    const empty = emptyReceiptState();
+    stateRef.current = empty;
+    setState(empty);
     setActiveTab("upload");
     setHasSession(false);
     setResetImageTrigger((v) => v + 1);
@@ -139,21 +254,33 @@ export default function Home() {
     return (assignedItemCount / totalItems) * 100;
   };
 
-  // Handle receipt upload — still replaces a single receipt (append is a later PR)
+  // Handle receipt upload — first receipt starts a new outing; later ones append
   const handleReceiptParsed = (receipt: Receipt) => {
-    const id = crypto.randomUUID();
-    setState({
-      receipts: [{ id, receipt }],
-      people: [],
-      groups: [],
-      assignedItems: new Map([[id, new Map()]]),
-      isLoading: false,
-      error: null,
-    });
-
-    // Don't auto-advance
-    // setActiveTab("people");
+    const result = addParsedReceipt(stateRef.current, receipt);
+    if (result.status === "capped") {
+      toast.error(
+        `This split already has ${MAX_RECEIPTS_PER_SESSION} receipts. Remove one to add another.`
+      );
+      return;
+    }
+    if (result.status === "mismatch") {
+      toast.error(
+        `This receipt is ${receipt.currency}, but this split is in ${result.pinned}.`
+      );
+      return;
+    }
+    stateRef.current = result.next;
+    setState(result.next);
     toast.success("Receipt successfully parsed!");
+  };
+
+  const handleRemoveReceipt = (receiptId: string) => {
+    setState((prevState) => {
+      const next = removeReceiptFromState(prevState, receiptId);
+      stateRef.current = next;
+      return next;
+    });
+    toast.success("Receipt removed");
   };
 
   // Handle people changes
@@ -188,7 +315,7 @@ export default function Home() {
         nextAssigned = nextOuter;
       }
 
-      return {
+      const next = {
         ...prevState,
         people: calculateSessionPersonTotals(
           prevState.receipts,
@@ -197,38 +324,26 @@ export default function Home() {
         ),
         assignedItems: nextAssigned,
       };
+      stateRef.current = next;
+      return next;
     });
   };
 
-  // Handle receipt updates
+  // Handle receipt updates (currency changes are copied onto every receipt)
   const handleReceiptUpdate = (
+    receiptId: string,
     updatedReceipt: Receipt,
     remappedAssignments?: Map<number, PersonItemAssignment[]>
   ) => {
     setState((prevState) => {
-      const receiptId = prevState.receipts[0]?.id;
-      if (!receiptId) return prevState;
-
-      const nextOuter = new Map(prevState.assignedItems);
-      const assignmentsToUse =
-        remappedAssignments ??
-        new Map(nextOuter.get(receiptId) ?? []);
-      nextOuter.set(receiptId, assignmentsToUse);
-
-      const nextReceipts = prevState.receipts.map((stored, index) =>
-        index === 0 ? { ...stored, receipt: updatedReceipt } : stored
+      const next = updateReceiptInState(
+        prevState,
+        receiptId,
+        updatedReceipt,
+        remappedAssignments
       );
-
-      return {
-        ...prevState,
-        receipts: nextReceipts,
-        assignedItems: nextOuter,
-        people: calculateSessionPersonTotals(
-          nextReceipts,
-          prevState.people,
-          nextOuter
-        ),
-      };
+      stateRef.current = next;
+      return next;
     });
   };
 
@@ -265,10 +380,14 @@ export default function Home() {
 
   // Update loading state
   const setIsLoading = (isLoading: boolean) => {
-    setState((prevState) => ({
-      ...prevState,
-      isLoading,
-    }));
+    setState((prevState) => {
+      const next = {
+        ...prevState,
+        isLoading,
+      };
+      stateRef.current = next;
+      return next;
+    });
   };
 
   // Handle group creation
@@ -556,17 +675,25 @@ export default function Home() {
             isLoading={state.isLoading}
             setIsLoading={setIsLoading}
             resetImageTrigger={resetImageTrigger}
+            maxRemaining={MAX_RECEIPTS_PER_SESSION - state.receipts.length}
           />
 
-          {activeReceipt && (
-            <ReceiptDetails
-              receipt={activeReceipt}
-              onReceiptUpdate={(receipt) => handleReceiptUpdate(receipt)}
-            />
-          )}
+          <ParsedReceiptsList
+            receipts={state.receipts}
+            onReceiptUpdate={(id, receipt) => handleReceiptUpdate(id, receipt)}
+            onRemoveReceipt={handleRemoveReceipt}
+          />
         </TabsContent>
 
         <TabsContent value="people" className="space-y-6">
+          {state.receipts.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {state.receipts.length}{" "}
+              {state.receipts.length === 1 ? "receipt" : "receipts"} ·{" "}
+              {sessionCurrency(state.receipts) ?? "USD"}
+            </p>
+          )}
+
           <PeopleManager
             people={state.people}
             onPeopleChange={handlePeopleChange}
@@ -580,17 +707,10 @@ export default function Home() {
             onGroupDelete={handleGroupDelete}
             onGroupEmojiRegenerate={handleGroupEmojiRegenerate}
           />
-
-          {activeReceipt && (
-            <ReceiptDetails
-              receipt={activeReceipt}
-              onReceiptUpdate={(receipt) => handleReceiptUpdate(receipt)}
-            />
-          )}
         </TabsContent>
 
         <TabsContent value="assign" className="space-y-6">
-          {activeReceipt && (
+          {activeReceipt && activeId && (
             <ItemAssignment
               receipt={activeReceipt}
               people={state.people}
@@ -598,7 +718,9 @@ export default function Home() {
               assignedItems={activeAssignments}
               unassignedItems={unassignedItems}
               onAssignItems={handleAssignItems}
-              onReceiptUpdate={handleReceiptUpdate}
+              onReceiptUpdate={(receipt, remapped) =>
+                handleReceiptUpdate(activeId, receipt, remapped)
+              }
             />
           )}
         </TabsContent>
