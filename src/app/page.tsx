@@ -599,7 +599,7 @@ export default function Home() {
         <div className="w-full sm:w-auto">
           <h1 className="text-3xl font-bold mb-2">Receipt Splitter</h1>
           <p className="text-muted-foreground">
-            Upload a receipt, add people, and easily split items
+            Upload receipts, add people, and split the day
           </p>
         </div>
 
@@ -651,7 +651,7 @@ export default function Home() {
             <TabsTrigger value="upload" className="gap-1.5 sm:gap-2">
               <UploadCloud className="h-4 w-4 flex-shrink-0" />
               <span className="hidden xs:inline sm:hidden">Upload</span>
-              <span className="hidden sm:inline">Upload Receipt</span>
+              <span className="hidden sm:inline">Upload Receipts</span>
             </TabsTrigger>
             <TabsTrigger value="people" disabled={!hasReceipt} className="gap-1.5 sm:gap-2">
               <Users className="h-4 w-4 flex-shrink-0" />
