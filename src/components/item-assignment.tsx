@@ -483,6 +483,7 @@ export function ItemAssignment({
                             size="sm"
                             onClick={() => handleDeleteItem(index)}
                             title="Delete item"
+                            aria-label={`Delete ${item.name}`}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -663,6 +664,7 @@ export function ItemAssignment({
                             size="sm"
                             onClick={() => handleDeleteItem(index)}
                             title="Delete item"
+                            aria-label={`Delete ${item.name}`}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
