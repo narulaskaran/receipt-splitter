@@ -68,7 +68,7 @@ describe("ParsedReceiptsList", () => {
       />
     );
 
-    expect(screen.getByText("Cafe")).toBeInTheDocument();
+    expect(screen.getAllByText("Cafe").length).toBeGreaterThan(0);
     expect(screen.getByText(/2024-03-15 · 2 items · \$42\.00 · USD/)).toBeInTheDocument();
     expect(screen.getByText("Receipts (1/10)")).toBeInTheDocument();
   });

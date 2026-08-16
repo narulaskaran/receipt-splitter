@@ -167,7 +167,10 @@ export default function Home() {
   const isFirstLoad = useRef(true);
   const [resetImageTrigger, setResetImageTrigger] = useState(0);
   const stateRef = useRef(state);
-  stateRef.current = state;
+
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   const activeReceipt = state.receipts[0]?.receipt ?? null;
   const activeId = state.receipts[0]?.id;
