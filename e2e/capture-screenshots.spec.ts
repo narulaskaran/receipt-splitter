@@ -99,12 +99,11 @@ async function seedResultsSession(page: Page) {
 }
 
 async function expectGatedMultiReceiptResults(page: Page) {
-  await expect(page.getByRole("tab", { name: /results/i })).toHaveAttribute(
-    "data-state",
-    "active",
-    { timeout: 10000 },
-  );
-  await expect(page.getByRole("heading", { name: "Day total" })).toBeVisible();
+  // On narrow viewports the Results tab label is icon-only, so assert on the
+  // copy that only renders after a fully assigned multi-receipt restore.
+  await expect(page.getByRole("heading", { name: "Day total" })).toBeVisible({
+    timeout: 10000,
+  });
   await expect(page.getByRole("heading", { name: "By receipt" })).toBeVisible();
 }
 
