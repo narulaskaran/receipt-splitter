@@ -132,6 +132,7 @@ export function ParsedReceiptsList({
                 <div className="border-t p-3">
                   <ReceiptDetails
                     receipt={receipt}
+                    lockCurrency={receipts.length > 1}
                     onReceiptUpdate={(updated) =>
                       onReceiptUpdate(stored.id, updated)
                     }

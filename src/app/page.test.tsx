@@ -2,7 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import Home from "./page";
 import { toast } from "sonner";
-import { mockReceipt, mockPeople, createMockReceipt } from "@/test/test-utils";
+import { mockReceipt, mockPeople, mockGroups, createMockReceipt } from "@/test/test-utils";
 import { RECEIPT_IMAGE_STORAGE_KEY } from "@/lib/storage";
 
 type SerializedAssignments = [number, { personId: string; sharePercentage: number }[]][];
@@ -375,25 +375,31 @@ describe("Home Page", () => {
       });
     });
 
-    it("clears people when the first receipt is parsed in an empty session", async () => {
-      loadV2({
-        receipts: [],
-        people: mockPeople,
-        assignedItems: [],
-      });
+    it("keeps people and groups after removing every receipt and uploading again", async () => {
+      loadV2({ people: mockPeople, groups: mockGroups });
       render(<Home />);
 
+      fireEvent.click(screen.getByRole("button", { name: /remove testaurant/i }));
+      fireEvent.click(screen.getByRole("button", { name: /^remove$/i }));
+
+      await waitFor(() => {
+        expect(screen.queryByText("Testaurant")).not.toBeInTheDocument();
+      });
+
       await uploadParsedReceipt(
-        createMockReceipt({ restaurant: "New Place", currency: "USD" })
+        createMockReceipt({ restaurant: "Retry Cafe", currency: "USD" })
       );
 
       await waitFor(() => {
-        expect(screen.getAllByText("New Place").length).toBeGreaterThan(0);
+        expect(screen.getAllByText("Retry Cafe").length).toBeGreaterThan(0);
       });
 
       goToPeopleTab();
-      expect(screen.queryByText("Alice")).not.toBeInTheDocument();
-      expect(screen.queryByText("Bob")).not.toBeInTheDocument();
+      expect(screen.getByText("Alice")).toBeInTheDocument();
+      expect(screen.getByText("Bob")).toBeInTheDocument();
+      expect(screen.getByText("Team A")).toBeInTheDocument();
+      expect(screen.getByText("Team B")).toBeInTheDocument();
+      expect(screen.getByText(/1 receipt · USD/)).toBeInTheDocument();
     });
 
     it("caps the session at 10 receipts", async () => {
@@ -420,7 +426,7 @@ describe("Home Page", () => {
       expect(global.fetch).not.toHaveBeenCalled();
     });
 
-    it("copies a currency edit onto every receipt in the session", async () => {
+    it("does not rewrite other receipts when currency is locked", async () => {
       loadV2({
         receipts: [
           { id: "r1", receipt: mockReceipt },
@@ -437,13 +443,34 @@ describe("Home Page", () => {
       render(<Home />);
 
       fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+      const currencySelect = screen.getByRole("combobox", { name: /currency/i });
+      expect(currencySelect).toBeDisabled();
+      expect(
+        screen.getByText(/locked to USD because this split has multiple receipts/i)
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
+
+      await waitFor(() => {
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      });
+      expect(screen.getAllByText(/· USD$/).length).toBeGreaterThanOrEqual(2);
+      expect(screen.queryByText(/· EUR$/)).not.toBeInTheDocument();
+    });
+
+    it("allows changing currency when the session has a single receipt", async () => {
+      loadV2();
+      render(<Home />);
+
+      fireEvent.click(screen.getByRole("button", { name: /edit/i }));
       fireEvent.click(screen.getByRole("combobox", { name: /currency/i }));
       fireEvent.click(screen.getByRole("option", { name: /EUR - Euro/i }));
       fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
 
       await waitFor(() => {
-        expect(screen.getAllByText(/· EUR$/).length).toBeGreaterThanOrEqual(2);
+        expect(screen.getByText(/EUR - Euro/)).toBeInTheDocument();
       });
+      expect(toast.error).not.toHaveBeenCalled();
     });
   });
 });

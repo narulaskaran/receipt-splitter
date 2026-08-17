@@ -27,11 +27,14 @@ import { getSupportedCurrencies } from "@/lib/currency";
 interface ReceiptDetailsProps {
   receipt: Receipt;
   onReceiptUpdate: (receipt: Receipt) => void;
+  /** When true, currency cannot be changed (session already has other receipts). */
+  lockCurrency?: boolean;
 }
 
 export function ReceiptDetails({
   receipt,
   onReceiptUpdate,
+  lockCurrency = false,
 }: ReceiptDetailsProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedReceipt, setEditedReceipt] = useState<Receipt>(receipt);
@@ -84,6 +87,16 @@ export function ReceiptDetails({
       toast.error(
         `Total ($${editedReceipt.total.toFixed(2)}) doesn't match ` +
         `subtotal + tax + tip ($${totalMismatchError.expected?.toFixed(2)})`
+      );
+      return;
+    }
+
+    if (
+      lockCurrency &&
+      editedReceipt.currency !== (receipt.currency || "USD")
+    ) {
+      toast.error(
+        `This split is in ${receipt.currency || "USD"}. All receipts must use the same currency.`
       );
       return;
     }
@@ -199,6 +212,7 @@ export function ReceiptDetails({
               <Label htmlFor="currency">Currency</Label>
               <Select
                 value={editedReceipt.currency || 'USD'}
+                disabled={lockCurrency}
                 onValueChange={(value) =>
                   setEditedReceipt({
                     ...editedReceipt,
@@ -217,6 +231,12 @@ export function ReceiptDetails({
                   ))}
                 </SelectContent>
               </Select>
+              {lockCurrency && (
+                <p className="text-sm text-muted-foreground">
+                  Currency is locked to {receipt.currency || "USD"} because this
+                  split has multiple receipts.
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">

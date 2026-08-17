@@ -68,23 +68,11 @@ function addParsedReceipt(prev: ReceiptState, receipt: Receipt): ParseResult {
   }
 
   const id = crypto.randomUUID();
-  if (prev.receipts.length === 0) {
-    return {
-      status: "added",
-      next: {
-        receipts: [{ id, receipt }],
-        people: [],
-        groups: [],
-        assignedItems: new Map([[id, new Map()]]),
-        isLoading: prev.isLoading,
-        error: null,
-      },
-    };
-  }
-
   const nextAssigned = new Map(prev.assignedItems);
   nextAssigned.set(id, new Map());
   const nextReceipts = [...prev.receipts, { id, receipt }];
+  // Keep people/groups even when this is the only receipt (retry after a
+  // full clear is the same outing; New Split is what starts a new one).
   return {
     status: "added",
     next: {
@@ -99,6 +87,23 @@ function addParsedReceipt(prev: ReceiptState, receipt: Receipt): ParseResult {
       error: null,
     },
   };
+}
+
+/** Pinned currency from other receipts, when an edit would diverge. */
+function currencyChangeConflict(
+  receipts: ReceiptState["receipts"],
+  receiptId: string,
+  updatedReceipt: Receipt
+): string | undefined {
+  const existing = receipts.find((stored) => stored.id === receiptId);
+  if (!existing || existing.receipt.currency === updatedReceipt.currency) {
+    return undefined;
+  }
+  const pinned = sessionCurrency(receipts.filter((stored) => stored.id !== receiptId));
+  if (pinned && !validateReceiptCurrency(updatedReceipt, pinned)) {
+    return pinned;
+  }
+  return undefined;
 }
 
 function removeReceiptFromState(
@@ -128,20 +133,13 @@ function updateReceiptInState(
 ): ReceiptState {
   const existing = prev.receipts.find((stored) => stored.id === receiptId);
   if (!existing) return prev;
+  if (currencyChangeConflict(prev.receipts, receiptId, updatedReceipt)) {
+    return prev;
+  }
 
-  const currencyChanged = existing.receipt.currency !== updatedReceipt.currency;
-  const nextReceipts = prev.receipts.map((stored) => {
-    if (stored.id === receiptId) {
-      return { ...stored, receipt: updatedReceipt };
-    }
-    if (currencyChanged) {
-      return {
-        ...stored,
-        receipt: { ...stored.receipt, currency: updatedReceipt.currency },
-      };
-    }
-    return stored;
-  });
+  const nextReceipts = prev.receipts.map((stored) =>
+    stored.id === receiptId ? { ...stored, receipt: updatedReceipt } : stored
+  );
 
   const nextOuter = new Map(prev.assignedItems);
   if (remappedAssignments) {
@@ -257,7 +255,7 @@ export default function Home() {
     return (assignedItemCount / totalItems) * 100;
   };
 
-  // Handle receipt upload — first receipt starts a new outing; later ones append
+  // Handle receipt upload — append to the current outing (people/groups stay)
   const handleReceiptParsed = (receipt: Receipt): boolean => {
     const result = addParsedReceipt(stateRef.current, receipt);
     if (result.status === "capped") {
@@ -333,12 +331,23 @@ export default function Home() {
     });
   };
 
-  // Handle receipt updates (currency changes are copied onto every receipt)
+  // Handle receipt updates. Currency cannot diverge from other receipts.
   const handleReceiptUpdate = (
     receiptId: string,
     updatedReceipt: Receipt,
     remappedAssignments?: Map<number, PersonItemAssignment[]>
   ) => {
+    const pinned = currencyChangeConflict(
+      stateRef.current.receipts,
+      receiptId,
+      updatedReceipt
+    );
+    if (pinned) {
+      toast.error(
+        `This split is in ${pinned}. All receipts must use the same currency.`
+      );
+      return;
+    }
     setState((prevState) => {
       const next = updateReceiptInState(
         prevState,
