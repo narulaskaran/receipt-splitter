@@ -8,14 +8,17 @@
  *   npm run screenshots                          # Screenshots of / at all viewports
  *   npm run screenshots -- --route /split        # Screenshots of /split route
  *   npm run screenshots -- --params "data=abc"   # With URL params
- *   npm run screenshots -- --mock-data           # Inject data, show results tab
+ *   npm run screenshots -- --mock-data           # Inject v2 session (one receipt), show results tab
  *   npm run screenshots -- --mock-data --tab all # Screenshot all tabs with mock data
  *   npm run screenshots -- --mock-data --tab people # Screenshot just people tab
+ *   npm run screenshots -- --mock-data --multi-receipt --tab all
+ *                                            # Two-receipt v2 session (Coffee + Lunch)
  *
  * Options:
  *   --route <path>      Route to screenshot (default: /)
  *   --params <query>    URL query parameters (without leading ?)
- *   --mock-data         Inject synthetic receipt data into localStorage
+ *   --mock-data         Inject synthetic receipt data into localStorage (v2 session)
+ *   --multi-receipt     With --mock-data, inject two receipts instead of one
  *   --tab <name>        Which tab to show: upload, people, assign, results, or all (default: results)
  *   --output <dir>      Output directory (default: screenshots)
  *
@@ -49,6 +52,7 @@ const MOCK_RECEIPT = {
   tax: 4.50,
   tip: 9.00,
   total: 58.50,
+  currency: "USD",
   items: [
     { name: "Burger", price: 15.00, quantity: 1 },
     { name: "Fries", price: 5.00, quantity: 2 },
@@ -56,6 +60,35 @@ const MOCK_RECEIPT = {
     { name: "Salad", price: 12.00, quantity: 1 },
   ]
 };
+
+const MOCK_RECEIPT_ID = "receipt-1";
+
+const MOCK_COFFEE_ID = "receipt-coffee";
+const MOCK_LUNCH_ID = "receipt-lunch";
+
+const MOCK_COFFEE_RECEIPT = {
+  restaurant: "Coffee",
+  date: "2024-01-15",
+  subtotal: 10.00,
+  tax: 1.00,
+  tip: 2.00,
+  total: 13.00,
+  currency: "USD",
+  items: [
+    { name: "Latte", price: 5.00, quantity: 1 },
+    { name: "Muffin", price: 5.00, quantity: 1 },
+  ],
+};
+
+const MOCK_LUNCH_RECEIPT = {
+  ...MOCK_RECEIPT,
+  restaurant: "Lunch",
+};
+
+const MOCK_COFFEE_ASSIGNED_ITEMS = [
+  [0, [{ personId: "person-1", sharePercentage: 100 }]],
+  [1, [{ personId: "person-2", sharePercentage: 50 }, { personId: "person-3", sharePercentage: 50 }]],
+];
 
 const MOCK_PEOPLE = [
   {
@@ -113,16 +146,39 @@ const MOCK_ASSIGNED_ITEMS = [
 ];
 
 /**
- * Build the session object matching the app's expected localStorage structure
+ * Build a v2 session matching serializeSession() in src/lib/session-persistence.ts.
+ * assignedItems is nested: [[receiptId, [[itemIndex, assignments]]]]
  * @param {string} activeTab - Which tab to show (upload, people, assign, results)
+ * @param {{ multiReceipt?: boolean }} [options]
  */
-function buildMockSession(activeTab = 'results') {
+function buildMockSession(activeTab = 'results', { multiReceipt = false } = {}) {
+  if (multiReceipt) {
+    return {
+      version: 2,
+      state: {
+        receipts: [
+          { id: MOCK_COFFEE_ID, receipt: MOCK_COFFEE_RECEIPT },
+          { id: MOCK_LUNCH_ID, receipt: MOCK_LUNCH_RECEIPT },
+        ],
+        people: MOCK_PEOPLE,
+        assignedItems: [
+          [MOCK_COFFEE_ID, MOCK_COFFEE_ASSIGNED_ITEMS],
+          [MOCK_LUNCH_ID, MOCK_ASSIGNED_ITEMS],
+        ],
+        groups: MOCK_GROUPS,
+        isLoading: false,
+        error: null,
+      },
+      activeTab,
+    };
+  }
+
   return {
+    version: 2,
     state: {
-      originalReceipt: MOCK_RECEIPT,
+      receipts: [{ id: MOCK_RECEIPT_ID, receipt: MOCK_RECEIPT }],
       people: MOCK_PEOPLE,
-      assignedItems: MOCK_ASSIGNED_ITEMS,
-      unassignedItems: [],
+      assignedItems: [[MOCK_RECEIPT_ID, MOCK_ASSIGNED_ITEMS]],
       groups: MOCK_GROUPS,
       isLoading: false,
       error: null,
@@ -157,6 +213,7 @@ function parseArgs() {
     route: '/',
     params: '',
     mockData: false,
+    multiReceipt: false,
     tab: 'results',
     outputDir: 'screenshots',
   };
@@ -171,6 +228,9 @@ function parseArgs() {
         break;
       case '--mock-data':
         options.mockData = true;
+        break;
+      case '--multi-receipt':
+        options.multiReceipt = true;
         break;
       case '--tab':
         options.tab = args[++i] || 'results';
@@ -222,7 +282,7 @@ async function takeScreenshots(options) {
   console.log(`Base URL: ${baseUrl}`);
   console.log(`Route: ${options.route}`);
   console.log(`Params: ${options.params || '(none)'}`);
-  console.log(`Mock Data: ${options.mockData ? 'Yes' : 'No'}`);
+  console.log(`Mock Data: ${options.mockData ? (options.multiReceipt ? 'Yes (two receipts)' : 'Yes (one receipt)') : 'No'}`);
   console.log(`Tabs: ${options.tab === 'all' ? 'all (upload, people, assign, results)' : options.tab}`);
   console.log(`Output: ${outputPath}`);
   console.log(`Viewports: ${VIEWPORTS.length}`);
@@ -254,7 +314,7 @@ async function takeScreenshots(options) {
           } else {
             // For home route, inject localStorage data using addInitScript
             // This runs before any page scripts, ensuring data is available on load
-            const mockSession = buildMockSession(tab);
+            const mockSession = buildMockSession(tab, { multiReceipt: options.multiReceipt });
             await page.addInitScript((data) => {
               window.localStorage.setItem('receiptSplitterSession', JSON.stringify(data));
             }, mockSession);
