@@ -1,4 +1,4 @@
-import { Share, Link2, Check, AlertTriangle } from "lucide-react";
+import { Share, Link2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,12 +11,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { type Person } from "@/types";
-import {
-  formatCurrency,
-  formatUnassignedReceiptMessage,
-  type ReceiptValidationResult,
-  type UnassignedReceiptSummary,
-} from "@/lib/receipt-utils";
+import { formatCurrency, type ReceiptValidationResult } from "@/lib/receipt-utils";
 import {
   generateShareableUrl,
   validateSerializationInput,
@@ -37,7 +32,6 @@ interface ResultsSummaryProps {
   currencyCode?: string;
   validationResult?: ReceiptValidationResult;
   receiptBreakdown?: ReceiptBreakdown[];
-  unassignedReceipts?: UnassignedReceiptSummary[];
 }
 
 function receiptLabel(receipt: ReceiptBreakdown): string {
@@ -51,7 +45,6 @@ export function ResultsSummary({
   currencyCode,
   validationResult,
   receiptBreakdown,
-  unassignedReceipts = [],
 }: ResultsSummaryProps) {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [shareStatus, setShareStatus] = useState<
@@ -60,21 +53,35 @@ export function ResultsSummary({
   // Sort people by final total (highest first)
   const sortedPeople = [...people].sort((a, b) => b.finalTotal - a.finalTotal);
   const showBreakdown = (receiptBreakdown?.length ?? 0) > 1;
-  const assignmentComplete = unassignedReceipts.length === 0;
 
-  // Create a shareable text summary
+  // Create a shareable text summary matching on-screen order:
+  // Day total (people amounts), then By receipt (restaurant + date).
   const createShareText = (): string => {
     let text = "";
 
     if (showBreakdown) {
       text += "Day total\n";
+      sortedPeople.forEach((person) => {
+        text += `${person.name}: ${formatCurrency(person.finalTotal, currencyCode)}\n`;
+      });
+
+      if (receiptBreakdown) {
+        text += "\nBy receipt\n";
+        receiptBreakdown.forEach((receipt) => {
+          text += `${receiptLabel(receipt)}:\n`;
+          [...receipt.people]
+            .sort((a, b) => b.finalTotal - a.finalTotal)
+            .forEach((person) => {
+              text += `  ${person.name}: ${formatCurrency(person.finalTotal, currencyCode)}\n`;
+            });
+        });
+      }
+
+      return text;
     }
 
-    // Add receipt info
     if (receiptName) {
-      text += showBreakdown
-        ? `Receipts for ${receiptName}\n`
-        : `Receipt for ${receiptName}\n`;
+      text += `Receipt for ${receiptName}\n`;
     }
 
     if (receiptDate) {
@@ -83,22 +90,9 @@ export function ResultsSummary({
 
     text += "\nAmount owed by each person:\n";
 
-    // Add each person's total
     sortedPeople.forEach((person) => {
       text += `${person.name}: ${formatCurrency(person.finalTotal, currencyCode)}\n`;
     });
-
-    if (showBreakdown && receiptBreakdown) {
-      text += "\nBy receipt\n";
-      receiptBreakdown.forEach((receipt) => {
-        text += `${receiptLabel(receipt)}:\n`;
-        [...receipt.people]
-          .sort((a, b) => b.finalTotal - a.finalTotal)
-          .forEach((person) => {
-            text += `  ${person.name}: ${formatCurrency(person.finalTotal, currencyCode)}\n`;
-          });
-      });
-    }
 
     return text;
   };
@@ -205,7 +199,6 @@ export function ResultsSummary({
 
   // Check if split is ready to share
   const canShareSplit =
-    assignmentComplete &&
     people.length > 0 &&
     people.every((person) => person.finalTotal > 0) &&
     phoneNumber.replace(/\D/g, "").length >= 10 &&
@@ -217,27 +210,6 @@ export function ResultsSummary({
 
   return (
     <div className="w-full flex flex-col gap-4">
-      {unassignedReceipts.length > 0 ? (
-        <div
-          data-testid="incomplete-assignment-banner"
-          className="rounded-lg border border-yellow-500/50 bg-yellow-50 px-4 py-3 text-sm text-yellow-800 dark:bg-yellow-900/10 dark:text-yellow-300"
-          role="alert"
-          aria-live="polite"
-        >
-          <div className="flex items-start gap-2 font-medium">
-            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-            <div className="flex flex-col gap-1">
-              <span>This day total is incomplete. Assign remaining items before sharing.</span>
-              {unassignedReceipts.map((summary, index) => (
-                <span key={`${summary.name}-${index}`}>
-                  {formatUnassignedReceiptMessage(summary)}
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       <div className="flex flex-col gap-3">
         <label
           htmlFor="venmo-phone"
@@ -292,7 +264,6 @@ export function ResultsSummary({
               variant="outline"
               className="flex items-center justify-center gap-2 text-base sm:text-sm font-medium transition-all duration-200 hover:bg-muted active:scale-95"
               onClick={shareResults}
-              disabled={!assignmentComplete}
             >
               <Share className="h-5 w-5 sm:h-4 sm:w-4" />
               <span>Share Text</span>

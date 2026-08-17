@@ -27,7 +27,6 @@ import {
 import {
   getUnassignedItems,
   getSessionUnassigned,
-  getUnassignedReceiptSummaries,
   calculateSessionPersonTotals,
   calculatePerReceiptPersonTotals,
   sessionShareNote,
@@ -203,11 +202,6 @@ export default function Home() {
     [state.receipts, state.people, state.assignedItems]
   );
 
-  const unassignedReceipts = useMemo(
-    () => getUnassignedReceiptSummaries(state.receipts, state.assignedItems),
-    [state.receipts, state.assignedItems]
-  );
-
   // Restore session from localStorage on mount
   useEffect(() => {
     const session = safeGetItem(SESSION_STORAGE_KEY);
@@ -215,7 +209,18 @@ export default function Home() {
       const restored = deserializeSession(session);
       if (restored) {
         setState(restored.state);
-        setActiveTab(restored.activeTab || "upload");
+        const restoredTab = restored.activeTab || "upload";
+        const restoredAssigned = validateSessionAssignments(
+          restored.state.receipts,
+          restored.state.assignedItems
+        );
+        if (restoredTab === "results" && !restoredAssigned) {
+          setActiveTab(
+            restored.state.people.length > 0 ? "assign" : "people"
+          );
+        } else {
+          setActiveTab(restoredTab);
+        }
         setHasSession(!isDefaultSession(restored.state, restored.activeTab || "upload"));
       } else {
         setHasSession(false);
@@ -264,6 +269,17 @@ export default function Home() {
     state.receipts,
     state.assignedItems
   );
+
+  useEffect(() => {
+    if (activeTab !== "results" || allItemsAssigned) return;
+    if (state.people.length > 0) {
+      setActiveTab("assign");
+    } else if (state.receipts.length > 0) {
+      setActiveTab("people");
+    } else {
+      setActiveTab("upload");
+    }
+  }, [activeTab, allItemsAssigned, state.people.length, state.receipts.length]);
 
   // Calculate progress across every receipt in the session
   const calculateProgress = (): number => {
@@ -751,7 +767,6 @@ export default function Home() {
             currencyCode={sessionCurrency(state.receipts)}
             validationResult={validationResult}
             receiptBreakdown={receiptBreakdown}
-            unassignedReceipts={unassignedReceipts}
           />
 
           <PersonItems people={state.people} currencyCode={sessionCurrency(state.receipts)} />

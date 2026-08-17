@@ -800,7 +800,7 @@ describe("Home Page", () => {
       expect(screen.getByRole("button", { name: /next/i })).toBeDisabled();
     });
 
-    it("shows an incomplete banner if Results is restored with unassigned items", () => {
+    it("keeps Results disabled and leaves Assign when restored with unassigned items", async () => {
       loadResultsSession([
         ["r1", []],
         ["r2", [[0, [{ personId: "a", sharePercentage: 100 }]]]],
@@ -808,16 +808,56 @@ describe("Home Page", () => {
 
       render(<Home />);
 
-      expect(screen.getByRole("tab", { name: /results/i })).toHaveAttribute(
-        "data-state",
-        "active"
-      );
+      await waitFor(() => {
+        expect(screen.getByRole("tab", { name: /assign items/i })).toHaveAttribute(
+          "data-state",
+          "active"
+        );
+      });
       expect(screen.getByRole("tab", { name: /results/i })).toBeDisabled();
-      expect(screen.getByTestId("incomplete-assignment-banner")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /share text/i })).not.toBeInTheDocument();
       expect(
-        screen.getByText("Coffee Shop still has 1 unassigned item.")
-      ).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /share text/i })).toBeDisabled();
+        screen.queryByTestId("incomplete-assignment-banner")
+      ).not.toBeInTheDocument();
+    });
+
+    it("treats a 0-item receipt as complete so Results is not trapped", () => {
+      const emptyReceipt = createMockReceipt({
+        restaurant: "Empty Place",
+        date: "2024-06-01",
+        items: [],
+        subtotal: 0,
+        tax: 0,
+        tip: 0,
+        total: 0,
+      });
+      localStorage.setItem(
+        "receiptSplitterSession",
+        JSON.stringify({
+          version: 2,
+          state: {
+            receipts: [
+              { id: "r1", receipt: receiptA },
+              { id: "r2", receipt: emptyReceipt },
+            ],
+            people: mockPeople,
+            assignedItems: [
+              ["r1", [[0, [{ personId: "a", sharePercentage: 100 }]]]],
+              ["r2", []],
+            ],
+            groups: [],
+            isLoading: false,
+            error: null,
+          },
+          activeTab: "assign",
+        })
+      );
+
+      render(<Home />);
+
+      expect(screen.getByText("100%")).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /results/i })).toBeEnabled();
+      expect(screen.getByRole("button", { name: /next/i })).toBeEnabled();
     });
   });
 });

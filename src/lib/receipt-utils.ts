@@ -166,13 +166,15 @@ export function calculatePersonTotals(
 }
 
 /**
- * Validates if all items have been fully assigned (100%)
+ * Validates if all items have been fully assigned (100%).
+ * A receipt with no items is complete — there is nothing left to assign.
  */
 export function validateItemAssignments(
   receipt: Receipt,
   assignedItems: Map<number, PersonItemAssignment[]>
 ): boolean {
-  if (!receipt?.items?.length) return false;
+  if (!receipt) return false;
+  if (!receipt.items?.length) return true;
   
   for (let i = 0; i < receipt.items.length; i++) {
     const assignments = assignedItems.get(i) || [];
@@ -706,44 +708,6 @@ export function getSessionUnassigned(
   }
 
   return unassigned;
-}
-
-export interface UnassignedReceiptSummary {
-  name: string;
-  count: number;
-}
-
-/**
- * Per-receipt unassigned counts for Results warnings.
- * Receipts that are fully assigned are omitted.
- */
-export function getUnassignedReceiptSummaries(
-  receipts: StoredReceipt[],
-  assignedItems: Map<string, ItemAssignments>
-): UnassignedReceiptSummary[] {
-  const summaries: UnassignedReceiptSummary[] = [];
-
-  for (const stored of receipts) {
-    const count = getUnassignedItems(
-      stored.receipt,
-      assignedItems.get(stored.id) ?? new Map()
-    ).length;
-    if (count > 0) {
-      summaries.push({
-        name: stored.receipt.restaurant || "Untitled receipt",
-        count,
-      });
-    }
-  }
-
-  return summaries;
-}
-
-export function formatUnassignedReceiptMessage(
-  summary: UnassignedReceiptSummary
-): string {
-  const itemWord = summary.count === 1 ? "item" : "items";
-  return `${summary.name} still has ${summary.count} unassigned ${itemWord}.`;
 }
 
 /**
