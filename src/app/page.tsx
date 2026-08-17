@@ -36,7 +36,6 @@ import {
 } from "@/lib/receipt-utils";
 import { MAX_RECEIPTS_PER_SESSION } from "@/lib/constants";
 import {
-  receiptDisplayName,
   receiptRestaurantName,
   receiptSubtitle,
 } from "@/lib/receipt-labels";
@@ -534,7 +533,7 @@ export default function Home() {
       nextOuter.set(receiptId, inner);
 
       toast.success(
-        `Split remaining items on ${receiptDisplayName(stored, prevState.receipts)}.`
+        `Split remaining items on ${receiptRestaurantName(stored)}.`
       );
 
       const next = {

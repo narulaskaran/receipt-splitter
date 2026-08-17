@@ -75,23 +75,23 @@ describe("receiptSubtitle", () => {
     expect(receiptSubtitle(second, receipts)).toBe("2024-01-02 · #2");
   });
 
-  it("numbers collisions among same-name receipts, not the full list", () => {
-    const other = createStoredReceipt(
-      createMockReceipt({ restaurant: "Alpha", date: "2024-06-01" }),
-      "x"
-    );
-    const first = createStoredReceipt(
-      createMockReceipt({ restaurant: "Starbucks", date: "2024-01-01" }),
+  it("numbers collisions among duplicate titles, not the full list", () => {
+    const coffee1 = createStoredReceipt(
+      createMockReceipt({ restaurant: "Coffee", date: "2024-01-01" }),
       "a"
     );
-    const second = createStoredReceipt(
-      createMockReceipt({ restaurant: "Starbucks", date: "2024-01-01" }),
+    const lunch = createStoredReceipt(
+      createMockReceipt({ restaurant: "Lunch", date: "2024-01-02" }),
+      "x"
+    );
+    const coffee2 = createStoredReceipt(
+      createMockReceipt({ restaurant: "Coffee", date: "2024-01-01" }),
       "b"
     );
-    const receipts = [other, first, second];
-    expect(receiptSubtitle(other, receipts)).toBe("2024-06-01");
-    expect(receiptSubtitle(first, receipts)).toBe("2024-01-01 · #1");
-    expect(receiptSubtitle(second, receipts)).toBe("2024-01-01 · #2");
+    const receipts = [coffee1, lunch, coffee2];
+    expect(receiptSubtitle(lunch, receipts)).toBe("2024-01-02");
+    expect(receiptSubtitle(coffee1, receipts)).toBe("2024-01-01 · #1");
+    expect(receiptSubtitle(coffee2, receipts)).toBe("2024-01-01 · #2");
   });
 
   it("shows only #n when colliding receipts have no date", () => {
