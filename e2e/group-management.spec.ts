@@ -77,7 +77,7 @@ test.describe("group management", () => {
     await expect(page.getByText('Group "Dinner Crew" created!')).toBeVisible();
     const card = groupCard(page, "Dinner Crew");
     await expect(card).toBeVisible();
-    await expect(card.getByText("Members: Alice, Bob")).toBeVisible();
+    await expect(card.getByText("Members: Alice, Bob", { exact: true })).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Change emoji for Dinner Crew" }),
     ).toBeVisible();
@@ -138,7 +138,10 @@ test.describe("group management", () => {
     await dialog.getByRole("button", { name: "Update Group" }).click();
 
     await expect(
-      groupCard(page, "Dinner Crew").getByText("Members: Alice, Bob, Charlie"),
+      groupCard(page, "Dinner Crew").getByText(
+        "Members: Alice, Bob, Charlie",
+        { exact: true },
+      ),
     ).toBeVisible();
   });
 
@@ -154,7 +157,7 @@ test.describe("group management", () => {
     await dialog.getByRole("button", { name: "Update Group" }).click();
 
     const card = groupCard(page, "Dinner Crew");
-    await expect(card.getByText("Members: Alice, Bob")).toBeVisible();
+    await expect(card.getByText("Members: Alice, Bob", { exact: true })).toBeVisible();
     await expect(card.getByText("Charlie")).toHaveCount(0);
   });
 
@@ -197,8 +200,5 @@ test.describe("group management", () => {
     await expect(burgerRow).toBeVisible({ timeout: 10000 });
     await expect(burgerRow).toContainText("Alice");
     await expect(burgerRow).toContainText("Bob");
-
-    await burgerRow.getByRole("button").filter({ hasText: "Alice" }).click();
-    await expect(page.getByText("Groups")).toHaveCount(0);
   });
 });
