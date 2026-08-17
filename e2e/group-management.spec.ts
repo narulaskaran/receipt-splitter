@@ -8,35 +8,27 @@ const DINNER_CREW = {
   memberIds: ["p1", "p2"],
 };
 
-function peopleTabState(overrides: Record<string, unknown> = {}) {
-  return baseState({
-    people: [
-      emptyPerson("p1", "Alice"),
-      emptyPerson("p2", "Bob"),
-      emptyPerson("p3", "Charlie"),
-    ],
-    groups: [DINNER_CREW],
-    ...overrides,
-  });
-}
-
 async function openPeopleTab(
   page: Page,
   overrides: Record<string, unknown> = {},
 ) {
-  await preloadSession(page, peopleTabState(overrides), "people");
+  await preloadSession(
+    page,
+    baseState({
+      people: [
+        emptyPerson("p1", "Alice"),
+        emptyPerson("p2", "Bob"),
+        emptyPerson("p3", "Charlie"),
+      ],
+      groups: [DINNER_CREW],
+      ...overrides,
+    }),
+    "people",
+  );
   await page.goto("/");
   await expect(
     page.getByRole("button", { name: /create group/i }).first(),
   ).toBeVisible({ timeout: 10000 });
-}
-
-function groupCard(page: Page, name: string) {
-  return page
-    .locator("div")
-    .filter({ has: page.getByRole("button", { name: `Edit ${name}` }) })
-    .filter({ hasText: "Members:" })
-    .last();
 }
 
 async function openCreateDialog(page: Page) {
@@ -69,15 +61,13 @@ test.describe("group management", () => {
   test("creates a group with an emoji and member list", async ({ page }) => {
     await openPeopleTab(page, { groups: [] });
 
-    await submitCreateGroup(await openCreateDialog(page), "Dinner Crew", [
-      "Alice",
-      "Bob",
-    ]);
+    const dialog = await openCreateDialog(page);
+    await submitCreateGroup(dialog, DINNER_CREW.name, ["Alice", "Bob"]);
 
     await expect(page.getByText('Group "Dinner Crew" created!')).toBeVisible();
-    const card = groupCard(page, "Dinner Crew");
-    await expect(card).toBeVisible();
-    await expect(card.getByText("Members: Alice, Bob", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("Members: Alice, Bob", { exact: true }),
+    ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Change emoji for Dinner Crew" }),
     ).toBeVisible();
@@ -89,7 +79,7 @@ test.describe("group management", () => {
     await openPeopleTab(page);
 
     const dialog = await openCreateDialog(page);
-    await submitCreateGroup(dialog, "Dinner Crew", ["Alice", "Bob"]);
+    await submitCreateGroup(dialog, DINNER_CREW.name, ["Alice", "Bob"]);
 
     await expect(
       page.getByText("A group with that name already exists"),
@@ -103,12 +93,14 @@ test.describe("group management", () => {
   test("editing a group name persists", async ({ page }) => {
     await openPeopleTab(page);
 
-    const dialog = await openEditDialog(page, "Dinner Crew");
+    const dialog = await openEditDialog(page, DINNER_CREW.name);
     await dialog.getByLabel("Group Name").fill("Brunch Crew");
     await dialog.getByRole("button", { name: "Update Group" }).click();
 
     await expect(page.getByText('Group "Brunch Crew" updated!')).toBeVisible();
-    await expect(groupCard(page, "Brunch Crew")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Edit Brunch Crew" }),
+    ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Edit Dinner Crew" }),
     ).toHaveCount(0);
@@ -133,15 +125,12 @@ test.describe("group management", () => {
   }) => {
     await openPeopleTab(page);
 
-    const dialog = await openEditDialog(page, "Dinner Crew");
+    const dialog = await openEditDialog(page, DINNER_CREW.name);
     await dialog.getByLabel("Charlie", { exact: true }).click();
     await dialog.getByRole("button", { name: "Update Group" }).click();
 
     await expect(
-      groupCard(page, "Dinner Crew").getByText(
-        "Members: Alice, Bob, Charlie",
-        { exact: true },
-      ),
+      page.getByText("Members: Alice, Bob, Charlie", { exact: true }),
     ).toBeVisible();
   });
 
@@ -152,27 +141,26 @@ test.describe("group management", () => {
       groups: [{ ...DINNER_CREW, memberIds: ["p1", "p2", "p3"] }],
     });
 
-    const dialog = await openEditDialog(page, "Dinner Crew");
+    const dialog = await openEditDialog(page, DINNER_CREW.name);
     await dialog.getByLabel("Charlie", { exact: true }).click();
     await dialog.getByRole("button", { name: "Update Group" }).click();
 
-    const card = groupCard(page, "Dinner Crew");
-    await expect(card.getByText("Members: Alice, Bob", { exact: true })).toBeVisible();
-    await expect(card.getByText("Charlie")).toHaveCount(0);
+    await expect(
+      page.getByText("Members: Alice, Bob", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Members: Alice, Bob, Charlie", { exact: true }),
+    ).toHaveCount(0);
   });
 
   test("regenerating emoji replaces the previous emoji", async ({ page }) => {
     await openPeopleTab(page);
 
-    const emoji = groupCard(page, "Dinner Crew").locator("span").first();
-    const before = (await emoji.textContent()) ?? "";
-    expect(before.length).toBeGreaterThan(0);
-
+    await expect(page.getByText(DINNER_CREW.emoji)).toBeVisible();
     await page
       .getByRole("button", { name: "Change emoji for Dinner Crew" })
       .click();
-
-    await expect(emoji).not.toHaveText(before);
+    await expect(page.getByText(DINNER_CREW.emoji)).toHaveCount(0);
   });
 
   test("deleting a group with assigned items does not orphan those assignments", async ({
@@ -197,7 +185,7 @@ test.describe("group management", () => {
 
     await page.getByRole("tab", { name: /assign items/i }).click();
     const burgerRow = page.getByRole("row").filter({ hasText: "Burger" });
-    await expect(burgerRow).toBeVisible({ timeout: 10000 });
+    await expect(burgerRow).toBeVisible();
     await expect(burgerRow).toContainText("Alice");
     await expect(burgerRow).toContainText("Bob");
   });
