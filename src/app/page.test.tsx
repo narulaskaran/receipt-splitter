@@ -226,7 +226,26 @@ describe("Home Page", () => {
       expect(toast.success).toHaveBeenCalledWith(
         "Split remaining items on Testaurant."
       );
+      expect(toast.info).not.toHaveBeenCalled();
       expect(screen.getByText("100%")).toBeInTheDocument();
+    });
+
+    it("uses Untitled receipt in the toast when the restaurant has no name", () => {
+      loadSession(
+        {
+          people: mockPeople,
+          originalReceipt: { ...mockReceipt, restaurant: null },
+        },
+        "assign"
+      );
+      render(<Home />);
+
+      fireEvent.click(screen.getByRole("button", { name: /split evenly/i }));
+
+      expect(toast.success).toHaveBeenCalledWith(
+        "Split remaining items on Untitled receipt."
+      );
+      expect(toast.info).not.toHaveBeenCalled();
     });
   });
 
@@ -570,7 +589,7 @@ describe("Home Page", () => {
       expect(screen.getByText("50%")).toBeInTheDocument();
     });
 
-    it("always shows the date and adds #n when restaurant names collide", () => {
+    it("always shows the date and numbers #n among duplicate titles only", () => {
       localStorage.setItem(
         "receiptSplitterSession",
         JSON.stringify({
@@ -580,7 +599,7 @@ describe("Home Page", () => {
               {
                 id: "r1",
                 receipt: createMockReceipt({
-                  restaurant: "Starbucks",
+                  restaurant: "Coffee",
                   date: "2024-01-01",
                   items: [{ name: "Latte", price: 5, quantity: 1 }],
                   subtotal: 5,
@@ -592,7 +611,19 @@ describe("Home Page", () => {
               {
                 id: "r2",
                 receipt: createMockReceipt({
-                  restaurant: "Starbucks",
+                  restaurant: "Lunch",
+                  date: "2024-01-02",
+                  items: [{ name: "Sandwich", price: 8, quantity: 1 }],
+                  subtotal: 8,
+                  tax: 0,
+                  tip: 0,
+                  total: 8,
+                }),
+              },
+              {
+                id: "r3",
+                receipt: createMockReceipt({
+                  restaurant: "Coffee",
                   date: "2024-01-01",
                   items: [{ name: "Mocha", price: 6, quantity: 1 }],
                   subtotal: 6,
@@ -606,6 +637,7 @@ describe("Home Page", () => {
             assignedItems: [
               ["r1", []],
               ["r2", []],
+              ["r3", []],
             ],
             groups: [],
             isLoading: false,
@@ -616,11 +648,14 @@ describe("Home Page", () => {
       );
       render(<Home />);
 
-      expect(screen.getAllByText("Starbucks")).toHaveLength(2);
+      expect(screen.getAllByText("Coffee")).toHaveLength(2);
+      expect(screen.getByText("Lunch")).toBeInTheDocument();
       expect(screen.getByText("2024-01-01 · #1")).toBeInTheDocument();
+      expect(screen.getByText("2024-01-02")).toBeInTheDocument();
       expect(screen.getByText("2024-01-01 · #2")).toBeInTheDocument();
+      expect(screen.queryByText("2024-01-01 · #3")).not.toBeInTheDocument();
       expect(screen.queryByText("#1", { exact: true })).not.toBeInTheDocument();
-      expect(screen.queryByText("#2", { exact: true })).not.toBeInTheDocument();
+      expect(screen.queryByText("#3", { exact: true })).not.toBeInTheDocument();
     });
 
     it("names the receipt in the split evenly toast", () => {
@@ -677,8 +712,9 @@ describe("Home Page", () => {
       );
 
       expect(toast.success).toHaveBeenCalledWith(
-        "Split remaining items on Starbucks · 2024-01-01 · #1."
+        "Split remaining items on Starbucks."
       );
+      expect(toast.info).not.toHaveBeenCalled();
     });
   });
 });
