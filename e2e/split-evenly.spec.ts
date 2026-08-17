@@ -197,7 +197,7 @@ test.describe("Split All Evenly flow", () => {
     await test.step("click Split All Evenly — toast confirms", async () => {
       await page.getByRole("button", { name: /split evenly/i }).click();
       // Wait for toast to appear
-      await expect(page.getByText("All items split evenly among everyone!").first()).toBeVisible({ timeout: 5000 });
+      await expect(page.getByText("Split remaining items on Even Diner.").first()).toBeVisible({ timeout: 5000 });
     });
 
     await test.step("progress shows 100% after split", async () => {
@@ -240,7 +240,7 @@ test.describe("Split All Evenly flow", () => {
 
     await test.step("click Split All Evenly", async () => {
       await page.getByRole("button", { name: /split evenly/i }).click();
-      await expect(page.getByText("All items split evenly among everyone!").first()).toBeVisible({ timeout: 5000 });
+      await expect(page.getByText("Split remaining items on Trio Cafe.").first()).toBeVisible({ timeout: 5000 });
     });
 
     await test.step("progress shows 100%", async () => {
@@ -324,7 +324,7 @@ test.describe("Split All Evenly flow", () => {
 
     await test.step("click Split All Evenly", async () => {
       await page.getByRole("button", { name: /split evenly/i }).click();
-      await expect(page.getByText("All items split evenly among everyone!").first()).toBeVisible({ timeout: 5000 });
+      await expect(page.getByText("Split remaining items on PreSplit Grill.").first()).toBeVisible({ timeout: 5000 });
     });
 
     await test.step("progress shows 100% after split", async () => {

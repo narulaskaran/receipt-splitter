@@ -92,7 +92,7 @@ test.describe("error states", () => {
       force: true,
     });
     await expect(
-      page.getByText("All items split evenly among everyone!").first(),
+      page.getByText("Split remaining items on Test Diner.").first(),
     ).toBeVisible();
     await expect(page.getByText("100%")).toBeVisible();
 

@@ -23,7 +23,6 @@ import {
   type PersonItemAssignment,
   type ReceiptState,
   type Group,
-  type StoredReceipt,
 } from "@/types";
 import {
   getUnassignedItems,
@@ -36,6 +35,11 @@ import {
   distributeEqualShares,
 } from "@/lib/receipt-utils";
 import { MAX_RECEIPTS_PER_SESSION } from "@/lib/constants";
+import {
+  receiptDisplayName,
+  receiptRestaurantName,
+  receiptSubtitle,
+} from "@/lib/receipt-labels";
 import {
   getUniqueGroupEmoji,
   getRandomGroupEmojiExcluding,
@@ -158,22 +162,6 @@ function updateReceiptInState(
       nextOuter
     ),
   };
-}
-
-function getAssignCardSubtitle(
-  receipts: StoredReceipt[],
-  index: number
-): string | undefined {
-  const stored = receipts[index];
-  const name = stored.receipt.restaurant || "Untitled receipt";
-  const isDuplicate =
-    receipts.filter(
-      (r) => (r.receipt.restaurant || "Untitled receipt") === name
-    ).length > 1;
-  if (isDuplicate) {
-    return `#${index + 1}`;
-  }
-  return stored.receipt.date || undefined;
 }
 
 export default function Home() {
@@ -545,7 +533,9 @@ export default function Home() {
       const nextOuter = new Map(prevState.assignedItems);
       nextOuter.set(receiptId, inner);
 
-      toast.success("All items split evenly among everyone!");
+      toast.success(
+        `Split remaining items on ${receiptDisplayName(stored, prevState.receipts)}.`
+      );
 
       const next = {
         ...prevState,
@@ -702,15 +692,15 @@ export default function Home() {
         </TabsContent>
 
         <TabsContent value="assign" className="space-y-6">
-          {state.receipts.map((stored, index) => {
+          {state.receipts.map((stored) => {
             const inner = state.assignedItems.get(stored.id) ?? new Map();
             const unassigned = getUnassignedItems(stored.receipt, inner);
             return (
               <ItemAssignment
                 key={stored.id}
                 receipt={stored.receipt}
-                title={stored.receipt.restaurant || "Untitled receipt"}
-                subtitle={getAssignCardSubtitle(state.receipts, index)}
+                title={receiptRestaurantName(stored)}
+                subtitle={receiptSubtitle(stored, state.receipts)}
                 people={state.people}
                 groups={state.groups}
                 assignedItems={inner}

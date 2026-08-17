@@ -223,7 +223,9 @@ describe("Home Page", () => {
 
       fireEvent.click(screen.getByRole("button", { name: /split evenly/i }));
 
-      expect(toast.success).toHaveBeenCalledWith("All items split evenly among everyone!");
+      expect(toast.success).toHaveBeenCalledWith(
+        "Split remaining items on Testaurant."
+      );
       expect(screen.getByText("100%")).toBeInTheDocument();
     });
   });
@@ -532,6 +534,8 @@ describe("Home Page", () => {
       render(<Home />);
       expect(screen.getByText("Alpha Grill")).toBeInTheDocument();
       expect(screen.getByText("Beta Cafe")).toBeInTheDocument();
+      expect(screen.getByText("2024-06-01")).toBeInTheDocument();
+      expect(screen.getByText("2024-06-02")).toBeInTheDocument();
     });
 
     it("split evenly on one receipt does not assign items on the other", () => {
@@ -543,7 +547,7 @@ describe("Home Page", () => {
       );
 
       expect(toast.success).toHaveBeenCalledWith(
-        "All items split evenly among everyone!"
+        "Split remaining items on Alpha Grill."
       );
       expect(
         within(cardFor("Alpha Grill")).queryAllByText(/unassigned/i)
@@ -564,6 +568,117 @@ describe("Home Page", () => {
       ]);
       render(<Home />);
       expect(screen.getByText("50%")).toBeInTheDocument();
+    });
+
+    it("always shows the date and adds #n when restaurant names collide", () => {
+      localStorage.setItem(
+        "receiptSplitterSession",
+        JSON.stringify({
+          version: 2,
+          state: {
+            receipts: [
+              {
+                id: "r1",
+                receipt: createMockReceipt({
+                  restaurant: "Starbucks",
+                  date: "2024-01-01",
+                  items: [{ name: "Latte", price: 5, quantity: 1 }],
+                  subtotal: 5,
+                  tax: 0,
+                  tip: 0,
+                  total: 5,
+                }),
+              },
+              {
+                id: "r2",
+                receipt: createMockReceipt({
+                  restaurant: "Starbucks",
+                  date: "2024-01-01",
+                  items: [{ name: "Mocha", price: 6, quantity: 1 }],
+                  subtotal: 6,
+                  tax: 0,
+                  tip: 0,
+                  total: 6,
+                }),
+              },
+            ],
+            people: mockPeople,
+            assignedItems: [
+              ["r1", []],
+              ["r2", []],
+            ],
+            groups: [],
+            isLoading: false,
+            error: null,
+          },
+          activeTab: "assign",
+        })
+      );
+      render(<Home />);
+
+      expect(screen.getAllByText("Starbucks")).toHaveLength(2);
+      expect(screen.getByText("2024-01-01 · #1")).toBeInTheDocument();
+      expect(screen.getByText("2024-01-01 · #2")).toBeInTheDocument();
+      expect(screen.queryByText("#1", { exact: true })).not.toBeInTheDocument();
+      expect(screen.queryByText("#2", { exact: true })).not.toBeInTheDocument();
+    });
+
+    it("names the receipt in the split evenly toast", () => {
+      localStorage.setItem(
+        "receiptSplitterSession",
+        JSON.stringify({
+          version: 2,
+          state: {
+            receipts: [
+              {
+                id: "r1",
+                receipt: createMockReceipt({
+                  restaurant: "Starbucks",
+                  date: "2024-01-01",
+                  items: [{ name: "Latte", price: 5, quantity: 1 }],
+                  subtotal: 5,
+                  tax: 0,
+                  tip: 0,
+                  total: 5,
+                }),
+              },
+              {
+                id: "r2",
+                receipt: createMockReceipt({
+                  restaurant: "Starbucks",
+                  date: "2024-01-02",
+                  items: [{ name: "Mocha", price: 6, quantity: 1 }],
+                  subtotal: 6,
+                  tax: 0,
+                  tip: 0,
+                  total: 6,
+                }),
+              },
+            ],
+            people: mockPeople,
+            assignedItems: [
+              ["r1", []],
+              ["r2", []],
+            ],
+            groups: [],
+            isLoading: false,
+            error: null,
+          },
+          activeTab: "assign",
+        })
+      );
+      render(<Home />);
+
+      const morningCard = screen
+        .getByText("2024-01-01 · #1")
+        .closest("[data-slot='card']") as HTMLElement;
+      fireEvent.click(
+        within(morningCard).getByRole("button", { name: /split evenly/i })
+      );
+
+      expect(toast.success).toHaveBeenCalledWith(
+        "Split remaining items on Starbucks · 2024-01-01 · #1."
+      );
     });
   });
 });

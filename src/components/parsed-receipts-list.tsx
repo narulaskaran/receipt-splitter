@@ -13,37 +13,13 @@ import {
 import { ReceiptDetails } from "@/components/receipt-details";
 import { formatCurrency } from "@/lib/receipt-utils";
 import { MAX_RECEIPTS_PER_SESSION } from "@/lib/constants";
+import { receiptDisplayName } from "@/lib/receipt-labels";
 import { type Receipt, type StoredReceipt } from "@/types";
 
 interface ParsedReceiptsListProps {
   receipts: StoredReceipt[];
   onReceiptUpdate: (receiptId: string, receipt: Receipt) => boolean | void;
   onRemoveReceipt: (receiptId: string) => void;
-}
-
-function untitledName(receipt: StoredReceipt): string {
-  const name = receipt.receipt.restaurant?.trim();
-  return name ? name : "Untitled receipt";
-}
-
-/** Distinguish same-restaurant receipts with date, then a short index. */
-export function receiptDisplayName(
-  stored: StoredReceipt,
-  receipts: StoredReceipt[]
-): string {
-  const name = untitledName(stored);
-  const sameName = receipts.filter((r) => untitledName(r) === name);
-  if (sameName.length <= 1) return name;
-
-  const sameDate = sameName.filter(
-    (r) => r.receipt.date === stored.receipt.date
-  );
-  if (stored.receipt.date && sameDate.length === 1) {
-    return `${name} · ${stored.receipt.date}`;
-  }
-
-  const index = sameName.findIndex((r) => r.id === stored.id) + 1;
-  return `${name} (${index})`;
 }
 
 export function ParsedReceiptsList({

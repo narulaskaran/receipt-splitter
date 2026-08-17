@@ -1,49 +1,6 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import {
-  ParsedReceiptsList,
-  receiptDisplayName,
-} from "./parsed-receipts-list";
+import { ParsedReceiptsList } from "./parsed-receipts-list";
 import { createMockReceipt, createStoredReceipt } from "@/test/test-utils";
-
-describe("receiptDisplayName", () => {
-  it("falls back to Untitled receipt", () => {
-    const stored = createStoredReceipt(
-      createMockReceipt({ restaurant: null }),
-      "a"
-    );
-    expect(receiptDisplayName(stored, [stored])).toBe("Untitled receipt");
-  });
-
-  it("uses date to distinguish two receipts with the same name", () => {
-    const first = createStoredReceipt(
-      createMockReceipt({ restaurant: "Starbucks", date: "2024-01-01" }),
-      "a"
-    );
-    const second = createStoredReceipt(
-      createMockReceipt({ restaurant: "Starbucks", date: "2024-01-02" }),
-      "b"
-    );
-    expect(receiptDisplayName(first, [first, second])).toBe(
-      "Starbucks · 2024-01-01"
-    );
-    expect(receiptDisplayName(second, [first, second])).toBe(
-      "Starbucks · 2024-01-02"
-    );
-  });
-
-  it("uses a short index when name and date both collide", () => {
-    const first = createStoredReceipt(
-      createMockReceipt({ restaurant: "Starbucks", date: "2024-01-01" }),
-      "a"
-    );
-    const second = createStoredReceipt(
-      createMockReceipt({ restaurant: "Starbucks", date: "2024-01-01" }),
-      "b"
-    );
-    expect(receiptDisplayName(first, [first, second])).toBe("Starbucks (1)");
-    expect(receiptDisplayName(second, [first, second])).toBe("Starbucks (2)");
-  });
-});
 
 describe("ParsedReceiptsList", () => {
   it("renders restaurant, date, item count, total, and currency", () => {
@@ -119,5 +76,31 @@ describe("ParsedReceiptsList", () => {
     fireEvent.click(screen.getByRole("button", { name: /remove cafe/i }));
     fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
     expect(onRemoveReceipt).not.toHaveBeenCalled();
+  });
+
+  it("keeps the date and adds #n when restaurant names collide", () => {
+    const morning = createStoredReceipt(
+      createMockReceipt({ restaurant: "Starbucks", date: "2024-01-01" }),
+      "a"
+    );
+    const evening = createStoredReceipt(
+      createMockReceipt({ restaurant: "Starbucks", date: "2024-01-01" }),
+      "b"
+    );
+
+    render(
+      <ParsedReceiptsList
+        receipts={[morning, evening]}
+        onReceiptUpdate={jest.fn()}
+        onRemoveReceipt={jest.fn()}
+      />
+    );
+
+    expect(
+      screen.getByText("Starbucks · 2024-01-01 · #1")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Starbucks · 2024-01-01 · #2")
+    ).toBeInTheDocument();
   });
 });
