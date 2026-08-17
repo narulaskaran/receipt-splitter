@@ -1,95 +1,148 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from "@playwright/test";
+
+/**
+ * v1 of this harness waited for "Split Validation Issues" on a single-receipt
+ * session with incomplete assignments. After multi-receipt Results gating, that
+ * copy never appears: unassigned items bounce off Results, and a complete
+ * 2-receipt day shows Day total / By receipt instead.
+ */
+const MOCK_COFFEE_ID = "receipt-coffee";
+const MOCK_LUNCH_ID = "receipt-lunch";
 
 const MOCK_STATE = {
+  version: 2,
   state: {
-    originalReceipt: {
-      id: "receipt-123",
-      restaurant: "Screenshot Cafe",
-      date: "2025-12-25",
-      subtotal: 50.00,
-      tax: 5.00,
-      tip: 10.00,
-      total: 65.00,
-      items: [
-        { name: "Burger", price: 15.00, quantity: 1 },
-        { name: "Fries", price: -5.00, quantity: 1 }, // Negative price error
-        { name: "Soda", price: 3.00, quantity: 2 },
-        { name: "Salad", price: 12.00, quantity: 1 }
-      ]
-    },
+    receipts: [
+      {
+        id: MOCK_COFFEE_ID,
+        receipt: {
+          restaurant: "Coffee",
+          date: "2024-01-15",
+          subtotal: 10.0,
+          tax: 1.0,
+          tip: 2.0,
+          total: 13.0,
+          currency: "USD",
+          items: [
+            { name: "Latte", price: 5.0, quantity: 1 },
+            { name: "Muffin", price: 5.0, quantity: 1 },
+          ],
+        },
+      },
+      {
+        id: MOCK_LUNCH_ID,
+        receipt: {
+          restaurant: "Lunch",
+          date: "2024-01-15",
+          subtotal: 20.0,
+          tax: 2.0,
+          tip: 4.0,
+          total: 26.0,
+          currency: "USD",
+          items: [
+            { name: "Burger", price: 10.0, quantity: 1 },
+            { name: "Fries", price: 10.0, quantity: 1 },
+          ],
+        },
+      },
+    ],
     people: [
-      { id: "p1", name: "Alice", items: [], totalBeforeTax: 0, tax: 0, tip: 0, finalTotal: 0 },
-      { id: "p2", name: "Bob", items: [], totalBeforeTax: 0, tax: 0, tip: 0, finalTotal: 0 }
+      {
+        id: "p1",
+        name: "Alice",
+        items: [],
+        totalBeforeTax: 15,
+        tax: 1.5,
+        tip: 3,
+        finalTotal: 19.5,
+      },
+      {
+        id: "p2",
+        name: "Bob",
+        items: [],
+        totalBeforeTax: 15,
+        tax: 1.5,
+        tip: 3,
+        finalTotal: 19.5,
+      },
     ],
-    // Mismatched assignments: Sum of splits won't match item price for Burger
     assignedItems: [
-        [0, [{ personId: "p1", sharePercentage: 50 }]], // Only 50% assigned (Mismatch)
-        [1, [{ personId: "p2", sharePercentage: 100 }]],
-        [2, [{ personId: "p1", sharePercentage: 100 }]],
-        [3, [{ personId: "p2", sharePercentage: 100 }]]
+      [
+        MOCK_COFFEE_ID,
+        [
+          [0, [{ personId: "p1", sharePercentage: 100 }]],
+          [1, [{ personId: "p2", sharePercentage: 100 }]],
+        ],
+      ],
+      [
+        MOCK_LUNCH_ID,
+        [
+          [0, [{ personId: "p1", sharePercentage: 100 }]],
+          [1, [{ personId: "p2", sharePercentage: 100 }]],
+        ],
+      ],
     ],
-    unassignedItems: [],
     groups: [],
     isLoading: false,
     error: null,
   },
-  activeTab: "results"
+  activeTab: "results",
 };
 
-test('Capture validation screenshots', async ({ page }) => {
-  // 1. Set up local storage with the invalid state
+async function seedResultsSession(page: Page) {
   await page.addInitScript((value) => {
-    window.localStorage.setItem('receiptSplitterSession', JSON.stringify(value));
+    window.localStorage.setItem(
+      "receiptSplitterSession",
+      JSON.stringify(value),
+    );
   }, MOCK_STATE);
+}
 
-  // 2. Go to the page (it should load directly into the results tab due to activeTab: "results")
-  await page.goto('/');
+async function expectGatedMultiReceiptResults(page: Page) {
+  await expect(page.getByRole("tab", { name: /results/i })).toHaveAttribute(
+    "data-state",
+    "active",
+    { timeout: 10000 },
+  );
+  await expect(page.getByRole("heading", { name: "Day total" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "By receipt" })).toBeVisible();
+}
 
-  // Wait for content to load
-  await page.waitForSelector('text=Split Validation Issues');
+test("Capture validation screenshots", async ({ page }) => {
+  await seedResultsSession(page);
+  await page.goto("/");
+  await expectGatedMultiReceiptResults(page);
 
-  // --- Screenshot 1: Validation Errors Component (Desktop) ---
-  const errorCard = page.locator('[class*="border-yellow-500/50"]');
-  await errorCard.screenshot({ path: 'screenshots/validation-errors-desktop.png' });
+  const dayTotal = page.getByTestId("day-total");
+  await dayTotal.screenshot({ path: "screenshots/validation-errors-desktop.png" });
 
-  // --- Screenshot 2: Full Results View (Desktop) ---
-  await page.screenshot({ path: 'screenshots/full-results-desktop.png', fullPage: true });
+  await page.screenshot({ path: "screenshots/full-results-desktop.png", fullPage: true });
 
-  // --- Screenshot 3: Disabled Share Button / Warning ---
-  // We need to scroll to the share button or capture that specific area
-  // The share button is in the ResultsSummary component
-  const shareSection = page.locator('text=Your Phone Number').locator('..').locator('..');
-  // Optional: Click it to trigger toast if possible, but static screenshot of disabled state is good.
-  // In the current code, the button isn't disabled via attribute but shows an error on click if invalid.
-  // Actually, looking at the code: disabled={!canShareSplit ...} 
-  // and canShareSplit checks validationResult.isValid. So it SHOULD be disabled.
-  // Let's check if it is disabled.
-  const shareButton = page.getByRole('button', { name: 'Share Split' });
+  const shareSection = page
+    .locator("text=Your Phone Number")
+    .locator("..")
+    .locator("..");
+  // Share Split stays disabled until a 10-digit Venmo phone is entered.
+  const shareButton = page.getByRole("button", { name: "Share Split" });
   await expect(shareButton).toBeDisabled();
-  await shareSection.screenshot({ path: 'screenshots/share-section-disabled.png' });
+  await shareSection.screenshot({ path: "screenshots/share-section-disabled.png" });
 
-  // --- Screenshot 4: Dark Mode ---
-  // Toggle dark mode. Since I don't see a clear toggle in the snippets, I'll emulate media.
-  await page.emulateMedia({ colorScheme: 'dark' });
-  await page.reload(); // Reload to ensure theme applies if it's JS based, or just wait.
-  // If the app uses 'next-themes' system preference might be enough.
-  await page.waitForTimeout(1000); 
-  await errorCard.screenshot({ path: 'screenshots/validation-errors-dark.png' });
-
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.reload();
+  await expectGatedMultiReceiptResults(page);
+  await page.getByTestId("day-total").screenshot({
+    path: "screenshots/validation-errors-dark.png",
+  });
 });
 
-test('Capture mobile screenshots', async ({ page }) => {
-  // Set viewport to mobile
+test("Capture mobile screenshots", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
 
-  await page.addInitScript((value) => {
-    window.localStorage.setItem('receiptSplitterSession', JSON.stringify(value));
-  }, MOCK_STATE);
+  await seedResultsSession(page);
+  await page.goto("/");
+  await expectGatedMultiReceiptResults(page);
 
-  await page.goto('/');
-  await page.waitForSelector('text=Split Validation Issues');
-
-  // --- Screenshot 5: Validation Errors (Mobile) ---
-  const errorCard = page.locator('[class*="border-yellow-500/50"]');
-  await errorCard.screenshot({ path: 'screenshots/validation-errors-mobile.png' });
+  await page.getByTestId("day-total").screenshot({
+    path: "screenshots/validation-errors-mobile.png",
+  });
 });
