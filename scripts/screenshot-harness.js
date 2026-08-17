@@ -29,6 +29,10 @@
 const { chromium } = require('playwright');
 const path = require('path');
 const fs = require('fs');
+const {
+  MOCK_PEOPLE,
+  buildMockSession,
+} = require('./screenshot-fixtures');
 
 // Define viewport configurations
 const VIEWPORTS = [
@@ -43,149 +47,6 @@ const VIEWPORTS = [
 
 // localStorage key used by the app (must match src/app/page.tsx)
 const LOCAL_STORAGE_KEY = 'receiptSplitterSession';
-
-// Synthetic mock data matching the app's ReceiptState structure
-const MOCK_RECEIPT = {
-  restaurant: "Test Restaurant",
-  date: "2024-01-15",
-  subtotal: 45.00,
-  tax: 4.50,
-  tip: 9.00,
-  total: 58.50,
-  currency: "USD",
-  items: [
-    { name: "Burger", price: 15.00, quantity: 1 },
-    { name: "Fries", price: 5.00, quantity: 2 },
-    { name: "Soda", price: 3.00, quantity: 2 },
-    { name: "Salad", price: 12.00, quantity: 1 },
-  ]
-};
-
-const MOCK_RECEIPT_ID = "receipt-1";
-
-const MOCK_COFFEE_ID = "receipt-coffee";
-const MOCK_LUNCH_ID = "receipt-lunch";
-
-const MOCK_COFFEE_RECEIPT = {
-  restaurant: "Coffee",
-  date: "2024-01-15",
-  subtotal: 10.00,
-  tax: 1.00,
-  tip: 2.00,
-  total: 13.00,
-  currency: "USD",
-  items: [
-    { name: "Latte", price: 5.00, quantity: 1 },
-    { name: "Muffin", price: 5.00, quantity: 1 },
-  ],
-};
-
-const MOCK_LUNCH_RECEIPT = {
-  ...MOCK_RECEIPT,
-  restaurant: "Lunch",
-};
-
-const MOCK_COFFEE_ASSIGNED_ITEMS = [
-  [0, [{ personId: "person-1", sharePercentage: 100 }]],
-  [1, [{ personId: "person-2", sharePercentage: 50 }, { personId: "person-3", sharePercentage: 50 }]],
-];
-
-const MOCK_PEOPLE = [
-  {
-    id: "person-1",
-    name: "Alice",
-    items: [
-      { itemId: 0, itemName: "Burger", originalPrice: 15.00, quantity: 1, sharePercentage: 100, amount: 15.00 },
-      { itemId: 1, itemName: "Fries", originalPrice: 5.00, quantity: 1, sharePercentage: 50, amount: 2.50 }
-    ],
-    totalBeforeTax: 17.50,
-    tax: 1.75,
-    tip: 3.50,
-    finalTotal: 22.75
-  },
-  {
-    id: "person-2",
-    name: "Bob",
-    items: [
-      { itemId: 1, itemName: "Fries", originalPrice: 5.00, quantity: 1, sharePercentage: 50, amount: 2.50 },
-      { itemId: 2, itemName: "Soda", originalPrice: 3.00, quantity: 2, sharePercentage: 100, amount: 6.00 }
-    ],
-    totalBeforeTax: 8.50,
-    tax: 0.85,
-    tip: 1.70,
-    finalTotal: 11.05
-  },
-  {
-    id: "person-3",
-    name: "Charlie",
-    items: [
-      { itemId: 3, itemName: "Salad", originalPrice: 12.00, quantity: 1, sharePercentage: 100, amount: 12.00 }
-    ],
-    totalBeforeTax: 12.00,
-    tax: 1.20,
-    tip: 2.40,
-    finalTotal: 15.60
-  }
-];
-
-const MOCK_GROUPS = [
-  {
-    id: "group-1",
-    name: "Friends",
-    memberIds: ["person-1", "person-2"],
-    emoji: "1f3c8"
-  }
-];
-
-// assignedItems stored as array of [itemIndex, assignments[]] entries (serialized Map)
-const MOCK_ASSIGNED_ITEMS = [
-  [0, [{ personId: "person-1", sharePercentage: 100 }]],
-  [1, [{ personId: "person-1", sharePercentage: 50 }, { personId: "person-2", sharePercentage: 50 }]],
-  [2, [{ personId: "person-2", sharePercentage: 100 }]],
-  [3, [{ personId: "person-3", sharePercentage: 100 }]],
-];
-
-/**
- * Build a v2 session matching serializeSession() in src/lib/session-persistence.ts.
- * assignedItems is nested: [[receiptId, [[itemIndex, assignments]]]]
- * @param {string} activeTab - Which tab to show (upload, people, assign, results)
- * @param {{ multiReceipt?: boolean }} [options]
- */
-function buildMockSession(activeTab = 'results', { multiReceipt = false } = {}) {
-  if (multiReceipt) {
-    return {
-      version: 2,
-      state: {
-        receipts: [
-          { id: MOCK_COFFEE_ID, receipt: MOCK_COFFEE_RECEIPT },
-          { id: MOCK_LUNCH_ID, receipt: MOCK_LUNCH_RECEIPT },
-        ],
-        people: MOCK_PEOPLE,
-        assignedItems: [
-          [MOCK_COFFEE_ID, MOCK_COFFEE_ASSIGNED_ITEMS],
-          [MOCK_LUNCH_ID, MOCK_ASSIGNED_ITEMS],
-        ],
-        groups: MOCK_GROUPS,
-        isLoading: false,
-        error: null,
-      },
-      activeTab,
-    };
-  }
-
-  return {
-    version: 2,
-    state: {
-      receipts: [{ id: MOCK_RECEIPT_ID, receipt: MOCK_RECEIPT }],
-      people: MOCK_PEOPLE,
-      assignedItems: [[MOCK_RECEIPT_ID, MOCK_ASSIGNED_ITEMS]],
-      groups: MOCK_GROUPS,
-      isLoading: false,
-      error: null,
-    },
-    activeTab,
-  };
-}
 
 /**
  * Generate URL params for /split route from mock data
