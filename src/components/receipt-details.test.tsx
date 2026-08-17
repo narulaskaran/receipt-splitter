@@ -319,47 +319,23 @@ describe("ReceiptDetails", () => {
       });
     });
 
-    it("disables the currency select when lockCurrency is set", () => {
+    it("keeps the dialog open when onReceiptUpdate rejects the edit", async () => {
+      mockOnReceiptUpdate.mockReturnValueOnce(false);
       render(
         <ReceiptDetails
           receipt={mockReceipt}
           onReceiptUpdate={mockOnReceiptUpdate}
-          lockCurrency
         />
       );
 
       fireEvent.click(screen.getByRole("button", { name: /edit/i }));
-
-      expect(screen.getByRole("combobox", { name: /currency/i })).toBeDisabled();
-      expect(
-        screen.getByText(/locked to USD because this split has multiple receipts/i)
-      ).toBeInTheDocument();
-    });
-
-    it("saves other fields without changing currency when lockCurrency is set", async () => {
-      render(
-        <ReceiptDetails
-          receipt={mockReceipt}
-          onReceiptUpdate={mockOnReceiptUpdate}
-          lockCurrency
-        />
-      );
-
-      fireEvent.click(screen.getByRole("button", { name: /edit/i }));
-      fireEvent.change(screen.getByLabelText("Restaurant"), {
-        target: { value: "Locked Cafe" },
-      });
       fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
 
       await waitFor(() => {
-        expect(mockOnReceiptUpdate).toHaveBeenCalledWith(
-          expect.objectContaining({
-            restaurant: "Locked Cafe",
-            currency: "USD",
-          })
-        );
+        expect(mockOnReceiptUpdate).toHaveBeenCalled();
       });
-      expect(toast.error).not.toHaveBeenCalled();
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(toast.success).not.toHaveBeenCalled();
     });
   });
 

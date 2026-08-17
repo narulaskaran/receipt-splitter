@@ -331,12 +331,12 @@ export default function Home() {
     });
   };
 
-  // Handle receipt updates. Currency cannot diverge from other receipts.
+  // Handle receipt updates. Currency mismatches are rejected like uploads.
   const handleReceiptUpdate = (
     receiptId: string,
     updatedReceipt: Receipt,
     remappedAssignments?: Map<number, PersonItemAssignment[]>
-  ) => {
+  ): boolean => {
     const pinned = currencyChangeConflict(
       stateRef.current.receipts,
       receiptId,
@@ -344,9 +344,9 @@ export default function Home() {
     );
     if (pinned) {
       toast.error(
-        `This split is in ${pinned}. All receipts must use the same currency.`
+        `This receipt is ${updatedReceipt.currency}, but this split is in ${pinned}.`
       );
-      return;
+      return false;
     }
     setState((prevState) => {
       const next = updateReceiptInState(
@@ -358,6 +358,7 @@ export default function Home() {
       stateRef.current = next;
       return next;
     });
+    return true;
   };
 
   // Handle item assignments

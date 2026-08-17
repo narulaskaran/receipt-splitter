@@ -426,7 +426,7 @@ describe("Home Page", () => {
       expect(global.fetch).not.toHaveBeenCalled();
     });
 
-    it("does not rewrite other receipts when currency is locked", async () => {
+    it("rejects a currency edit on one receipt without rewriting the others", async () => {
       loadV2({
         receipts: [
           { id: "r1", receipt: mockReceipt },
@@ -443,12 +443,17 @@ describe("Home Page", () => {
       render(<Home />);
 
       fireEvent.click(screen.getByRole("button", { name: /edit/i }));
-      const currencySelect = screen.getByRole("combobox", { name: /currency/i });
-      expect(currencySelect).toBeDisabled();
-      expect(
-        screen.getByText(/locked to USD because this split has multiple receipts/i)
-      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("combobox", { name: /currency/i }));
+      fireEvent.click(screen.getByRole("option", { name: /EUR - Euro/i }));
+      fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
 
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith(
+          "This receipt is EUR, but this split is in USD."
+        );
+      });
+      expect(toast.success).not.toHaveBeenCalledWith("Receipt details updated");
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
 
       await waitFor(() => {

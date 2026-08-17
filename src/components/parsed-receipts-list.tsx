@@ -17,7 +17,7 @@ import { type Receipt, type StoredReceipt } from "@/types";
 
 interface ParsedReceiptsListProps {
   receipts: StoredReceipt[];
-  onReceiptUpdate: (receiptId: string, receipt: Receipt) => void;
+  onReceiptUpdate: (receiptId: string, receipt: Receipt) => boolean | void;
   onRemoveReceipt: (receiptId: string) => void;
 }
 
@@ -132,7 +132,6 @@ export function ParsedReceiptsList({
                 <div className="border-t p-3">
                   <ReceiptDetails
                     receipt={receipt}
-                    lockCurrency={receipts.length > 1}
                     onReceiptUpdate={(updated) =>
                       onReceiptUpdate(stored.id, updated)
                     }
