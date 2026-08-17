@@ -60,7 +60,8 @@ test.describe("empty states", () => {
     await expect(page.getByText("100%")).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Next", exact: true }),
-    ).toBeDisabled();
+    ).toBeEnabled();
+    await expect(page.getByRole("tab", { name: /results/i })).toBeEnabled();
   });
 
   test("Next stays disabled until all items are assigned", async ({ page }) => {
