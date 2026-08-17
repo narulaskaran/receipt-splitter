@@ -1,18 +1,19 @@
+import { execFileSync } from "node:child_process";
 import { test, expect, type Page } from "@playwright/test";
-import { createRequire } from "module";
 
-const require = createRequire(import.meta.url);
-const { buildMockSession } = require("../scripts/screenshot-fixtures.js") as {
-  buildMockSession: (
-    activeTab?: string,
-    options?: { multiReceipt?: boolean },
-  ) => Record<string, unknown>;
-};
+function harnessSession(activeTab: string, multiReceipt = false) {
+  const output = execFileSync(
+    "node",
+    [
+      "-e",
+      `const { buildMockSession } = require("./scripts/screenshot-fixtures"); console.log(JSON.stringify(buildMockSession(${JSON.stringify(activeTab)}, ${JSON.stringify({ multiReceipt })})));`,
+    ],
+    { encoding: "utf8", cwd: process.cwd() },
+  );
+  return JSON.parse(output) as Record<string, unknown>;
+}
 
-async function seedHarnessSession(
-  page: Page,
-  session: Record<string, unknown>,
-) {
+async function seedHarnessSession(page: Page, session: Record<string, unknown>) {
   await page.addInitScript((data) => {
     window.localStorage.setItem(
       "receiptSplitterSession",
@@ -25,7 +26,7 @@ test.describe("screenshot harness fixtures on Results", () => {
   test("single-receipt mock has no item/subtotal validation banner", async ({
     page,
   }) => {
-    await seedHarnessSession(page, buildMockSession("results"));
+    await seedHarnessSession(page, harnessSession("results"));
     await page.goto("/");
 
     await expect(page.getByText("Alice").first()).toBeVisible({
@@ -40,10 +41,7 @@ test.describe("screenshot harness fixtures on Results", () => {
   test("Coffee + Lunch mock has no item/subtotal validation banner", async ({
     page,
   }) => {
-    await seedHarnessSession(
-      page,
-      buildMockSession("results", { multiReceipt: true }),
-    );
+    await seedHarnessSession(page, harnessSession("results", true));
     await page.goto("/");
 
     await expect(page.getByRole("heading", { name: "Day total" })).toBeVisible({
