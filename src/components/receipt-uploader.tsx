@@ -19,7 +19,11 @@ import {
 } from "@/lib/storage";
 
 interface ReceiptUploaderProps {
-  onReceiptParsed: (receipt: Receipt) => void;
+  /**
+   * Called after a file is parsed. Return `false` to reject the receipt
+   * (currency mismatch, session cap). Preview/cache update only on accept.
+   */
+  onReceiptParsed: (receipt: Receipt) => boolean | void;
   isLoading: boolean;
   setIsLoading: (isLoading: boolean) => void;
   resetImageTrigger?: number;
@@ -210,12 +214,13 @@ export function ReceiptUploader({
             if (!prepared) continue;
 
             const receipt = await parseReceiptFile(prepared);
+            const accepted = onReceiptParsed(receipt) !== false;
+            if (!accepted) continue;
             try {
               await updatePreview(prepared, setPreviewUrl);
             } catch {
               // Preview caching is best-effort and must not block a successful parse
             }
-            onReceiptParsed(receipt);
           } catch (error) {
             console.error("Receipt parsing error:", error);
             const errorMessage =

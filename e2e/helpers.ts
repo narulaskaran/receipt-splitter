@@ -47,6 +47,16 @@ export async function uploadTinyReceipt(page: Page) {
   });
 }
 
+/**
+ * Accordion toggle for a parsed receipt card.
+ * The restaurant name is the start of the button's accessible name; the
+ * Remove control is "Remove {name}" and must not match this locator.
+ */
+export function receiptCardToggle(page: Page, restaurant: string) {
+  const escaped = restaurant.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return page.getByRole("button", { name: new RegExp(`^${escaped}`) });
+}
+
 export function parseMoney(text: string | null | undefined): number {
   if (!text) return NaN;
   const numeric = text.replace(/[^0-9,.-]/g, "");

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { receiptCardToggle } from "./helpers";
 
 // =============================================================================
 // Helper: preload session via localStorage
@@ -250,7 +251,9 @@ test.describe("edge-case receipt values", () => {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
 
-      await expect(page.getByText("Free Cafe")).toBeVisible({ timeout: 10000 });
+      await expect(receiptCardToggle(page, "Free Cafe")).toBeVisible({
+        timeout: 10000,
+      });
       await expect(page.getByText("$0.00").first()).toBeVisible();
     });
 
@@ -313,11 +316,11 @@ test.describe("edge-case receipt values", () => {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
 
-      await expect(page.getByText("Corner Bistro")).toBeVisible({
+      await expect(receiptCardToggle(page, "Corner Bistro")).toBeVisible({
         timeout: 10000,
       });
       await expect(page.getByText("$12.50")).toBeVisible();
-      await expect(page.getByText("$16.25")).toBeVisible();
+      await expect(page.getByText("$16.25").first()).toBeVisible();
     });
 
     await test.step("People tab — single person added", async () => {
@@ -369,11 +372,11 @@ test.describe("edge-case receipt values", () => {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
 
-      await expect(page.getByText("Large Party Hall")).toBeVisible({
+      await expect(receiptCardToggle(page, "Large Party Hall")).toBeVisible({
         timeout: 10000,
       });
       await expect(page.getByText("$250.00")).toBeVisible();
-      await expect(page.getByText("$325.00")).toBeVisible();
+      await expect(page.getByText("$325.00").first()).toBeVisible();
     });
 
     await test.step("People tab — all four people visible", async () => {
@@ -432,7 +435,7 @@ test.describe("edge-case receipt values", () => {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
 
-      await expect(page.getByText("London Cafe")).toBeVisible({
+      await expect(receiptCardToggle(page, "London Cafe")).toBeVisible({
         timeout: 10000,
       });
       await expect(page.getByText("GBP - British Pound")).toBeVisible();
@@ -483,7 +486,7 @@ test.describe("edge-case receipt values", () => {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
 
-      await expect(page.getByText("Paris Bistro")).toBeVisible({
+      await expect(receiptCardToggle(page, "Paris Bistro")).toBeVisible({
         timeout: 10000,
       });
       await expect(page.getByText("EUR - Euro")).toBeVisible();
@@ -516,7 +519,7 @@ test.describe("edge-case receipt values", () => {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
 
-      await expect(page.getByText("Tokyo Ramen")).toBeVisible({
+      await expect(receiptCardToggle(page, "Tokyo Ramen")).toBeVisible({
         timeout: 10000,
       });
       await expect(page.getByText(/JPY - Japanese Yen/)).toBeVisible();

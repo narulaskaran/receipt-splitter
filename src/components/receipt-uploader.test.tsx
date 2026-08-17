@@ -361,4 +361,97 @@ describe("ReceiptUploader", () => {
       expect.stringMatching(/Only 1 more receipt/)
     );
   });
+
+  it("does not update thumbnail or cached image when onReceiptParsed rejects", async () => {
+    const OriginalFileReader = global.FileReader;
+    class FakeFileReader {
+      result: string | ArrayBuffer | null = null;
+      onload: ((this: FileReader, ev: ProgressEvent<FileReader>) => void) | null =
+        null;
+      onerror: ((this: FileReader, ev: ProgressEvent<FileReader>) => void) | null =
+        null;
+      readAsDataURL(file: Blob) {
+        const name = file instanceof File ? file.name : "blob";
+        this.result = `data:${file.type};base64,${btoa(name)}`;
+        queueMicrotask(() => {
+          this.onload?.call(
+            this as unknown as FileReader,
+            {} as ProgressEvent<FileReader>
+          );
+        });
+      }
+    }
+    global.FileReader = FakeFileReader as unknown as typeof FileReader;
+
+    try {
+      mockOnReceiptParsed.mockReturnValueOnce(true).mockReturnValueOnce(false);
+
+      (global.fetch as jest.Mock)
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            restaurant: "NY Diner",
+            total: 10,
+            items: [],
+            subtotal: 10,
+            tax: 0,
+            tip: 0,
+            currency: "USD",
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({
+            restaurant: "Paris Bistro",
+            total: 20,
+            items: [],
+            subtotal: 20,
+            tax: 0,
+            tip: 0,
+            currency: "EUR",
+          }),
+        });
+
+      renderUploader();
+
+      const usdFile = new File(["usd-image"], "usd.jpg", { type: "image/jpeg" });
+      await userEvent.upload(getFileInput(), usdFile);
+
+      await waitFor(() => {
+        expect(mockOnReceiptParsed).toHaveBeenCalledTimes(1);
+      });
+      await waitFor(() => {
+        expect(screen.getByAltText("Receipt preview")).toBeInTheDocument();
+      });
+
+      const usdDataUrl = `data:image/jpeg;base64,${btoa("usd.jpg")}`;
+      const previewAfterUsd = screen
+        .getByAltText("Receipt preview")
+        .getAttribute("src");
+      const cachedAfterUsd = localStorage.getItem("receiptSplitterImage");
+      expect(previewAfterUsd).toBe(usdDataUrl);
+      expect(cachedAfterUsd).toBe(usdDataUrl);
+      expect(usdDataUrl).not.toBe(`data:image/jpeg;base64,${btoa("eur.jpg")}`);
+
+      const eurFile = new File(["eur-image-different-bytes"], "eur.jpg", {
+        type: "image/jpeg",
+      });
+      await userEvent.upload(getFileInput(), eurFile);
+
+      await waitFor(() => {
+        expect(mockOnReceiptParsed).toHaveBeenCalledTimes(2);
+      });
+      expect(mockOnReceiptParsed).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ restaurant: "Paris Bistro", currency: "EUR" })
+      );
+
+      expect(screen.getByAltText("Receipt preview").getAttribute("src")).toBe(
+        previewAfterUsd
+      );
+      expect(localStorage.getItem("receiptSplitterImage")).toBe(cachedAfterUsd);
+    } finally {
+      global.FileReader = OriginalFileReader;
+    }
+  });
 });
