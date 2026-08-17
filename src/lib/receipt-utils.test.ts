@@ -8,9 +8,15 @@ import {
   calculateSubtotal,
   remapAssignmentsAfterDelete,
   distributeEqualShares,
+  sessionCurrency,
+  validateReceiptCurrency,
+  calculateSessionPersonTotals,
+  validateSessionAssignments,
+  getSessionUnassigned,
+  validateSessionInvariants,
 } from "./receipt-utils";
 import { mockPeople, mockReceipt, mockAssignedItems } from "@/test/test-utils";
-import { type PersonItemAssignment, type Receipt, type Person } from "@/types";
+import { type PersonItemAssignment, type Receipt, type Person, type StoredReceipt, type ItemAssignments } from "@/types";
 import { formatAmount } from "./utils";
 
 describe("receipt-utils", () => {
@@ -743,5 +749,133 @@ describe("validateReceiptInvariants", () => {
       const result = validateReceiptInvariants(receipt, new Map(), []);
       expect(result.isValid).toBe(true);
     });
+  });
+});
+
+describe("calculatePersonTotals receipt metadata", () => {
+  it("sets receiptName from the restaurant and omits receiptId without a 4th arg", () => {
+    const result = calculatePersonTotals(mockReceipt, mockPeople, mockAssignedItems);
+    expect(result[0].items[0].receiptName).toBe("Testaurant");
+    expect(result[0].items[0].receiptId).toBeUndefined();
+  });
+
+  it("sets receiptId when the optional 4th argument is provided", () => {
+    const result = calculatePersonTotals(
+      mockReceipt,
+      mockPeople,
+      mockAssignedItems,
+      "receipt-1"
+    );
+    expect(result[0].items[0].receiptId).toBe("receipt-1");
+    expect(result[0].items[0].receiptName).toBe("Testaurant");
+  });
+});
+
+describe("session-level receipt helpers", () => {
+  const receiptA: Receipt = {
+    restaurant: "Cafe A",
+    date: "2024-01-01",
+    subtotal: 50,
+    tax: 5,
+    tip: 5,
+    total: 60,
+    currency: "USD",
+    items: [{ name: "Burger", price: 50, quantity: 1 }],
+  };
+  const receiptB: Receipt = {
+    restaurant: "Cafe B",
+    date: "2024-01-02",
+    subtotal: 40,
+    tax: 4,
+    tip: 6,
+    total: 50,
+    currency: "USD",
+    items: [{ name: "Fries", price: 40, quantity: 1 }],
+  };
+  const storedA: StoredReceipt = { id: "rec-a", receipt: receiptA };
+  const storedB: StoredReceipt = { id: "rec-b", receipt: receiptB };
+  const innerA: ItemAssignments = new Map([
+    [0, [{ personId: "a", sharePercentage: 100 }]],
+  ]);
+  const innerB: ItemAssignments = new Map([
+    [0, [{ personId: "a", sharePercentage: 100 }]],
+  ]);
+  const bothAssigned = new Map<string, ItemAssignments>([
+    ["rec-a", innerA],
+    ["rec-b", innerB],
+  ]);
+
+  it("sessionCurrency returns the first receipt's currency", () => {
+    expect(sessionCurrency([storedA, storedB])).toBe("USD");
+    expect(sessionCurrency([])).toBeUndefined();
+  });
+
+  it("validateReceiptCurrency rejects EUR vs USD and accepts a match", () => {
+    const eurReceipt: Receipt = { ...receiptA, currency: "EUR" };
+    expect(validateReceiptCurrency(eurReceipt, "USD")).toBe(false);
+    expect(validateReceiptCurrency(receiptA, "USD")).toBe(true);
+    expect(validateReceiptCurrency(receiptA, " usd ")).toBe(true);
+    expect(validateReceiptCurrency(receiptA, "usd")).toBe(true);
+    expect(validateReceiptCurrency(receiptA, undefined)).toBe(true);
+  });
+
+  it("calculateSessionPersonTotals sums Alice's per-receipt totals", () => {
+    const perA = calculatePersonTotals(receiptA, mockPeople, innerA, "rec-a");
+    const perB = calculatePersonTotals(receiptB, mockPeople, innerB, "rec-b");
+    const session = calculateSessionPersonTotals(
+      [storedA, storedB],
+      mockPeople,
+      bothAssigned
+    );
+
+    const alice = session[0];
+    expect(alice.finalTotal).toBe(perA[0].finalTotal + perB[0].finalTotal);
+    expect(alice.totalBeforeTax).toBe(perA[0].totalBeforeTax + perB[0].totalBeforeTax);
+    expect(alice.tax).toBe(perA[0].tax + perB[0].tax);
+    expect(alice.tip).toBe(perA[0].tip + perB[0].tip);
+    expect(alice.items).toHaveLength(2);
+    expect(alice.items.map((item) => item.receiptId)).toEqual(["rec-a", "rec-b"]);
+    expect(alice.items.map((item) => item.receiptName)).toEqual(["Cafe A", "Cafe B"]);
+
+    // Bob has no assignments across either receipt
+    expect(session[1].finalTotal).toBe(0);
+    expect(session[1].items).toHaveLength(0);
+  });
+
+  it("validateSessionAssignments is false when receipt B is incomplete", () => {
+    const incompleteB = new Map<string, ItemAssignments>([
+      ["rec-a", innerA],
+      ["rec-b", new Map()],
+    ]);
+    expect(validateSessionAssignments([storedA, storedB], bothAssigned)).toBe(true);
+    expect(validateSessionAssignments([storedA, storedB], incompleteB)).toBe(false);
+    expect(validateSessionAssignments([], bothAssigned)).toBe(false);
+  });
+
+  it("getSessionUnassigned lists incomplete items with receipt ids", () => {
+    const incompleteB = new Map<string, ItemAssignments>([
+      ["rec-a", innerA],
+      ["rec-b", new Map()],
+    ]);
+    expect(getSessionUnassigned([storedA, storedB], incompleteB)).toEqual([
+      { receiptId: "rec-b", itemIndex: 0 },
+    ]);
+  });
+
+  it("validateSessionInvariants concatenates per-receipt errors and treats empty as valid", () => {
+    expect(validateSessionInvariants([], new Map(), []).isValid).toBe(true);
+
+    const badB: StoredReceipt = {
+      id: "rec-b",
+      receipt: { ...receiptB, subtotal: -40, total: 10 },
+    };
+    const result = validateSessionInvariants(
+      [storedA, badB],
+      bothAssigned,
+      mockPeople
+    );
+    expect(result.isValid).toBe(false);
+    expect(result.errors.length).toBeGreaterThan(0);
+    expect(result.errors.some((e) => e.type === AmountValidationError.NEGATIVE_AMOUNT)).toBe(true);
   });
 });

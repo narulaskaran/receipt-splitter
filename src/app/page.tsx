@@ -23,12 +23,13 @@ import {
   type PersonItemAssignment,
   type ReceiptState,
   type Group,
+  type ItemAssignments,
 } from "@/types";
 import {
-  calculatePersonTotals,
-  validateItemAssignments,
   getUnassignedItems,
-  validateReceiptInvariants,
+  calculateSessionPersonTotals,
+  validateSessionAssignments,
+  validateSessionInvariants,
 } from "@/lib/receipt-utils";
 import {
   getUniqueGroupEmoji,
@@ -40,69 +41,54 @@ import {
   safeRemoveItem,
   safeSetItem,
 } from "@/lib/storage";
+import {
+  SESSION_STORAGE_KEY,
+  emptyReceiptState,
+  serializeSession,
+  deserializeSession,
+  isDefaultSession,
+} from "@/lib/session-persistence";
 
 export default function Home() {
-  const LOCAL_STORAGE_KEY = "receiptSplitterSession";
-  const [state, setState] = useState<ReceiptState>({
-    originalReceipt: null,
-    people: [],
-    assignedItems: new Map(),
-    unassignedItems: [],
-    groups: [],
-    isLoading: false,
-    error: null,
-  });
+  const [state, setState] = useState<ReceiptState>(emptyReceiptState);
   const [activeTab, setActiveTab] = useState("upload");
   const [hasSession, setHasSession] = useState(false);
   const isFirstLoad = useRef(true);
   const [resetImageTrigger, setResetImageTrigger] = useState(0);
-  
+
+  const activeReceipt = state.receipts[0]?.receipt ?? null;
+  const activeId = state.receipts[0]?.id;
+  const activeAssignments: ItemAssignments = activeId
+    ? (state.assignedItems.get(activeId) ?? new Map())
+    : new Map();
+  const unassignedItems = activeReceipt
+    ? getUnassignedItems(activeReceipt, activeAssignments)
+    : [];
+
   const validationResult = useMemo(() => {
-    return validateReceiptInvariants(
-      state.originalReceipt,
+    return validateSessionInvariants(
+      state.receipts,
       state.assignedItems,
       state.people
     );
-  }, [state.originalReceipt, state.assignedItems, state.people]);
-
-  const defaultSession = useMemo(
-    () => ({
-      state: {
-        originalReceipt: null,
-        people: [],
-        assignedItems: [],
-        unassignedItems: [],
-        groups: [],
-        isLoading: false,
-        error: null,
-      },
-      activeTab: "upload",
-    }),
-    []
-  );
+  }, [state.receipts, state.assignedItems, state.people]);
 
   // Restore session from localStorage on mount
   useEffect(() => {
-    const session = safeGetItem(LOCAL_STORAGE_KEY);
+    const session = safeGetItem(SESSION_STORAGE_KEY);
     if (session) {
-      try {
-        const parsed = JSON.parse(session);
-        // Always convert assignedItems to Map if it's an array
-        if (parsed.state && Array.isArray(parsed.state.assignedItems)) {
-          parsed.state.assignedItems = new Map(parsed.state.assignedItems);
-        }
-        setState(parsed.state || parsed);
-        setActiveTab(parsed.activeTab || "upload");
-        const isDefault =
-          JSON.stringify(parsed) === JSON.stringify(defaultSession);
-        setHasSession(!isDefault);
-      } catch (err) {
-        console.log("Failed to restore session from localStorage", err);
+      const restored = deserializeSession(session);
+      if (restored) {
+        setState(restored.state);
+        setActiveTab(restored.activeTab || "upload");
+        setHasSession(!isDefaultSession(restored.state, restored.activeTab || "upload"));
+      } else {
+        setHasSession(false);
       }
     } else {
       setHasSession(false);
     }
-  }, [defaultSession]);
+  }, []);
 
   // Save session to localStorage on state or tab change
   useEffect(() => {
@@ -115,73 +101,52 @@ export default function Home() {
     }
     // Only save if not loading
     if (!state.isLoading) {
-      const toSave = {
-        state: {
-          ...state,
-          // Convert Map to array for serialization
-          assignedItems: Array.from(state.assignedItems.entries()),
-        },
-        activeTab,
-      };
-      const serialized = JSON.stringify(toSave);
-      const ok = safeSetItem(LOCAL_STORAGE_KEY, serialized);
+      const serialized = serializeSession(state, activeTab);
+      const ok = safeSetItem(SESSION_STORAGE_KEY, serialized);
       if (!ok) {
         // Quota exhausted — evict the cached image (largest consumer) and retry once
         safeRemoveItem(RECEIPT_IMAGE_STORAGE_KEY);
-        safeSetItem(LOCAL_STORAGE_KEY, serialized);
+        safeSetItem(SESSION_STORAGE_KEY, serialized);
       }
-      // Check if session is not default
-      const isDefault =
-        serialized === JSON.stringify(defaultSession);
-      setHasSession(!isDefault);
+      setHasSession(!isDefaultSession(state, activeTab));
     }
-  }, [state, activeTab, defaultSession]);
+  }, [state, activeTab]);
 
   // Handler for New Split button
   const handleNewSplit = () => {
-    safeRemoveItem(LOCAL_STORAGE_KEY);
+    safeRemoveItem(SESSION_STORAGE_KEY);
     safeRemoveItem(RECEIPT_IMAGE_STORAGE_KEY);
-    setState({
-      originalReceipt: null,
-      people: [],
-      assignedItems: new Map(),
-      unassignedItems: [],
-      groups: [],
-      isLoading: false,
-      error: null,
-    });
+    setState(emptyReceiptState());
     setActiveTab("upload");
     setHasSession(false);
     setResetImageTrigger((v) => v + 1);
   };
 
   // Check if all items are assigned
-  const allItemsAssigned = state.originalReceipt
-    ? validateItemAssignments(state.originalReceipt, state.assignedItems)
-    : false;
+  const allItemsAssigned = validateSessionAssignments(
+    state.receipts,
+    state.assignedItems
+  );
 
   // Calculate progress
   const calculateProgress = (): number => {
-    if (!state.originalReceipt) return 0;
+    if (!activeReceipt) return 0;
 
-    const totalItems = state.originalReceipt.items.length;
+    const totalItems = activeReceipt.items.length;
     if (totalItems === 0) return 100;
 
-    const assignedItemCount = totalItems - state.unassignedItems.length;
+    const assignedItemCount = totalItems - unassignedItems.length;
     return (assignedItemCount / totalItems) * 100;
   };
 
-  // Handle receipt upload
+  // Handle receipt upload — still replaces a single receipt (append is a later PR)
   const handleReceiptParsed = (receipt: Receipt) => {
+    const id = crypto.randomUUID();
     setState({
-      originalReceipt: receipt,
+      receipts: [{ id, receipt }],
       people: [],
-      assignedItems: new Map(),
-      unassignedItems: Array.from(
-        { length: receipt.items.length },
-        (_, i) => i
-      ),
       groups: [],
+      assignedItems: new Map([[id, new Map()]]),
       isLoading: false,
       error: null,
     });
@@ -194,56 +159,43 @@ export default function Home() {
   // Handle people changes
   const handlePeopleChange = (updatedPeople: Person[]) => {
     setState((prevState) => {
+      let nextAssigned = prevState.assignedItems;
+
       // If we're removing a person, we need to update the assigned items
       if (prevState.people.length > updatedPeople.length) {
-        const removedPeople = prevState.people.filter(
-          (p) => !updatedPeople.some((up) => up.id === p.id)
+        const removedIds = new Set(
+          prevState.people
+            .filter((p) => !updatedPeople.some((up) => up.id === p.id))
+            .map((p) => p.id)
         );
 
-        const newAssignedItems = new Map(prevState.assignedItems);
-
-        // Remove the assignments for the removed people
-        removedPeople.forEach((person) => {
-          newAssignedItems.forEach((assignments, itemIndex) => {
+        // Clone outer map AND each inner map we change (shallow Map clone is not enough)
+        const nextOuter = new Map(prevState.assignedItems);
+        for (const [receiptId, inner] of prevState.assignedItems) {
+          const nextInner = new Map(inner);
+          nextInner.forEach((assignments, itemIndex) => {
             const updatedAssignments = assignments.filter(
-              (a) => a.personId !== person.id
+              (a) => !removedIds.has(a.personId)
             );
-
             if (updatedAssignments.length === 0) {
-              newAssignedItems.delete(itemIndex);
+              nextInner.delete(itemIndex);
             } else {
-              newAssignedItems.set(itemIndex, updatedAssignments);
+              nextInner.set(itemIndex, updatedAssignments);
             }
           });
-        });
-
-        // Recalculate unassigned items
-        const unassignedItems = prevState.originalReceipt
-          ? getUnassignedItems(prevState.originalReceipt, newAssignedItems)
-          : [];
-
-        // Calculate new totals
-        let newPeople = updatedPeople;
-        if (prevState.originalReceipt) {
-          newPeople = calculatePersonTotals(
-            prevState.originalReceipt,
-            updatedPeople,
-            newAssignedItems
-          );
+          nextOuter.set(receiptId, nextInner);
         }
-
-        return {
-          ...prevState,
-          people: newPeople,
-          assignedItems: newAssignedItems,
-          unassignedItems,
-        };
+        nextAssigned = nextOuter;
       }
 
-      // If we're just adding people, no need to update assignments
       return {
         ...prevState,
-        people: updatedPeople,
+        people: calculateSessionPersonTotals(
+          prevState.receipts,
+          updatedPeople,
+          nextAssigned
+        ),
+        assignedItems: nextAssigned,
       };
     });
   };
@@ -254,28 +206,28 @@ export default function Home() {
     remappedAssignments?: Map<number, PersonItemAssignment[]>
   ) => {
     setState((prevState) => {
-      // Use remapped assignments if provided (from delete), else use existing
-      const assignmentsToUse = remappedAssignments || prevState.assignedItems;
+      const receiptId = prevState.receipts[0]?.id;
+      if (!receiptId) return prevState;
 
-      // Recalculate unassigned items (FIXES STALE STATE BUG)
-      const unassignedItems = getUnassignedItems(
-        updatedReceipt,
-        assignmentsToUse
-      );
+      const nextOuter = new Map(prevState.assignedItems);
+      const assignmentsToUse =
+        remappedAssignments ??
+        new Map(nextOuter.get(receiptId) ?? []);
+      nextOuter.set(receiptId, assignmentsToUse);
 
-      // Recalculate people totals
-      const updatedPeople = calculatePersonTotals(
-        updatedReceipt,
-        prevState.people,
-        assignmentsToUse
+      const nextReceipts = prevState.receipts.map((stored, index) =>
+        index === 0 ? { ...stored, receipt: updatedReceipt } : stored
       );
 
       return {
         ...prevState,
-        originalReceipt: updatedReceipt,
-        assignedItems: assignmentsToUse,
-        unassignedItems,
-        people: updatedPeople,
+        receipts: nextReceipts,
+        assignedItems: nextOuter,
+        people: calculateSessionPersonTotals(
+          nextReceipts,
+          prevState.people,
+          nextOuter
+        ),
       };
     });
   };
@@ -286,36 +238,27 @@ export default function Home() {
     assignments: PersonItemAssignment[]
   ) => {
     setState((prevState) => {
-      if (!prevState.originalReceipt) return prevState;
+      const receiptId = prevState.receipts[0]?.id;
+      if (!receiptId) return prevState;
 
-      // Create new assignments map
-      const newAssignedItems = new Map(prevState.assignedItems);
+      const nextOuter = new Map(prevState.assignedItems);
+      const inner = new Map(nextOuter.get(receiptId) ?? []);
 
-      // Update the assignments for this item
       if (assignments.length === 0) {
-        newAssignedItems.delete(itemIndex);
+        inner.delete(itemIndex);
       } else {
-        newAssignedItems.set(itemIndex, assignments);
+        inner.set(itemIndex, assignments);
       }
-
-      // Recalculate unassigned items
-      const unassignedItems = getUnassignedItems(
-        prevState.originalReceipt,
-        newAssignedItems
-      );
-
-      // Recalculate people totals
-      const updatedPeople = calculatePersonTotals(
-        prevState.originalReceipt,
-        prevState.people,
-        newAssignedItems
-      );
+      nextOuter.set(receiptId, inner);
 
       return {
         ...prevState,
-        assignedItems: newAssignedItems,
-        unassignedItems,
-        people: updatedPeople,
+        assignedItems: nextOuter,
+        people: calculateSessionPersonTotals(
+          prevState.receipts,
+          prevState.people,
+          nextOuter
+        ),
       };
     });
   };
@@ -417,7 +360,7 @@ export default function Home() {
   const canGoToNextTab = (): boolean => {
     switch (activeTab) {
       case "upload":
-        return state.originalReceipt !== null;
+        return state.receipts.length > 0;
       case "people":
         return state.people.length > 0;
       case "assign":
@@ -429,25 +372,27 @@ export default function Home() {
 
   // Split all unassigned items evenly among all people
   const splitAllItemsEvenly = () => {
-    if (!state.originalReceipt || state.people.length === 0) return;
+    if (state.receipts.length === 0 || state.people.length === 0) return;
 
     setState((prevState) => {
-      if (!prevState.originalReceipt) return prevState;
+      const receiptId = prevState.receipts[0]?.id;
+      const receipt = prevState.receipts[0]?.receipt;
+      if (!receiptId || !receipt) return prevState;
+
+      const inner = new Map(prevState.assignedItems.get(receiptId) ?? []);
+      const currentlyUnassigned = getUnassignedItems(receipt, inner);
 
       // No unassigned items — nothing to do
-      if (prevState.unassignedItems.length === 0) {
+      if (currentlyUnassigned.length === 0) {
         toast.info("No unassigned items to split evenly!");
         return prevState;
       }
-
-      // Start from existing assignments
-      const newAssignedItems = new Map(prevState.assignedItems);
 
       // Calculate equal share percentage with 2 decimal places
       const equalShare = +(100 / prevState.people.length).toFixed(2);
 
       // Only split unassigned items, preserving existing assignments
-      prevState.unassignedItems.forEach((itemIndex) => {
+      currentlyUnassigned.forEach((itemIndex) => {
         // Create assignments for all people
         const assignments: PersonItemAssignment[] = [];
 
@@ -471,33 +416,30 @@ export default function Home() {
           }
         });
 
-        // Set the assignments for this item
-        newAssignedItems.set(itemIndex, assignments);
+        inner.set(itemIndex, assignments);
       });
 
-      // No unassigned items since all are now assigned
-      const unassignedItems: number[] = [];
-
-      // Recalculate people totals
-      const updatedPeople = calculatePersonTotals(
-        prevState.originalReceipt,
-        prevState.people,
-        newAssignedItems
-      );
+      const nextOuter = new Map(prevState.assignedItems);
+      nextOuter.set(receiptId, inner);
 
       toast.success("All items split evenly among everyone!");
 
       return {
         ...prevState,
-        assignedItems: newAssignedItems,
-        unassignedItems,
-        people: updatedPeople,
+        assignedItems: nextOuter,
+        people: calculateSessionPersonTotals(
+          prevState.receipts,
+          prevState.people,
+          nextOuter
+        ),
       };
     });
 
     // Don't automatically move to results tab anymore
     // setActiveTab("results");
   };
+
+  const hasReceipt = state.receipts.length > 0;
 
   return (
     <main className="container mx-auto px-4 py-8 max-w-4xl">
@@ -559,14 +501,14 @@ export default function Home() {
               <span className="hidden xs:inline sm:hidden">Upload</span>
               <span className="hidden sm:inline">Upload Receipt</span>
             </TabsTrigger>
-            <TabsTrigger value="people" disabled={!state.originalReceipt} className="gap-1.5 sm:gap-2">
+            <TabsTrigger value="people" disabled={!hasReceipt} className="gap-1.5 sm:gap-2">
               <Users className="h-4 w-4 flex-shrink-0" />
               <span className="hidden xs:inline sm:hidden">People</span>
               <span className="hidden sm:inline">Add People</span>
             </TabsTrigger>
             <TabsTrigger
               value="assign"
-              disabled={!state.originalReceipt || state.people.length === 0}
+              disabled={!hasReceipt || state.people.length === 0}
               className="gap-1.5 sm:gap-2"
             >
               <ListChecks className="h-4 w-4 flex-shrink-0" />
@@ -575,7 +517,7 @@ export default function Home() {
             </TabsTrigger>
             <TabsTrigger
               value="results"
-              disabled={!state.originalReceipt || state.people.length === 0}
+              disabled={!hasReceipt || state.people.length === 0}
               className="gap-1.5 sm:gap-2"
             >
               <DollarSign className="h-4 w-4 flex-shrink-0" />
@@ -584,7 +526,7 @@ export default function Home() {
             </TabsTrigger>
           </TabsList>
 
-          {state.originalReceipt && (
+          {activeReceipt && (
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full">
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <Progress
@@ -616,9 +558,9 @@ export default function Home() {
             resetImageTrigger={resetImageTrigger}
           />
 
-          {state.originalReceipt && (
+          {activeReceipt && (
             <ReceiptDetails
-              receipt={state.originalReceipt}
+              receipt={activeReceipt}
               onReceiptUpdate={(receipt) => handleReceiptUpdate(receipt)}
             />
           )}
@@ -639,22 +581,22 @@ export default function Home() {
             onGroupEmojiRegenerate={handleGroupEmojiRegenerate}
           />
 
-          {state.originalReceipt && (
+          {activeReceipt && (
             <ReceiptDetails
-              receipt={state.originalReceipt}
+              receipt={activeReceipt}
               onReceiptUpdate={(receipt) => handleReceiptUpdate(receipt)}
             />
           )}
         </TabsContent>
 
         <TabsContent value="assign" className="space-y-6">
-          {state.originalReceipt && (
+          {activeReceipt && (
             <ItemAssignment
-              receipt={state.originalReceipt}
+              receipt={activeReceipt}
               people={state.people}
               groups={state.groups}
-              assignedItems={state.assignedItems}
-              unassignedItems={state.unassignedItems}
+              assignedItems={activeAssignments}
+              unassignedItems={unassignedItems}
               onAssignItems={handleAssignItems}
               onReceiptUpdate={handleReceiptUpdate}
             />
@@ -662,17 +604,17 @@ export default function Home() {
         </TabsContent>
 
         <TabsContent value="results" className="space-y-6">
-          <ValidationErrors errors={validationResult.errors} currencyCode={state.originalReceipt?.currency} />
+          <ValidationErrors errors={validationResult.errors} currencyCode={activeReceipt?.currency} />
 
           <ResultsSummary
             people={state.people}
-            receiptName={state.originalReceipt?.restaurant || null}
-            receiptDate={state.originalReceipt?.date || null}
-            currencyCode={state.originalReceipt?.currency}
+            receiptName={activeReceipt?.restaurant || null}
+            receiptDate={activeReceipt?.date || null}
+            currencyCode={activeReceipt?.currency}
             validationResult={validationResult}
           />
 
-          <PersonItems people={state.people} currencyCode={state.originalReceipt?.currency} />
+          <PersonItems people={state.people} currencyCode={activeReceipt?.currency} />
         </TabsContent>
       </Tabs>
 
