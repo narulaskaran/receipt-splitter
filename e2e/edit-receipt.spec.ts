@@ -3,6 +3,7 @@ import {
   preloadSession,
   fullyAssignedState,
   parseMoney,
+  receiptCardToggle,
 } from "./helpers";
 
 async function openItemPriceEditor(page: import("@playwright/test").Page, itemName: string) {
@@ -137,7 +138,9 @@ test.describe("edit receipt", () => {
     await preloadSession(page, fullyAssignedState(), "upload");
     await page.goto("/");
 
-    await expect(page.getByText("Test Diner")).toBeVisible({ timeout: 10000 });
+    await expect(receiptCardToggle(page, "Test Diner")).toBeVisible({
+      timeout: 10000,
+    });
     await page.getByRole("button", { name: /^Edit$/ }).click();
     await expect(page.getByText("Edit Receipt Details")).toBeVisible();
 

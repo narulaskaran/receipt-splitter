@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { receiptCardToggle } from "./helpers";
 
 // ---- Mock data --------------------------------------------------------------
 // Validated happy-path receipt: all math correct, all items fully assigned.
@@ -165,11 +166,15 @@ test.describe("core flow", () => {
 
     // ---- Tab 1: Upload ------------------------------------------------------
     // The receipt card should be visible because we preloaded it.
-    await expect(page.getByText("Test Diner")).toBeVisible({ timeout: 10000 });
+    // Role locator: merchant name appears on both the accordion toggle and details.
+    await expect(receiptCardToggle(page, "Test Diner")).toBeVisible({
+      timeout: 10000,
+    });
 
     // Verify receipt financial figures are rendered.
+    // Totals also appear in the accordion meta line and in Receipt Details.
     await expect(page.getByText("$43.00")).toBeVisible();
-    await expect(page.getByText("$55.90")).toBeVisible();
+    await expect(page.getByText("$55.90").first()).toBeVisible();
 
     // "Next" should be enabled (receipt is loaded).
     // Use { exact: true } — the Next.js Dev Tools button also contains "Next".

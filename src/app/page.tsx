@@ -258,23 +258,24 @@ export default function Home() {
   };
 
   // Handle receipt upload — first receipt starts a new outing; later ones append
-  const handleReceiptParsed = (receipt: Receipt) => {
+  const handleReceiptParsed = (receipt: Receipt): boolean => {
     const result = addParsedReceipt(stateRef.current, receipt);
     if (result.status === "capped") {
       toast.error(
         `This split already has ${MAX_RECEIPTS_PER_SESSION} receipts. Remove one to add another.`
       );
-      return;
+      return false;
     }
     if (result.status === "mismatch") {
       toast.error(
         `This receipt is ${receipt.currency}, but this split is in ${result.pinned}.`
       );
-      return;
+      return false;
     }
     stateRef.current = result.next;
     setState(result.next);
     toast.success("Receipt successfully parsed!");
+    return true;
   };
 
   const handleRemoveReceipt = (receiptId: string) => {
