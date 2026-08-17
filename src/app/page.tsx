@@ -28,6 +28,9 @@ import {
   getUnassignedItems,
   getSessionUnassigned,
   calculateSessionPersonTotals,
+  calculatePerReceiptPersonTotals,
+  sessionShareNote,
+  sessionShareDate,
   validateSessionAssignments,
   validateSessionInvariants,
   sessionCurrency,
@@ -185,6 +188,20 @@ export default function Home() {
     );
   }, [state.receipts, state.assignedItems, state.people]);
 
+  const receiptBreakdown = useMemo(
+    () =>
+      calculatePerReceiptPersonTotals(
+        state.receipts,
+        state.people,
+        state.assignedItems
+      ).map(({ stored, people }) => ({
+        name: stored.receipt.restaurant || "Untitled receipt",
+        date: stored.receipt.date,
+        people,
+      })),
+    [state.receipts, state.people, state.assignedItems]
+  );
+
   // Restore session from localStorage on mount
   useEffect(() => {
     const session = safeGetItem(SESSION_STORAGE_KEY);
@@ -192,7 +209,18 @@ export default function Home() {
       const restored = deserializeSession(session);
       if (restored) {
         setState(restored.state);
-        setActiveTab(restored.activeTab || "upload");
+        const restoredTab = restored.activeTab || "upload";
+        const restoredAssigned = validateSessionAssignments(
+          restored.state.receipts,
+          restored.state.assignedItems
+        );
+        if (restoredTab === "results" && !restoredAssigned) {
+          setActiveTab(
+            restored.state.people.length > 0 ? "assign" : "people"
+          );
+        } else {
+          setActiveTab(restoredTab);
+        }
         setHasSession(!isDefaultSession(restored.state, restored.activeTab || "upload"));
       } else {
         setHasSession(false);
@@ -241,6 +269,17 @@ export default function Home() {
     state.receipts,
     state.assignedItems
   );
+
+  useEffect(() => {
+    if (activeTab !== "results" || allItemsAssigned) return;
+    if (state.people.length > 0) {
+      setActiveTab("assign");
+    } else if (state.receipts.length > 0) {
+      setActiveTab("people");
+    } else {
+      setActiveTab("upload");
+    }
+  }, [activeTab, allItemsAssigned, state.people.length, state.receipts.length]);
 
   // Calculate progress across every receipt in the session
   const calculateProgress = (): number => {
@@ -551,6 +590,8 @@ export default function Home() {
   };
 
   const hasReceipt = state.receipts.length > 0;
+  const canViewResults =
+    hasReceipt && state.people.length > 0 && allItemsAssigned;
 
   return (
     <main className="container mx-auto px-4 py-8 max-w-4xl">
@@ -628,7 +669,7 @@ export default function Home() {
             </TabsTrigger>
             <TabsTrigger
               value="results"
-              disabled={!hasReceipt || state.people.length === 0}
+              disabled={!canViewResults}
               className="gap-1.5 sm:gap-2"
             >
               <DollarSign className="h-4 w-4 flex-shrink-0" />
@@ -721,13 +762,14 @@ export default function Home() {
 
           <ResultsSummary
             people={state.people}
-            receiptName={activeReceipt?.restaurant || null}
-            receiptDate={activeReceipt?.date || null}
-            currencyCode={activeReceipt?.currency}
+            receiptName={sessionShareNote(state.receipts)}
+            receiptDate={sessionShareDate(state.receipts)}
+            currencyCode={sessionCurrency(state.receipts)}
             validationResult={validationResult}
+            receiptBreakdown={receiptBreakdown}
           />
 
-          <PersonItems people={state.people} currencyCode={activeReceipt?.currency} />
+          <PersonItems people={state.people} currencyCode={sessionCurrency(state.receipts)} />
         </TabsContent>
       </Tabs>
 

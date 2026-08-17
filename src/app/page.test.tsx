@@ -65,6 +65,7 @@ describe("Home Page", () => {
       expect(screen.getByRole("tab", { name: /add people/i })).toHaveAttribute("data-state", "active");
       expect(screen.getByRole("tab", { name: /add people/i })).toBeEnabled();
       expect(screen.getByRole("tab", { name: /assign items/i })).toBeEnabled();
+      expect(screen.getByRole("tab", { name: /results/i })).toBeDisabled();
     });
 
     it("falls back to empty state on corrupted localStorage", () => {
@@ -145,6 +146,7 @@ describe("Home Page", () => {
       expect(screen.getByRole("tab", { name: /add people/i })).toHaveAttribute("data-state", "active");
       expect(screen.getByRole("tab", { name: /add people/i })).toBeEnabled();
       expect(screen.getByRole("tab", { name: /assign items/i })).toBeEnabled();
+      expect(screen.getByRole("tab", { name: /results/i })).toBeDisabled();
     });
   });
 
@@ -207,6 +209,7 @@ describe("Home Page", () => {
       });
       render(<Home />);
       expect(screen.getByText("100%")).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /results/i })).toBeEnabled();
     });
   });
 
@@ -228,6 +231,7 @@ describe("Home Page", () => {
       );
       expect(toast.info).not.toHaveBeenCalled();
       expect(screen.getByText("100%")).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /results/i })).toBeEnabled();
     });
 
     it("uses Untitled receipt in the toast when the restaurant has no name", () => {
@@ -715,6 +719,145 @@ describe("Home Page", () => {
         "Split remaining items on Starbucks."
       );
       expect(toast.info).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("multi-receipt results tab", () => {
+    const receiptA = createMockReceipt({
+      restaurant: "Coffee Shop",
+      date: "2024-06-01",
+      items: [{ name: "Latte", price: 20, quantity: 1 }],
+      subtotal: 20,
+      tax: 0,
+      tip: 0,
+      total: 20,
+    });
+    const receiptB = createMockReceipt({
+      restaurant: "Lunch Place",
+      date: "2024-06-01",
+      items: [{ name: "Burger", price: 30, quantity: 1 }],
+      subtotal: 30,
+      tax: 0,
+      tip: 0,
+      total: 30,
+    });
+
+    function loadResultsSession(assignedItems: unknown, activeTab = "results") {
+      localStorage.setItem(
+        "receiptSplitterSession",
+        JSON.stringify({
+          version: 2,
+          state: {
+            receipts: [
+              { id: "r1", receipt: receiptA },
+              { id: "r2", receipt: receiptB },
+            ],
+            people: mockPeople,
+            assignedItems,
+            groups: [],
+            isLoading: false,
+            error: null,
+          },
+          activeTab,
+        })
+      );
+    }
+
+    it("shows Day total first, then By receipt with restaurant and date", () => {
+      loadResultsSession([
+        ["r1", [[0, [{ personId: "a", sharePercentage: 100 }]]]],
+        ["r2", [[0, [{ personId: "a", sharePercentage: 100 }]]]],
+      ]);
+
+      render(<Home />);
+
+      expect(screen.getByRole("heading", { name: "Day total" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "By receipt" })).toBeInTheDocument();
+      expect(
+        screen.getByTestId("day-total").compareDocumentPosition(
+          screen.getByTestId("receipt-breakdown")
+        ) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(screen.getByText("Coffee Shop")).toBeInTheDocument();
+      expect(screen.getByText("Lunch Place")).toBeInTheDocument();
+      expect(screen.getByText("$20.00")).toBeInTheDocument();
+      expect(screen.getByText("$30.00")).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /results/i })).toBeEnabled();
+    });
+
+    it("disables Results until every receipt is assigned", () => {
+      loadResultsSession(
+        [
+          ["r1", [[0, [{ personId: "a", sharePercentage: 100 }]]]],
+          ["r2", []],
+        ],
+        "assign"
+      );
+
+      render(<Home />);
+
+      expect(screen.getByRole("tab", { name: /results/i })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /next/i })).toBeDisabled();
+    });
+
+    it("keeps Results disabled and leaves Assign when restored with unassigned items", async () => {
+      loadResultsSession([
+        ["r1", []],
+        ["r2", [[0, [{ personId: "a", sharePercentage: 100 }]]]],
+      ]);
+
+      render(<Home />);
+
+      await waitFor(() => {
+        expect(screen.getByRole("tab", { name: /assign items/i })).toHaveAttribute(
+          "data-state",
+          "active"
+        );
+      });
+      expect(screen.getByRole("tab", { name: /results/i })).toBeDisabled();
+      expect(screen.queryByRole("button", { name: /share text/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("incomplete-assignment-banner")
+      ).not.toBeInTheDocument();
+    });
+
+    it("treats a 0-item receipt as complete so Results is not trapped", () => {
+      const emptyReceipt = createMockReceipt({
+        restaurant: "Empty Place",
+        date: "2024-06-01",
+        items: [],
+        subtotal: 0,
+        tax: 0,
+        tip: 0,
+        total: 0,
+      });
+      localStorage.setItem(
+        "receiptSplitterSession",
+        JSON.stringify({
+          version: 2,
+          state: {
+            receipts: [
+              { id: "r1", receipt: receiptA },
+              { id: "r2", receipt: emptyReceipt },
+            ],
+            people: mockPeople,
+            assignedItems: [
+              ["r1", [[0, [{ personId: "a", sharePercentage: 100 }]]]],
+              ["r2", []],
+            ],
+            groups: [],
+            isLoading: false,
+            error: null,
+          },
+          activeTab: "assign",
+        })
+      );
+
+      render(<Home />);
+
+      expect(screen.getByText("100%")).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /results/i })).toBeEnabled();
+      expect(screen.getByRole("button", { name: /next/i })).toBeEnabled();
     });
   });
 });

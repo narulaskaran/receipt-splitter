@@ -601,4 +601,113 @@ describe("ResultsSummary", () => {
       expect(rows).toHaveLength(11); // Header + 10 people
     });
   });
+
+  describe("Per-receipt breakdown", () => {
+    const alice = {
+      ...mockPeople[0],
+      name: "Alice",
+      finalTotal: 60,
+    };
+    const coffeePeople = [
+      { ...mockPeople[0], name: "Alice", finalTotal: 25 },
+    ];
+    const lunchPeople = [
+      { ...mockPeople[0], name: "Alice", finalTotal: 35 },
+    ];
+    const twoReceiptBreakdown = [
+      { name: "Coffee Shop", date: "2024-01-01", people: coffeePeople },
+      { name: "Lunch Place", date: "2024-01-01", people: lunchPeople },
+    ];
+
+    it("shows Day total first, then By receipt with restaurant and date", () => {
+      render(
+        <ResultsSummary
+          people={[alice]}
+          receiptName="Coffee Shop, Lunch Place"
+          receiptDate="2024-01-01"
+          receiptBreakdown={twoReceiptBreakdown}
+        />
+      );
+
+      expect(screen.getByRole("heading", { name: "Day total" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "By receipt" })).toBeInTheDocument();
+      expect(screen.getByTestId("day-total")).toBeInTheDocument();
+      expect(screen.getByTestId("receipt-breakdown")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("day-total").compareDocumentPosition(
+          screen.getByTestId("receipt-breakdown")
+        ) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      expect(screen.getByText("Coffee Shop")).toBeInTheDocument();
+      expect(screen.getByText("Lunch Place")).toBeInTheDocument();
+      expect(screen.getByText("Coffee Shop").parentElement).toHaveTextContent(
+        "Coffee Shop · 2024-01-01"
+      );
+      expect(screen.getByText("Lunch Place").parentElement).toHaveTextContent(
+        "Lunch Place · 2024-01-01"
+      );
+      expect(screen.getByText("$25.00")).toBeInTheDocument();
+      expect(screen.getByText("$35.00")).toBeInTheDocument();
+      expect(screen.getByText("$60.00")).toBeInTheDocument();
+    });
+
+    it("does not show a per-receipt section for a single receipt", () => {
+      render(
+        <ResultsSummary
+          people={[alice]}
+          receiptName="Coffee Shop"
+          receiptDate="2024-01-01"
+          receiptBreakdown={[twoReceiptBreakdown[0]]}
+        />
+      );
+
+      expect(screen.queryByTestId("receipt-breakdown")).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Day total" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "By receipt" })).not.toBeInTheDocument();
+      expect(screen.queryByText("Coffee Shop")).not.toBeInTheDocument();
+    });
+
+    it("puts Day total amounts before By receipt in share text", async () => {
+      const originalShare = navigator.share;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (navigator as any).share;
+
+      try {
+        render(
+          <ResultsSummary
+            people={[alice]}
+            receiptName="Coffee Shop, Lunch Place"
+            receiptDate="2024-01-01"
+            receiptBreakdown={twoReceiptBreakdown}
+          />
+        );
+
+        fireEvent.click(screen.getByRole("button", { name: /share text/i }));
+
+        await waitFor(() => {
+          const clipboardContent = (navigator.clipboard.writeText as jest.Mock).mock.calls[0][0];
+          expect(clipboardContent).toContain("Day total");
+          expect(clipboardContent).toContain("Alice:");
+          expect(clipboardContent).toContain("$60.00");
+          expect(clipboardContent.indexOf("Day total")).toBeLessThan(
+            clipboardContent.indexOf("By receipt")
+          );
+          expect(clipboardContent.indexOf("$60.00")).toBeLessThan(
+            clipboardContent.indexOf("By receipt")
+          );
+          expect(clipboardContent).toContain("By receipt");
+          expect(clipboardContent).toContain("Coffee Shop · 2024-01-01:");
+          expect(clipboardContent).toContain("Lunch Place · 2024-01-01:");
+          expect(clipboardContent).not.toContain("Receipts for");
+          expect(clipboardContent).not.toContain("Amount owed by each person:");
+        });
+      } finally {
+        Object.defineProperty(navigator, "share", {
+          value: originalShare,
+          writable: true,
+          configurable: true,
+        });
+      }
+    });
+  });
 });

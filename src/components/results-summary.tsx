@@ -19,12 +19,23 @@ import {
 
 import { useState } from "react";
 
+export interface ReceiptBreakdown {
+  name: string;
+  date: string | null;
+  people: Person[];
+}
+
 interface ResultsSummaryProps {
   people: Person[];
   receiptName: string | null;
   receiptDate: string | null;
   currencyCode?: string;
   validationResult?: ReceiptValidationResult;
+  receiptBreakdown?: ReceiptBreakdown[];
+}
+
+function receiptLabel(receipt: ReceiptBreakdown): string {
+  return receipt.date ? `${receipt.name} · ${receipt.date}` : receipt.name;
 }
 
 export function ResultsSummary({
@@ -33,6 +44,7 @@ export function ResultsSummary({
   receiptDate,
   currencyCode,
   validationResult,
+  receiptBreakdown,
 }: ResultsSummaryProps) {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [shareStatus, setShareStatus] = useState<
@@ -40,12 +52,34 @@ export function ResultsSummary({
   >("idle");
   // Sort people by final total (highest first)
   const sortedPeople = [...people].sort((a, b) => b.finalTotal - a.finalTotal);
+  const showBreakdown = (receiptBreakdown?.length ?? 0) > 1;
 
-  // Create a shareable text summary
+  // Create a shareable text summary matching on-screen order:
+  // Day total (people amounts), then By receipt (restaurant + date).
   const createShareText = (): string => {
     let text = "";
 
-    // Add receipt info
+    if (showBreakdown) {
+      text += "Day total\n";
+      sortedPeople.forEach((person) => {
+        text += `${person.name}: ${formatCurrency(person.finalTotal, currencyCode)}\n`;
+      });
+
+      if (receiptBreakdown) {
+        text += "\nBy receipt\n";
+        receiptBreakdown.forEach((receipt) => {
+          text += `${receiptLabel(receipt)}:\n`;
+          [...receipt.people]
+            .sort((a, b) => b.finalTotal - a.finalTotal)
+            .forEach((person) => {
+              text += `  ${person.name}: ${formatCurrency(person.finalTotal, currencyCode)}\n`;
+            });
+        });
+      }
+
+      return text;
+    }
+
     if (receiptName) {
       text += `Receipt for ${receiptName}\n`;
     }
@@ -56,7 +90,6 @@ export function ResultsSummary({
 
     text += "\nAmount owed by each person:\n";
 
-    // Add each person's total
     sortedPeople.forEach((person) => {
       text += `${person.name}: ${formatCurrency(person.finalTotal, currencyCode)}\n`;
     });
@@ -238,6 +271,15 @@ export function ResultsSummary({
           </div>
         </CardHeader>
         <CardContent className="p-6">
+          <div className="flex flex-col gap-6">
+          <div
+            data-testid={showBreakdown ? "day-total" : undefined}
+            className="flex flex-col gap-2"
+          >
+            {showBreakdown ? (
+              <h2 className="font-semibold text-base sm:text-lg">Day total</h2>
+            ) : null}
+
           {/* Mobile-friendly responsive table */}
           <div className="overflow-x-auto">
             <Table>
@@ -293,6 +335,58 @@ export function ResultsSummary({
                 ))}
               </TableBody>
             </Table>
+          </div>
+          </div>
+
+          {showBreakdown && receiptBreakdown ? (
+            <div
+              data-testid="receipt-breakdown"
+              className="flex flex-col gap-4"
+            >
+              <h2 className="font-semibold text-base sm:text-lg">By receipt</h2>
+              {receiptBreakdown.map((receipt, index) => {
+                const sortedReceiptPeople = [...receipt.people].sort(
+                  (a, b) => b.finalTotal - a.finalTotal
+                );
+                return (
+                  <div key={`${receipt.name}-${receipt.date ?? "no-date"}-${index}`} className="flex flex-col gap-2">
+                    <div className="font-medium text-sm sm:text-base">
+                      <span>{receipt.name}</span>
+                      {receipt.date ? (
+                        <span className="text-muted-foreground font-normal">
+                          {` · ${receipt.date}`}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="min-w-[100px]">Person</TableHead>
+                            <TableHead className="text-right min-w-[80px] font-semibold">
+                              Total
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {sortedReceiptPeople.map((person) => (
+                            <TableRow key={person.id}>
+                              <TableCell className="font-medium py-2">
+                                {person.name}
+                              </TableCell>
+                              <TableCell className="text-right py-2">
+                                {formatCurrency(person.finalTotal, currencyCode)}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : null}
           </div>
         </CardContent>
       </Card>
