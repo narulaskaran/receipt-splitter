@@ -27,6 +27,7 @@ import {
 import {
   getUnassignedItems,
   getSessionUnassigned,
+  getUnassignedReceiptSummaries,
   calculateSessionPersonTotals,
   calculatePerReceiptPersonTotals,
   sessionShareNote,
@@ -200,6 +201,11 @@ export default function Home() {
         people,
       })),
     [state.receipts, state.people, state.assignedItems]
+  );
+
+  const unassignedReceipts = useMemo(
+    () => getUnassignedReceiptSummaries(state.receipts, state.assignedItems),
+    [state.receipts, state.assignedItems]
   );
 
   // Restore session from localStorage on mount
@@ -568,6 +574,8 @@ export default function Home() {
   };
 
   const hasReceipt = state.receipts.length > 0;
+  const canViewResults =
+    hasReceipt && state.people.length > 0 && allItemsAssigned;
 
   return (
     <main className="container mx-auto px-4 py-8 max-w-4xl">
@@ -645,7 +653,7 @@ export default function Home() {
             </TabsTrigger>
             <TabsTrigger
               value="results"
-              disabled={!hasReceipt || state.people.length === 0}
+              disabled={!canViewResults}
               className="gap-1.5 sm:gap-2"
             >
               <DollarSign className="h-4 w-4 flex-shrink-0" />
@@ -743,6 +751,7 @@ export default function Home() {
             currencyCode={sessionCurrency(state.receipts)}
             validationResult={validationResult}
             receiptBreakdown={receiptBreakdown}
+            unassignedReceipts={unassignedReceipts}
           />
 
           <PersonItems people={state.people} currencyCode={sessionCurrency(state.receipts)} />

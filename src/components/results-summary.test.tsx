@@ -619,7 +619,7 @@ describe("ResultsSummary", () => {
       { name: "Lunch Place", date: "2024-01-01", people: lunchPeople },
     ];
 
-    it("shows both restaurant names and per-receipt amounts for two receipts", () => {
+    it("shows Day total first, then By receipt with restaurant and date", () => {
       render(
         <ResultsSummary
           people={[alice]}
@@ -629,9 +629,23 @@ describe("ResultsSummary", () => {
         />
       );
 
+      expect(screen.getByRole("heading", { name: "Day total" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "By receipt" })).toBeInTheDocument();
+      expect(screen.getByTestId("day-total")).toBeInTheDocument();
       expect(screen.getByTestId("receipt-breakdown")).toBeInTheDocument();
+      expect(
+        screen.getByTestId("day-total").compareDocumentPosition(
+          screen.getByTestId("receipt-breakdown")
+        ) & Node.DOCUMENT_POSITION_FOLLOWING
+      ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
       expect(screen.getByText("Coffee Shop")).toBeInTheDocument();
       expect(screen.getByText("Lunch Place")).toBeInTheDocument();
+      expect(screen.getByText("Coffee Shop").parentElement).toHaveTextContent(
+        "Coffee Shop · 2024-01-01"
+      );
+      expect(screen.getByText("Lunch Place").parentElement).toHaveTextContent(
+        "Lunch Place · 2024-01-01"
+      );
       expect(screen.getByText("$25.00")).toBeInTheDocument();
       expect(screen.getByText("$35.00")).toBeInTheDocument();
       expect(screen.getByText("$60.00")).toBeInTheDocument();
@@ -648,6 +662,8 @@ describe("ResultsSummary", () => {
       );
 
       expect(screen.queryByTestId("receipt-breakdown")).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Day total" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "By receipt" })).not.toBeInTheDocument();
       expect(screen.queryByText("Coffee Shop")).not.toBeInTheDocument();
     });
 
@@ -670,11 +686,13 @@ describe("ResultsSummary", () => {
 
         await waitFor(() => {
           const clipboardContent = (navigator.clipboard.writeText as jest.Mock).mock.calls[0][0];
+          expect(clipboardContent).toContain("Day total");
           expect(clipboardContent).toContain("Receipts for Coffee Shop, Lunch Place");
           expect(clipboardContent).toContain("Alice:");
           expect(clipboardContent).toContain("$60.00");
-          expect(clipboardContent).toContain("Coffee Shop:");
-          expect(clipboardContent).toContain("Lunch Place:");
+          expect(clipboardContent).toContain("By receipt");
+          expect(clipboardContent).toContain("Coffee Shop · 2024-01-01:");
+          expect(clipboardContent).toContain("Lunch Place · 2024-01-01:");
         });
       } finally {
         Object.defineProperty(navigator, "share", {
@@ -683,6 +701,66 @@ describe("ResultsSummary", () => {
           configurable: true,
         });
       }
+    });
+  });
+
+  describe("Incomplete assignment", () => {
+    const alice = {
+      ...mockPeople[0],
+      name: "Alice",
+      finalTotal: 35,
+    };
+    const unassignedReceipts = [{ name: "Coffee Shop", count: 4 }];
+
+    it("shows a banner naming receipts that still have unassigned items", () => {
+      render(
+        <ResultsSummary
+          people={[alice]}
+          receiptName="Coffee Shop, Lunch Place"
+          receiptDate="2024-01-01"
+          unassignedReceipts={unassignedReceipts}
+        />
+      );
+
+      expect(screen.getByTestId("incomplete-assignment-banner")).toBeInTheDocument();
+      expect(
+        screen.getByText("Coffee Shop still has 4 unassigned items.")
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/this day total is incomplete/i)
+      ).toBeInTheDocument();
+    });
+
+    it("disables Share Text and Share Split so a partial total cannot be copied", () => {
+      render(
+        <ResultsSummary
+          people={[alice]}
+          receiptName="Coffee Shop, Lunch Place"
+          receiptDate="2024-01-01"
+          unassignedReceipts={unassignedReceipts}
+        />
+      );
+
+      const phoneInput = screen.getByPlaceholderText("e.g. 555-123-4567");
+      fireEvent.change(phoneInput, { target: { value: "5551234567" } });
+
+      expect(screen.getByRole("button", { name: /share text/i })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /share split/i })).toBeDisabled();
+    });
+
+    it("does not show the banner when every receipt is assigned", () => {
+      render(
+        <ResultsSummary
+          people={[alice]}
+          receiptName="Lunch Place"
+          receiptDate="2024-01-01"
+        />
+      );
+
+      expect(
+        screen.queryByTestId("incomplete-assignment-banner")
+      ).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /share text/i })).toBeEnabled();
     });
   });
 });

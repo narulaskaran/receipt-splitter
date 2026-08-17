@@ -708,6 +708,44 @@ export function getSessionUnassigned(
   return unassigned;
 }
 
+export interface UnassignedReceiptSummary {
+  name: string;
+  count: number;
+}
+
+/**
+ * Per-receipt unassigned counts for Results warnings.
+ * Receipts that are fully assigned are omitted.
+ */
+export function getUnassignedReceiptSummaries(
+  receipts: StoredReceipt[],
+  assignedItems: Map<string, ItemAssignments>
+): UnassignedReceiptSummary[] {
+  const summaries: UnassignedReceiptSummary[] = [];
+
+  for (const stored of receipts) {
+    const count = getUnassignedItems(
+      stored.receipt,
+      assignedItems.get(stored.id) ?? new Map()
+    ).length;
+    if (count > 0) {
+      summaries.push({
+        name: stored.receipt.restaurant || "Untitled receipt",
+        count,
+      });
+    }
+  }
+
+  return summaries;
+}
+
+export function formatUnassignedReceiptMessage(
+  summary: UnassignedReceiptSummary
+): string {
+  const itemWord = summary.count === 1 ? "item" : "items";
+  return `${summary.name} still has ${summary.count} unassigned ${itemWord}.`;
+}
+
 /**
  * Runs per-receipt invariant checks and concatenates errors.
  * An empty session is valid.

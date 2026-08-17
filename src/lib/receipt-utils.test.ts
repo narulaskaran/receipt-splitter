@@ -16,6 +16,8 @@ import {
   sessionShareDate,
   validateSessionAssignments,
   getSessionUnassigned,
+  getUnassignedReceiptSummaries,
+  formatUnassignedReceiptMessage,
   validateSessionInvariants,
 } from "./receipt-utils";
 import { mockPeople, mockReceipt, mockAssignedItems } from "@/test/test-utils";
@@ -863,6 +865,34 @@ describe("session-level receipt helpers", () => {
     expect(getSessionUnassigned([storedA, storedB], incompleteB)).toEqual([
       { receiptId: "rec-b", itemIndex: 0 },
     ]);
+  });
+
+  it("getUnassignedReceiptSummaries names receipts that still have items", () => {
+    const incompleteB = new Map<string, ItemAssignments>([
+      ["rec-a", innerA],
+      ["rec-b", new Map()],
+    ]);
+    expect(getUnassignedReceiptSummaries([storedA, storedB], bothAssigned)).toEqual(
+      []
+    );
+    expect(
+      getUnassignedReceiptSummaries([storedA, storedB], incompleteB)
+    ).toEqual([{ name: "Cafe B", count: 1 }]);
+    expect(
+      getUnassignedReceiptSummaries(
+        [{ id: "x", receipt: { ...receiptA, restaurant: null } }],
+        new Map()
+      )
+    ).toEqual([{ name: "Untitled receipt", count: 1 }]);
+  });
+
+  it("formatUnassignedReceiptMessage uses singular and plural item wording", () => {
+    expect(
+      formatUnassignedReceiptMessage({ name: "Coffee Shop", count: 4 })
+    ).toBe("Coffee Shop still has 4 unassigned items.");
+    expect(
+      formatUnassignedReceiptMessage({ name: "Coffee Shop", count: 1 })
+    ).toBe("Coffee Shop still has 1 unassigned item.");
   });
 
   it("calculatePerReceiptPersonTotals Alice totals sum to the session total", () => {
