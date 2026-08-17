@@ -607,14 +607,14 @@ describe("ItemAssignment", () => {
           assignedItems={new Map()}
           unassignedItems={[0, 1]}
           title="Starbucks"
-          subtitle="#2"
+          subtitle="2024-01-01 · #2"
           onAssignItems={jest.fn()}
           onReceiptUpdate={jest.fn()}
           onSplitEvenly={jest.fn()}
         />
       );
       expect(screen.getByText("Starbucks")).toBeInTheDocument();
-      expect(screen.getByText("#2")).toBeInTheDocument();
+      expect(screen.getByText("2024-01-01 · #2")).toBeInTheDocument();
     });
   });
 });
