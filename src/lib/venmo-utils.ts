@@ -92,7 +92,20 @@ export function generateVenmoLink(
     urlParams.set('note', note.trim());
   }
 
-  return `${VENMO_CONFIG.BASE_URL}?${urlParams.toString()}`;
+  // Venmo displays `+` as a literal character, so encode spaces as %20.
+  return `${VENMO_CONFIG.BASE_URL}?${toVenmoQueryString(urlParams)}`;
+}
+
+/**
+ * Serializes query params for Venmo deep links.
+ *
+ * `URLSearchParams#toString()` encodes spaces as `+`. Venmo does not treat
+ * `+` as a space, so notes like "Olive Garden - Karan" would show up as
+ * "Olive+Garden+-+Karan". Literal `+` characters are already `%2B` and are
+ * left unchanged.
+ */
+function toVenmoQueryString(params: URLSearchParams): string {
+  return params.toString().replace(/\+/g, '%20');
 }
 
 /**

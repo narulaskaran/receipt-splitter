@@ -57,7 +57,24 @@ describe('generateVenmoLink', () => {
   it('generates correct Venmo link with all parameters', () => {
     const link = generateVenmoLink('5551234567', 25.50, 'Pizza Palace');
     
-    expect(link).toBe('https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Pizza+Palace');
+    expect(link).toBe('https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Pizza%20Palace');
+  });
+
+  it('encodes spaces in notes as %20 so Venmo does not show plus signs', () => {
+    const link = generateVenmoLink('5551234567', 29.53, 'Olive Garden - Karan');
+
+    expect(link).toBe(
+      'https://venmo.com/?txn=pay&recipients=5551234567&amount=29.53&note=Olive%20Garden%20-%20Karan'
+    );
+    expect(link).not.toContain('+');
+  });
+
+  it('encodes literal plus signs in notes as %2B', () => {
+    const link = generateVenmoLink('5551234567', 25.50, 'A+B special');
+
+    expect(link).toBe(
+      'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=A%2BB%20special'
+    );
   });
 
   it('generates link without note when note is empty', () => {
@@ -107,7 +124,7 @@ describe('generateVenmoLink', () => {
   it('handles special characters in note', () => {
     const link = generateVenmoLink('5551234567', 25.50, 'Café & Co.');
 
-    expect(link).toContain('note=Caf%C3%A9+%26+Co.');
+    expect(link).toContain('note=Caf%C3%A9%20%26%20Co.');
   });
 
   it('generates link for USD currency (explicit)', () => {
@@ -158,7 +175,7 @@ describe('openVenmoPayment', () => {
     
     expect(result).toBe(true);
     expect(getMockWindowOpen()).toHaveBeenCalledWith(
-      'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test+Restaurant',
+      'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test%20Restaurant',
       '_blank',
       'noopener,noreferrer'
     );
@@ -200,7 +217,7 @@ describe('shareVenmoPayment', () => {
     expect(getMockNavigatorShare()).toHaveBeenCalledWith({
       title: 'Pay Alice via Venmo',
       text: 'Pay Alice $25.50 via Venmo',
-      url: 'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test+Restaurant',
+      url: 'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test%20Restaurant',
     });
     expect(getMockWindowOpen()).not.toHaveBeenCalled();
   });
@@ -213,7 +230,7 @@ describe('shareVenmoPayment', () => {
     
     expect(getMockNavigatorShare()).toHaveBeenCalled();
     expect(getMockWindowOpen()).toHaveBeenCalledWith(
-      'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test+Restaurant',
+      'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test%20Restaurant',
       '_blank',
       'noopener,noreferrer'
     );
@@ -272,7 +289,7 @@ describe('shareVenmoPayment', () => {
     await shareVenmoPayment('5551234567', 25.50, 'Test Restaurant', 'Alice');
 
     expect(getMockWindowOpen()).toHaveBeenCalledWith(
-      'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test+Restaurant',
+      'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test%20Restaurant',
       '_blank',
       'noopener,noreferrer'
     );
@@ -308,7 +325,7 @@ describe('shareVenmoPayment', () => {
     expect(getMockNavigatorShare()).toHaveBeenCalledWith({
       title: 'Pay Alice via Venmo',
       text: 'Pay Alice $25.50 via Venmo',
-      url: 'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test+Restaurant',
+      url: 'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test%20Restaurant',
     });
   });
 });
