@@ -1,9 +1,8 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Receipt, DollarSign } from "lucide-react";
 import { type SharedSplitData } from "@/lib/split-sharing";
 import { formatCurrency } from "@/lib/receipt-utils";
-import { generateVenmoLink } from "@/lib/venmo-utils";
+import { formatVenmoNote, openVenmoPayment } from "@/lib/venmo-utils";
+import { formatDisplayDate } from "@/lib/date-utils";
 import Image from "next/image";
 
 interface SplitSummaryProps {
@@ -11,125 +10,100 @@ interface SplitSummaryProps {
   phoneNumber?: string;
 }
 
-export function SplitSummary({ splitData, phoneNumber }: SplitSummaryProps) {
-  const formatDate = (dateString: string): string => {
-    try {
-      const date = new Date(dateString);
-      // Check if the date is valid
-      if (isNaN(date.getTime())) {
-        return dateString; // Fallback to original string if invalid
-      }
-      return date.toLocaleDateString("en-US", {
-        weekday: "short",
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      });
-    } catch {
-      return dateString; // Fallback to original string if parsing fails
-    }
-  };
+function personCountLabel(count: number): string {
+  return `${count} ${count === 1 ? "person" : "people"}`;
+}
+
+function SplitPersonRow({
+  name,
+  amount,
+  currency,
+  canPayWithVenmo,
+  onPay,
+}: {
+  name: string;
+  amount: number;
+  currency: string;
+  canPayWithVenmo: boolean;
+  onPay: () => void;
+}) {
+  const formattedAmount = formatCurrency(amount, currency);
 
   return (
-    <Card className="w-full transition-all duration-300 hover:shadow-lg">
-      <CardHeader>
-        <CardTitle className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-xl sm:text-2xl text-center sm:text-left">
-          <div className="flex items-center justify-start gap-3">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <Receipt className="h-6 w-6 text-primary" />
-            </div>
-            <span>Split from </span>
-          </div>
-          <span className="px-3 py-1 bg-primary/10 rounded-lg border border-primary/20 text-primary font-medium">
-            {splitData.note}
-          </span>
-          {splitData.date && (
-            <>
-              <span className="text-muted-foreground">on</span>
-              <span className="px-3 py-1 bg-primary/10 rounded-lg border border-primary/20 text-primary font-medium">
-                {formatDate(splitData.date)}
-              </span>
-            </>
-          )}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="flex justify-center">
-          <div className="w-full max-w-sm sm:max-w-md md:w-auto md:max-w-none">
-            <div className="flex md:inline-flex w-full md:w-auto flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 px-6 py-5 bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl border border-primary/20 shadow-inner transition-all duration-200 hover:border-primary/30">
-              <div className="h-9 w-9 rounded-full bg-primary/15 ring-1 ring-primary/20 flex items-center justify-center">
-                <DollarSign className="h-5 w-5 text-primary" />
-              </div>
-              <div className="text-center">
-                <p className="text-xs tracking-wide uppercase text-muted-foreground">
-                  Total Bill
-                </p>
-                <p className="font-extrabold text-2xl sm:text-3xl text-primary mt-1">
-                  {formatCurrency(splitData.total, splitData.currency)}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
+    <li className="flex items-center gap-3 py-3">
+      <div
+        className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium"
+        aria-hidden="true"
+      >
+        {name.charAt(0).toUpperCase()}
+      </div>
+      <span className="min-w-0 flex-1 truncate font-medium">{name}</span>
+      <span className="shrink-0 tabular-nums text-sm font-medium">
+        {formattedAmount}
+      </span>
+      {canPayWithVenmo && (
+        <Button
+          size="sm"
+          onClick={onPay}
+          aria-label={`Pay ${formattedAmount} for ${name} with Venmo`}
+          className="shrink-0 bg-[#008CFF] px-3 text-white hover:bg-[#0074D9]"
+        >
+          <Image src="/venmo.png" alt="" width={14} height={14} />
+          Pay
+        </Button>
+      )}
+    </li>
+  );
+}
 
-        {/* Individual Breakdown */}
-        <div className="space-y-4">
-          <div className="space-y-3">
-            {splitData.names.map((name, index) => (
-              <div
-                key={`${name}-${index}`}
-                className="flex justify-between items-center py-4 px-4 bg-gradient-to-r from-muted/40 to-muted/20 rounded-xl"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-sm font-semibold text-primary">
-                      {name[0]}
-                    </span>
-                  </div>
-                  <span className="font-semibold text-base">{name}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  {phoneNumber && splitData.currency === 'USD' && (
-                    <Button
-                      onClick={() => {
-                        const note = `${splitData.note} - ${name}`;
-                        const venmoLink = generateVenmoLink(
-                          phoneNumber,
-                          splitData.amounts[index],
-                          note
-                        );
-                        if (venmoLink) {
-                          window.open(
-                            venmoLink,
-                            "_blank",
-                            "noopener,noreferrer"
-                          );
-                        }
-                      }}
-                      size="sm"
-                      className="px-3 text-xs font-medium transition-all duration-200 hover:shadow-md active:scale-95 bg-[#008CFF] hover:bg-[#0074D9] text-white dark:bg-[#008CFF] dark:hover:bg-[#0074D9]"
-                    >
-                      <Image
-                        src="/venmo.png"
-                        alt="Venmo"
-                        width={12}
-                        height={12}
-                        className="mr-1"
-                      />
-                      {formatCurrency(splitData.amounts[index], splitData.currency)}
-                    </Button>
-                  )}
-                  {phoneNumber && splitData.currency !== 'USD' && (
-                    <span className="text-sm font-semibold">
-                      {formatCurrency(splitData.amounts[index], splitData.currency)}
-                    </span>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+export function SplitSummary({ splitData, phoneNumber }: SplitSummaryProps) {
+  const canPayWithVenmo = Boolean(phoneNumber) && splitData.currency === "USD";
+  const meta = [
+    splitData.date ? formatDisplayDate(splitData.date) : null,
+    personCountLabel(splitData.names.length),
+  ].filter(Boolean);
+
+  return (
+    <div className="flex flex-col gap-8">
+      <header className="flex flex-col gap-5">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight text-balance">
+            {splitData.note}
+          </h1>
+          <p className="text-sm text-muted-foreground">{meta.join(" · ")}</p>
         </div>
-      </CardContent>
-    </Card>
+        <div className="flex flex-col gap-1">
+          <p className="text-4xl font-semibold tracking-tight tabular-nums">
+            {formatCurrency(splitData.total, splitData.currency)}
+          </p>
+          <p className="text-sm text-muted-foreground">Total</p>
+        </div>
+      </header>
+
+      <section aria-labelledby="split-amounts-heading">
+        <h2 id="split-amounts-heading" className="sr-only">
+          Individual amounts
+        </h2>
+        <ul className="flex flex-col divide-y divide-border border-y">
+          {splitData.names.map((name, index) => (
+            <SplitPersonRow
+              key={`${name}-${index}`}
+              name={name}
+              amount={splitData.amounts[index]}
+              currency={splitData.currency}
+              canPayWithVenmo={canPayWithVenmo}
+              onPay={() => {
+                if (!phoneNumber) return;
+                openVenmoPayment(
+                  phoneNumber,
+                  splitData.amounts[index],
+                  formatVenmoNote(splitData.note, name)
+                );
+              }}
+            />
+          ))}
+        </ul>
+      </section>
+    </div>
   );
 }

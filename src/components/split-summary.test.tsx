@@ -1,8 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { SplitSummary } from "./split-summary";
 import { type SharedSplitData } from "@/lib/split-sharing";
 
-// Mock the formatCurrency function
 jest.mock("@/lib/receipt-utils", () => ({
   formatCurrency: jest.fn((amount: number) => `$${amount.toFixed(2)}`),
 }));
@@ -27,20 +26,16 @@ const mockMinimalSplitData: SharedSplitData = {
 };
 
 describe("SplitSummary", () => {
-  it("renders complete split summary with all information", () => {
+  it("renders restaurant, total, date, and people", () => {
     render(<SplitSummary splitData={mockSplitData} phoneNumber="5551234567" />);
 
-    // Check main title - text is now split across elements
-    expect(screen.getByText("Split from")).toBeInTheDocument();
-
-    // Check note/description info (required field) - now in header
-    expect(screen.getByText("Pizza Palace")).toBeInTheDocument();
-
-    // Check total amount
-    expect(screen.getByText("Total Bill")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Pizza Palace" })
+    ).toBeInTheDocument();
+    expect(screen.getByText("Mon, Jan 15, 2024 · 3 people")).toBeInTheDocument();
+    expect(screen.getByText("Total")).toBeInTheDocument();
     expect(screen.getByText("$65.00")).toBeInTheDocument();
 
-    // Check individual breakdown - cards are still present
     expect(screen.getByText("Alice")).toBeInTheDocument();
     expect(screen.getByText("Bob")).toBeInTheDocument();
     expect(screen.getByText("Charlie")).toBeInTheDocument();
@@ -49,30 +44,21 @@ describe("SplitSummary", () => {
     expect(screen.getByText("$13.00")).toBeInTheDocument();
   });
 
-  it("renders minimal split summary without optional date field", () => {
+  it("omits the date when it is not provided", () => {
     render(
       <SplitSummary splitData={mockMinimalSplitData} phoneNumber="5551234567" />
     );
 
-    // Check main title - text is now split across elements
-    expect(screen.getByText("Split from")).toBeInTheDocument();
-
-    // Note should be present (required field) - now in header
-    expect(screen.getByText("Test Split")).toBeInTheDocument();
-
-    // Date should not be present (optional field not provided)
-    // Note: Date cards have been removed from the UI
-
-    // Check total amount - use getAllByText since $25.00 appears twice
-    expect(screen.getByText("Total Bill")).toBeInTheDocument();
-    const amounts = screen.getAllByText("$25.00");
-    expect(amounts.length).toBeGreaterThan(0);
-
-    // Check single person data is displayed
-    expect(screen.getByText("Alice")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Test Split" })
+    ).toBeInTheDocument();
+    expect(screen.getByText("1 person")).toBeInTheDocument();
+    expect(screen.queryByText(/Jan/)).not.toBeInTheDocument();
+    expect(screen.getByText("Total")).toBeInTheDocument();
+    expect(screen.getAllByText("$25.00").length).toBeGreaterThan(0);
   });
 
-  it("handles date formatting correctly", () => {
+  it("formats dates without shifting the calendar day", () => {
     const splitDataWithDate: SharedSplitData = {
       ...mockMinimalSplitData,
       date: "2024-12-25",
@@ -82,9 +68,7 @@ describe("SplitSummary", () => {
       <SplitSummary splitData={splitDataWithDate} phoneNumber="5551234567" />
     );
 
-    // Date cards have been removed from the UI, but date still appears in title
-    // Should format as a readable date - be flexible about the day due to timezone differences
-    expect(screen.getByText(/Dec.*2[4-5].*2024/)).toBeInTheDocument();
+    expect(screen.getByText(/Wed, Dec 25, 2024 · 1 person/)).toBeInTheDocument();
   });
 
   it("handles invalid date gracefully", () => {
@@ -97,64 +81,10 @@ describe("SplitSummary", () => {
       <SplitSummary splitData={splitDataWithBadDate} phoneNumber="5551234567" />
     );
 
-    // Date cards have been removed from the UI, but invalid date still appears in title
-    // Should fall back to original string when date parsing fails
-    expect(screen.getByText("invalid-date")).toBeInTheDocument();
+    expect(screen.getByText(/invalid-date · 1 person/)).toBeInTheDocument();
   });
 
-  it("displays verification note with correct calculation", () => {
-    render(<SplitSummary splitData={mockSplitData} phoneNumber="5551234567" />);
-
-    // Verification note has been removed for cleaner design
-    // Component now focuses on core split information display
-  });
-
-  it("handles single person correctly", () => {
-    render(
-      <SplitSummary splitData={mockMinimalSplitData} phoneNumber="5551234567" />
-    );
-
-    // Single person data is displayed in individual breakdown cards
-    expect(screen.getByText("Alice")).toBeInTheDocument();
-    // $25.00 appears twice (Total Bill and individual amount), so use getAllByText
-    const amounts = screen.getAllByText("$25.00");
-    expect(amounts.length).toBeGreaterThan(0);
-  });
-
-  it("handles multiple people correctly", () => {
-    render(<SplitSummary splitData={mockSplitData} phoneNumber="5551234567" />);
-
-    // Multiple people data is displayed in individual breakdown cards
-    expect(screen.getByText("Alice")).toBeInTheDocument();
-    expect(screen.getByText("Bob")).toBeInTheDocument();
-    expect(screen.getByText("Charlie")).toBeInTheDocument();
-    expect(screen.getByText("$32.50")).toBeInTheDocument();
-    expect(screen.getByText("$19.50")).toBeInTheDocument();
-    expect(screen.getByText("$13.00")).toBeInTheDocument();
-  });
-
-  it("displays all individual amounts in breakdown", () => {
-    render(<SplitSummary splitData={mockSplitData} phoneNumber="5551234567" />);
-
-    // All names should be present
-    mockSplitData.names.forEach((name) => {
-      expect(screen.getByText(name)).toBeInTheDocument();
-    });
-
-    // All amounts should be present (formatted by mock function)
-    mockSplitData.amounts.forEach((amount) => {
-      expect(screen.getByText(`$${amount.toFixed(2)}`)).toBeInTheDocument();
-    });
-  });
-
-  it("always displays required note field", () => {
-    render(<SplitSummary splitData={mockSplitData} phoneNumber="5551234567" />);
-
-    // Note is required, so should always be present in the header
-    expect(screen.getByText("Pizza Palace")).toBeInTheDocument();
-  });
-
-  it("handles long note names with truncation", () => {
+  it("keeps long restaurant names in the document", () => {
     const longNoteData: SharedSplitData = {
       ...mockMinimalSplitData,
       note: "This is a very long restaurant name that should be truncated properly",
@@ -162,11 +92,62 @@ describe("SplitSummary", () => {
 
     render(<SplitSummary splitData={longNoteData} phoneNumber="5551234567" />);
 
-    // The full text should be present in the DOM (truncation is CSS-based)
     expect(
-      screen.getByText(
-        "This is a very long restaurant name that should be truncated properly"
-      )
+      screen.getByRole("heading", {
+        name: "This is a very long restaurant name that should be truncated properly",
+      })
     ).toBeInTheDocument();
+  });
+
+  it("shows Venmo pay actions for USD splits", () => {
+    render(<SplitSummary splitData={mockSplitData} phoneNumber="5551234567" />);
+
+    expect(
+      screen.getByRole("button", { name: "Pay $32.50 for Alice with Venmo" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Pay $19.50 for Bob with Venmo" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Pay $13.00 for Charlie with Venmo" })
+    ).toBeInTheDocument();
+  });
+
+  it("opens a Venmo link when Pay is clicked", () => {
+    render(<SplitSummary splitData={mockSplitData} phoneNumber="5551234567" />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Pay $32.50 for Alice with Venmo" })
+    );
+
+    expect(window.open).toHaveBeenCalledWith(
+      expect.stringContaining("https://venmo.com/"),
+      "_blank",
+      "noopener,noreferrer"
+    );
+  });
+
+  it("always shows amounts even without a payment phone number", () => {
+    render(<SplitSummary splitData={mockSplitData} />);
+
+    expect(screen.getByText("$32.50")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /with Venmo/i })
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides Venmo actions for non-USD currencies but still shows amounts", () => {
+    const euroSplit: SharedSplitData = {
+      ...mockSplitData,
+      currency: "EUR",
+    };
+
+    render(<SplitSummary splitData={euroSplit} phoneNumber="5551234567" />);
+
+    expect(screen.getByText("Alice")).toBeInTheDocument();
+    expect(screen.getByText("$32.50")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /with Venmo/i })
+    ).not.toBeInTheDocument();
   });
 });

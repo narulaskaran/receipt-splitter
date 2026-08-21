@@ -197,7 +197,7 @@ async function takeScreenshots(options) {
             await page.waitForSelector('[role="tabpanel"]', { timeout: 5000 });
           } else if (options.route === '/split' && options.mockData) {
             // Wait for split summary to load
-            await page.waitForSelector('text=Receipt Split', { timeout: 5000 });
+            await page.waitForSelector('text=Test Restaurant', { timeout: 5000 });
           }
         } catch {
           // If specific elements don't appear, continue anyway after networkidle
