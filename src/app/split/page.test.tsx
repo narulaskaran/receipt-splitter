@@ -20,8 +20,8 @@ describe("/split route (client) with query params", () => {
 
     // Wait for final content
     await waitFor(() => {
-      expect(screen.getByText("Receipt Split")).toBeInTheDocument();
-      expect(screen.getByText("Total Bill")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Love Mama" })).toBeInTheDocument();
+      expect(screen.getByText("Total")).toBeInTheDocument();
       expect(screen.getByText("$67.52")).toBeInTheDocument();
     });
 

@@ -1,8 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState, Suspense } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { useEffect, useState, Suspense, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, ArrowLeft, Loader2 } from "lucide-react";
 import {
@@ -18,6 +17,28 @@ interface SplitPageState {
   splitData: SharedSplitData | null;
   isLoading: boolean;
   error: string | null;
+}
+
+function StatusScreen({
+  icon,
+  title,
+  children,
+}: {
+  icon: ReactNode;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+      <div className="flex w-full max-w-sm flex-col items-center gap-4 text-center">
+        {icon}
+        <div className="flex flex-col gap-2">
+          <h1 className="text-lg font-semibold">{title}</h1>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function SplitPageContent() {
@@ -74,123 +95,57 @@ function SplitPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
-  // Loading state with enhanced design
   if (state.isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md animate-in fade-in-0 slide-in-from-bottom-4 duration-500">
-          <CardContent className="flex flex-col items-center justify-center py-8 px-6">
-            <div className="relative mb-6">
-              <Loader2 className="h-12 w-12 animate-spin text-primary" />
-              <div className="absolute inset-0 h-12 w-12 animate-ping rounded-full bg-primary/20" />
-            </div>
-            <h2 className="text-xl font-semibold mb-3 text-center">
-              Loading Split Details
-            </h2>
-            <p className="text-sm text-muted-foreground text-center leading-relaxed">
-              Processing your receipt split and payment information...
-            </p>
-            <div className="mt-4 w-full bg-muted/50 rounded-full h-1">
-              <div
-                className="bg-primary h-1 rounded-full animate-pulse"
-                style={{ width: "60%" }}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <StatusScreen
+        icon={
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        }
+        title="Loading split"
+      >
+        <p className="text-sm text-muted-foreground">
+          Getting payment details ready…
+        </p>
+      </StatusScreen>
     );
   }
 
-  // Error state with enhanced design and helpful information
   if (state.error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="w-full max-w-md animate-in fade-in-0 slide-in-from-bottom-4 duration-500">
-          <CardContent className="flex flex-col items-center justify-center py-8 px-6">
-            <div className="relative mb-6">
-              <AlertCircle className="h-16 w-16 text-destructive" />
-              <div className="absolute inset-0 h-16 w-16 animate-pulse rounded-full bg-destructive/10" />
-            </div>
-            <h2 className="text-xl font-semibold mb-3 text-center">
-              Unable to Load Split
-            </h2>
-            <p className="text-sm text-muted-foreground text-center mb-6 leading-relaxed">
-              {state.error}
-            </p>
-
-            {/* Help Tips */}
-            <div className="w-full mb-6 p-4 bg-muted/50 rounded-lg">
-              <p className="text-xs font-medium text-muted-foreground mb-2">
-                Common solutions:
-              </p>
-              <ul className="text-xs text-muted-foreground space-y-1">
-                <li>• Check if the URL was copied completely</li>
-                <li>• Ensure the original split was created successfully</li>
-                <li>• Try refreshing the page</li>
-              </ul>
-            </div>
-
-            <div className="flex flex-col gap-3 w-full">
-              <Button
-                variant="outline"
-                asChild
-                className="w-full h-11 text-base transition-all duration-200 hover:bg-muted active:scale-95"
-              >
-                <Link href="/">
-                  <ArrowLeft className="h-5 w-5 mr-2" />
-                  Create New Split
-                </Link>
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => window.location.reload()}
-                className="w-full transition-all duration-200"
-              >
-                Try Refreshing Page
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <StatusScreen
+        icon={<AlertCircle className="size-8 text-destructive" />}
+        title="Unable to Load Split"
+      >
+        <p className="text-sm text-muted-foreground">{state.error}</p>
+        <div className="flex w-full flex-col gap-2 pt-2">
+          <Button variant="outline" asChild>
+            <Link href="/">
+              <ArrowLeft data-icon="inline-start" />
+              Create New Split
+            </Link>
+          </Button>
+          <Button variant="ghost" onClick={() => window.location.reload()}>
+            Refresh
+          </Button>
+        </div>
+      </StatusScreen>
     );
   }
 
-  // Success state - split data loaded
   const { splitData } = state;
   if (!splitData) {
-    return null; // This shouldn't happen, but TypeScript safety
+    return null;
   }
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 sm:px-6 py-6 sm:py-8 max-w-4xl">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-8">
-          <Button
-            variant="ghost"
-            size="sm"
-            asChild
-            className="self-start h-10 px-3 transition-all duration-200 hover:bg-muted active:scale-95"
-          >
-            <Link href="/">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to App
-            </Link>
-          </Button>
-          <div className="flex-1">
-            <h1 className="text-2xl sm:text-3xl font-bold mb-1">
-              Receipt Split
-            </h1>
-            <p className="text-sm sm:text-base text-muted-foreground">
-              Review the split details and pay your amount
-            </p>
-          </div>
-        </div>
-
-        {/* Split Summary */}
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6 sm:py-10">
+        <Button variant="ghost" size="sm" asChild className="-ml-3 self-start">
+          <Link href="/">
+            <ArrowLeft data-icon="inline-start" />
+            Back
+          </Link>
+        </Button>
         <SplitSummary splitData={splitData} phoneNumber={splitData.phone} />
       </div>
     </div>
@@ -201,19 +156,16 @@ export default function SplitPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen flex items-center justify-center bg-background">
-          <Card className="w-full max-w-md mx-4">
-            <CardContent className="flex flex-col items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-              <h2 className="text-lg font-semibold mb-2">
-                Loading Split Details
-              </h2>
-              <p className="text-sm text-muted-foreground text-center">
-                Processing your receipt split...
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+        <StatusScreen
+          icon={
+            <Loader2 className="size-6 animate-spin text-muted-foreground" />
+          }
+          title="Loading split"
+        >
+          <p className="text-sm text-muted-foreground">
+            Getting payment details ready…
+          </p>
+        </StatusScreen>
       }
     >
       <SplitPageContent />
