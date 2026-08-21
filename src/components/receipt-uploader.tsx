@@ -16,7 +16,6 @@ import {
   clearThumbnails,
   getLatestThumbnailId,
   getThumbnails,
-  migrateLegacyImage,
 } from "@/lib/receipt-thumbnails";
 import {
   createReceiptThumbnail,
@@ -180,10 +179,13 @@ export function ReceiptUploader({
     total: number;
   } | null>(null);
 
-  // Restore the last accepted receipt's preview from the thumbnail cache on
-  // mount, migrating away from the legacy singular image key if present.
+  // Restore the last accepted receipt's preview from the thumbnail cache.
+  // NOTE: this component must NOT touch the legacy singular image key here.
+  // Child passive effects run before parent effects, and Home's restore effect
+  // (src/app/page.tsx) performs migrateLegacyImage() with the real newest
+  // receipt id once the session is available. Deleting or moving that key
+  // here would race ahead of it and silently lose a legacy user's image.
   useEffect(() => {
-    migrateLegacyImage(null);
     const latestId = getLatestThumbnailId();
     if (latestId) {
       const thumbnails = getThumbnails();

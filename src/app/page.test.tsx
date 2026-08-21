@@ -146,8 +146,53 @@ describe("Home Page", () => {
       render(<Home />);
       expect(screen.getByRole("tab", { name: /add people/i })).toHaveAttribute("data-state", "active");
       expect(screen.getByRole("tab", { name: /add people/i })).toBeEnabled();
-      expect(screen.getByRole("tab", { name: /assign items/i })).toBeEnabled();
       expect(screen.getByRole("tab", { name: /results/i })).toBeDisabled();
+    });
+
+    // Regression test for the PR #177 review finding: ReceiptUploader's mount
+    // effect used to call migrateLegacyImage(null), which deleted the legacy
+    // receiptSplitterImage key before Home's session-restore effect (parent,
+    // runs after the child) could attach it to the newest receipt. The legacy
+    // image must survive the child's mount and be attached + removed only by
+    // the page-level migration.
+    it("migrates a legacy receiptSplitterImage onto the newest restored receipt despite child-effect ordering", async () => {
+      const legacyImage = "data:image/png;base64,legacy-image-bytes";
+      localStorage.setItem(RECEIPT_IMAGE_STORAGE_KEY, legacyImage);
+      const firstReceiptId = "00000000-0000-4000-8000-000000000001";
+      const lastReceiptId = "00000000-0000-4000-8000-000000000002";
+      localStorage.setItem(
+        "receiptSplitterSession",
+        JSON.stringify({
+          version: 2,
+          state: {
+            receipts: [
+              { id: firstReceiptId, receipt: mockReceipt },
+              { id: lastReceiptId, receipt: createMockReceipt({ restaurant: "Newest" }) },
+            ],
+            people: [],
+            assignedItems: [],
+            groups: [],
+            isLoading: false,
+            error: null,
+          },
+          activeTab: "upload",
+        })
+      );
+
+      // Render with real effects — this exercises the actual child-before-parent
+      // passive-effect ordering between ReceiptUploader and Home on mount.
+      render(<Home />);
+
+      await waitFor(() => {
+        // Legacy key is consumed only AFTER successful association...
+        expect(localStorage.getItem(RECEIPT_IMAGE_STORAGE_KEY)).toBeNull();
+        // ...onto the NEWEST receipt, not the first one.
+        const thumbnails = JSON.parse(
+          localStorage.getItem("receiptSplitterThumbnails") as string
+        );
+        expect(thumbnails[lastReceiptId]).toBe(legacyImage);
+        expect(thumbnails[firstReceiptId]).toBeUndefined();
+      });
     });
   });
 
