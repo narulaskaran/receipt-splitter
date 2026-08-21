@@ -30,9 +30,9 @@ function SplitPersonRow({
   const formattedAmount = formatCurrency(amount, currency);
 
   return (
-    <li className="flex items-center gap-3 py-3">
+    <li className="flex items-center gap-3 py-1">
       <div
-        className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium"
+        className="flex size-8 shrink-0 items-center justify-center rounded-full bg-background text-xs font-medium"
         aria-hidden="true"
       >
         {name.charAt(0).toUpperCase()}
@@ -46,7 +46,7 @@ function SplitPersonRow({
           size="sm"
           onClick={onPay}
           aria-label={`Pay ${formattedAmount} for ${name} with Venmo`}
-          className="shrink-0 bg-[#008CFF] px-3 text-white hover:bg-[#0074D9]"
+          className="shrink-0 rounded-full bg-[#008CFF] px-3 text-white hover:bg-[#0074D9]"
         >
           <Image src="/venmo.png" alt="" width={14} height={14} />
           Pay
@@ -64,8 +64,8 @@ export function SplitSummary({ splitData, phoneNumber }: SplitSummaryProps) {
   ].filter(Boolean);
 
   return (
-    <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-semibold tracking-tight text-balance">
             {splitData.note}
@@ -84,7 +84,7 @@ export function SplitSummary({ splitData, phoneNumber }: SplitSummaryProps) {
         <h2 id="split-amounts-heading" className="sr-only">
           Individual amounts
         </h2>
-        <ul className="flex flex-col divide-y divide-border border-y">
+        <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-xl bg-muted/50 px-3">
           {splitData.names.map((name, index) => (
             <SplitPersonRow
               key={`${name}-${index}`}

@@ -139,7 +139,7 @@ function SplitPageContent() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto flex w-full max-w-lg flex-col gap-8 px-4 py-6 sm:py-10">
+      <div className="mx-auto flex w-full max-w-lg flex-col gap-6 px-4 py-5 sm:py-10">
         <Button variant="ghost" size="sm" asChild className="-ml-3 self-start">
           <Link href="/">
             <ArrowLeft data-icon="inline-start" />
