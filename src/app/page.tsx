@@ -53,6 +53,12 @@ import {
   safeSetItem,
 } from "@/lib/storage";
 import {
+  clearThumbnails,
+  migrateLegacyImage,
+  pruneThumbnails,
+  removeThumbnail,
+} from "@/lib/receipt-thumbnails";
+import {
   SESSION_STORAGE_KEY,
   emptyReceiptState,
   serializeSession,
@@ -209,6 +215,12 @@ export default function Home() {
       const restored = deserializeSession(session);
       if (restored) {
         setState(restored.state);
+        // Re-attach any thumbnails orphaned by a corrupted/rolled-back blob,
+        // then migrate the legacy singular image key onto the newest receipt.
+        pruneThumbnails(restored.state.receipts.map((r) => r.id));
+        migrateLegacyImage(
+          restored.state.receipts[restored.state.receipts.length - 1]?.id
+        );
         const restoredTab = restored.activeTab || "upload";
         const restoredAssigned = validateSessionAssignments(
           restored.state.receipts,
@@ -244,8 +256,9 @@ export default function Home() {
       const serialized = serializeSession(state, activeTab);
       const ok = safeSetItem(SESSION_STORAGE_KEY, serialized);
       if (!ok) {
-        // Quota exhausted — evict the cached image (largest consumer) and retry once
+        // Quota exhausted — evict cached images (largest consumers) and retry once
         safeRemoveItem(RECEIPT_IMAGE_STORAGE_KEY);
+        clearThumbnails();
         safeSetItem(SESSION_STORAGE_KEY, serialized);
       }
       setHasSession(!isDefaultSession(state, activeTab));
@@ -256,6 +269,7 @@ export default function Home() {
   const handleNewSplit = () => {
     safeRemoveItem(SESSION_STORAGE_KEY);
     safeRemoveItem(RECEIPT_IMAGE_STORAGE_KEY);
+    clearThumbnails();
     const empty = emptyReceiptState();
     stateRef.current = empty;
     setState(empty);
@@ -295,8 +309,9 @@ export default function Home() {
       : ((totalItems - unassigned.length) / totalItems) * 100;
   };
 
-  // Handle receipt upload — append to the current outing (people/groups stay)
-  const handleReceiptParsed = (receipt: Receipt): boolean => {
+  // Handle receipt upload — append to the current outing (people/groups stay).
+  // Returns the new receipt id so the uploader can key its thumbnail to it.
+  const handleReceiptParsed = (receipt: Receipt): string | false => {
     const result = addParsedReceipt(stateRef.current, receipt);
     if (result.status === "capped") {
       toast.error(
@@ -313,10 +328,11 @@ export default function Home() {
     stateRef.current = result.next;
     setState(result.next);
     toast.success("Receipt successfully parsed!");
-    return true;
+    return result.next.receipts[result.next.receipts.length - 1].id;
   };
 
   const handleRemoveReceipt = (receiptId: string) => {
+    removeThumbnail(receiptId);
     setState((prevState) => {
       const next = removeReceiptFromState(prevState, receiptId);
       stateRef.current = next;

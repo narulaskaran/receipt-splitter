@@ -428,9 +428,10 @@ describe("ReceiptUploader", () => {
       const previewAfterUsd = screen
         .getByAltText("Receipt preview")
         .getAttribute("src");
-      const cachedAfterUsd = localStorage.getItem("receiptSplitterImage");
       expect(previewAfterUsd).toBe(usdDataUrl);
-      expect(cachedAfterUsd).toBe(usdDataUrl);
+      // The legacy full-size key is no longer written at all (per-receipt
+      // thumbnails replace it), so nothing cached to be clobbered.
+      expect(localStorage.getItem("receiptSplitterImage")).toBeNull();
       expect(usdDataUrl).not.toBe(`data:image/jpeg;base64,${btoa("eur.jpg")}`);
 
       const eurFile = new File(["eur-image-different-bytes"], "eur.jpg", {
@@ -449,9 +450,93 @@ describe("ReceiptUploader", () => {
       expect(screen.getByAltText("Receipt preview").getAttribute("src")).toBe(
         previewAfterUsd
       );
-      expect(localStorage.getItem("receiptSplitterImage")).toBe(cachedAfterUsd);
+      expect(localStorage.getItem("receiptSplitterThumbnails")).toBeNull();
     } finally {
       global.FileReader = OriginalFileReader;
     }
+  });
+
+  it("persists a compressed thumbnail keyed by the accepted receipt id", async () => {
+    const OriginalFileReader = global.FileReader;
+    class FakeFileReader {
+      result: string | ArrayBuffer | null = null;
+      onload: ((this: FileReader, ev: ProgressEvent<FileReader>) => void) | null =
+        null;
+      onerror: ((this: FileReader, ev: ProgressEvent<FileReader>) => void) | null =
+        null;
+      readAsDataURL(file: Blob) {
+        const name = file instanceof File ? file.name : "blob";
+        this.result = file.size <= 2048
+          ? `data:${file.type};base64,${btoa(name)}`
+          : `data:image/jpeg;base64,${btoa(`thumb-${name}`)}`;
+        queueMicrotask(() => {
+          this.onload?.call(this as unknown as FileReader, {} as ProgressEvent<FileReader>);
+        });
+      }
+    }
+    global.FileReader = FakeFileReader as unknown as typeof FileReader;
+    (imageCompression as unknown as jest.Mock).mockImplementation(async (file: File) =>
+      new File([new ArrayBuffer(512)], file.name, { type: "image/jpeg" })
+    );
+
+    try {
+      mockOnReceiptParsed.mockReturnValueOnce("receipt-abc");
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          restaurant: "Cafe",
+          total: 10,
+          items: [],
+          currency: "USD",
+        }),
+      });
+
+      renderUploader();
+
+      const file = new File([new ArrayBuffer(4096)], "cafe.jpg", { type: "image/jpeg" });
+      await userEvent.upload(getFileInput(), file);
+
+      await waitFor(() => {
+        expect(mockOnReceiptParsed).toHaveBeenCalledTimes(1);
+      });
+
+      // Thumbnail persisted under the receipt's id in the single map key.
+      await waitFor(() => {
+        const raw = localStorage.getItem("receiptSplitterThumbnails");
+        expect(raw).not.toBeNull();
+        const map = JSON.parse(raw as string);
+        expect(map["receipt-abc"]).toMatch(/^data:image\//);
+      });
+      // No full-size data URL is written to the legacy key anymore.
+      expect(localStorage.getItem("receiptSplitterImage")).toBeNull();
+    } finally {
+      global.FileReader = OriginalFileReader;
+    }
+  });
+
+  it("does not write a thumbnail when the parse is rejected (currency mismatch)", async () => {
+    (imageCompression as unknown as jest.Mock).mockClear();
+    mockOnReceiptParsed.mockReturnValueOnce(false);
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        restaurant: "Paris Bistro",
+        total: 20,
+        items: [],
+        currency: "EUR",
+      }),
+    });
+
+    renderUploader();
+
+    const file = new File(["eur"], "eur.jpg", { type: "image/jpeg" });
+    await userEvent.upload(getFileInput(), file);
+
+    await waitFor(() => {
+      expect(mockOnReceiptParsed).toHaveBeenCalledTimes(1);
+    });
+    // Give any (incorrect) async thumbnail write a chance to land.
+    await new Promise((r) => setTimeout(r, 25));
+    expect(localStorage.getItem("receiptSplitterThumbnails")).toBeNull();
   });
 });

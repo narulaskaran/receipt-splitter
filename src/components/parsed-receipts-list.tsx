@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, Trash2 } from "lucide-react";
+import { ChevronDown, Trash2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -14,6 +14,7 @@ import { ReceiptDetails } from "@/components/receipt-details";
 import { formatCurrency } from "@/lib/receipt-utils";
 import { MAX_RECEIPTS_PER_SESSION } from "@/lib/constants";
 import { receiptDisplayName } from "@/lib/receipt-labels";
+import { getThumbnails } from "@/lib/receipt-thumbnails";
 import { type Receipt, type StoredReceipt } from "@/types";
 
 interface ParsedReceiptsListProps {
@@ -30,6 +31,13 @@ export function ParsedReceiptsList({
   const lastId = receipts[receipts.length - 1]?.id ?? null;
   const [expandedId, setExpandedId] = useState<string | null>(lastId);
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
+  // Snapshot of the thumbnail cache; re-read whenever the receipt set changes
+  // so newly accepted receipts pick up their persisted thumbnail.
+  const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setThumbnails(getThumbnails());
+  }, [receipts]);
 
   useEffect(() => {
     if (lastId) {
@@ -81,6 +89,18 @@ export function ParsedReceiptsList({
                   }
                   aria-expanded={isExpanded}
                 >
+                  {thumbnails[stored.id] ? (
+                    <img
+                      src={thumbnails[stored.id]}
+                      alt={`${label} receipt preview`}
+                      className="h-12 w-12 rounded object-cover border shrink-0"
+                    />
+                  ) : (
+                    <FileText
+                      aria-hidden="true"
+                      className="h-6 w-6 mt-0.5 shrink-0 text-muted-foreground"
+                    />
+                  )}
                   <ChevronDown
                     className={`h-4 w-4 mt-1 shrink-0 transition-transform ${
                       isExpanded ? "rotate-0" : "-rotate-90"

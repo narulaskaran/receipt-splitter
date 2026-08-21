@@ -103,4 +103,36 @@ describe("ParsedReceiptsList", () => {
       screen.getByText("Starbucks · 2024-01-01 · #2")
     ).toBeInTheDocument();
   });
+
+  it("shows each receipt's own thumbnail next to its row", () => {
+    localStorage.setItem(
+      "receiptSplitterThumbnails",
+      JSON.stringify({ r1: "data:image/jpeg;base64,thumbA" })
+    );
+    const first = createStoredReceipt(
+      createMockReceipt({ restaurant: "Cafe One" }),
+      "r1"
+    );
+    const second = createStoredReceipt(
+      createMockReceipt({ restaurant: "Cafe Two" }),
+      "r2"
+    );
+
+    render(
+      <ParsedReceiptsList
+        receipts={[first, second]}
+        onReceiptUpdate={jest.fn()}
+        onRemoveReceipt={jest.fn()}
+      />
+    );
+
+    // r1 has a persisted thumbnail; r2 (no entry) shows the placeholder icon.
+    expect(screen.getByAltText("Cafe One receipt preview")).toHaveAttribute(
+      "src",
+      "data:image/jpeg;base64,thumbA"
+    );
+    expect(
+      screen.queryByAltText("Cafe Two receipt preview")
+    ).not.toBeInTheDocument();
+  });
 });
