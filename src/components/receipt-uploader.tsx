@@ -11,19 +11,26 @@ import {
 } from "@/lib/constants";
 import imageCompression from "browser-image-compression";
 import { getSessionId } from "@/lib/session";
+import { RECEIPT_IMAGE_STORAGE_KEY, safeRemoveItem } from "@/lib/storage";
 import {
-  RECEIPT_IMAGE_STORAGE_KEY,
-  safeGetItem,
-  safeRemoveItem,
-  safeSetItem,
-} from "@/lib/storage";
+  clearThumbnails,
+  getLatestThumbnailId,
+  getThumbnails,
+  migrateLegacyImage,
+} from "@/lib/receipt-thumbnails";
+import {
+  createReceiptThumbnail,
+  persistReceiptThumbnail,
+} from "@/lib/receipt-thumbnail-image";
 
 interface ReceiptUploaderProps {
   /**
    * Called after a file is parsed. Return `false` to reject the receipt
-   * (currency mismatch, session cap). Preview/cache update only on accept.
+   * (currency mismatch, session cap). Return the new receipt's id on accept
+   * so the uploader can key the persisted thumbnail to that receipt.
+   * Preview/thumbnail updates only happen on accept.
    */
-  onReceiptParsed: (receipt: Receipt) => boolean | void;
+  onReceiptParsed: (receipt: Receipt) => string | false | void;
   isLoading: boolean;
   setIsLoading: (isLoading: boolean) => void;
   resetImageTrigger?: number;
@@ -132,13 +139,25 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
+/**
+ * Update the dropzone preview and persist the per-receipt thumbnail.
+ * `receiptId` is the id returned by onReceiptParsed; thumbnails are keyed by
+ * it so each accepted receipt keeps its own preview across refresh.
+ */
 async function updatePreview(
   file: File,
+  receiptId: string | undefined,
   setPreviewUrl: (url: string) => void
 ): Promise<void> {
   if (file.type.startsWith("image/")) {
+    if (receiptId) {
+      // Compressed thumbnail, persisted under this receipt's id (best-effort).
+      const thumbnail = await createReceiptThumbnail(file);
+      if (thumbnail) persistReceiptThumbnail(receiptId, thumbnail);
+    }
+    // Dropzone keeps showing the full-size preview for the last accepted file.
     const dataUrl = await readFileAsDataUrl(file);
-    safeSetItem(RECEIPT_IMAGE_STORAGE_KEY, dataUrl);
+    safeRemoveItem(RECEIPT_IMAGE_STORAGE_KEY);
     setPreviewUrl(dataUrl);
     return;
   }
@@ -161,11 +180,14 @@ export function ReceiptUploader({
     total: number;
   } | null>(null);
 
-  // Restore preview image from localStorage on mount
+  // Restore the last accepted receipt's preview from the thumbnail cache on
+  // mount, migrating away from the legacy singular image key if present.
   useEffect(() => {
-    const savedImage = safeGetItem(RECEIPT_IMAGE_STORAGE_KEY);
-    if (savedImage) {
-      setPreviewUrl(savedImage);
+    migrateLegacyImage(null);
+    const latestId = getLatestThumbnailId();
+    if (latestId) {
+      const thumbnails = getThumbnails();
+      setPreviewUrl(thumbnails[latestId]);
     }
   }, []);
 
@@ -177,6 +199,7 @@ export function ReceiptUploader({
       prevResetImageTrigger.current !== resetImageTrigger
     ) {
       setPreviewUrl(null);
+      clearThumbnails();
       safeRemoveItem(RECEIPT_IMAGE_STORAGE_KEY);
     }
     prevResetImageTrigger.current = resetImageTrigger;
@@ -214,10 +237,15 @@ export function ReceiptUploader({
             if (!prepared) continue;
 
             const receipt = await parseReceiptFile(prepared);
-            const accepted = onReceiptParsed(receipt) !== false;
+            const acceptedId = onReceiptParsed(receipt);
+            const accepted = acceptedId !== false && acceptedId !== undefined;
             if (!accepted) continue;
             try {
-              await updatePreview(prepared, setPreviewUrl);
+              await updatePreview(
+                prepared,
+                typeof acceptedId === "string" ? acceptedId : undefined,
+                setPreviewUrl
+              );
             } catch {
               // Preview caching is best-effort and must not block a successful parse
             }
