@@ -62,6 +62,12 @@ describe('Currency utilities', () => {
       const info = getCurrencyInfo('INVALID');
       expect(info.code).toBe('USD');
     });
+
+    it('defaults to USD for Object.prototype property names', () => {
+      const info = getCurrencyInfo('toString');
+      expect(info.code).toBe('USD');
+      expect(info.symbol).toBe('$');
+    });
   });
 
   describe('toMinorUnits', () => {
