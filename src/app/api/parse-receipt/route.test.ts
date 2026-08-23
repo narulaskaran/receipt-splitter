@@ -1,26 +1,40 @@
+/**
+ * @jest-environment node
+ *
+ * This suite exercises API-route logic (schemas + POST handler) and needs the
+ * Node fetch primitives (Request/Response) that `next/server` requires; jsdom
+ * does not provide them.
+ */
 import { z } from "zod";
 import { fixMultiQuantityPrices } from "@/lib/receipt-utils";
+import {
+  receiptItemSchema,
+  receiptSchema,
+  receiptJsonSchema,
+} from "@/lib/receipt-schema";
 
-// Re-create the schemas here for testing (they're not exported from route.ts)
-// This tests the schema validation logic independently of the API endpoint
-const receiptItemSchema = z.object({
-  name: z.string(),
-  price: z.number().nullable(),
-  quantity: z.number().optional(),
+// Mocks for the POST-handler tests at the bottom of this file
+jest.mock("@/lib/webhook-notifications", () => ({
+  sendReceiptParsedNotification: jest.fn(),
+  sendErrorNotification: jest.fn(),
+}));
+jest.mock("@/lib/uploadthing-storage", () => ({
+  uploadReceiptFile: jest.fn(),
+}));
+jest.mock("@anthropic-ai/sdk", () => {
+  const createMock = jest.fn();
+  class Anthropic {
+    messages = { create: createMock };
+    static APIError = class APIError extends Error {};
+  }
+  return { __esModule: true, default: Anthropic };
 });
 
-const receiptSchema = z.object({
-  restaurant: z.string().nullable(),
-  date: z.string().nullable(),
-  subtotal: z.number().nullable(),
-  tax: z.number().nullable(),
-  tip: z.number().nullable(),
-  total: z.number().nullable(),
-  items: z.array(receiptItemSchema),
-});
+import Anthropic from "@anthropic-ai/sdk";
+import { POST } from "@/app/api/parse-receipt/route";
 
 // Helper function that mirrors the normalization logic in route.ts
-function normalizeReceipt(data: z.infer<typeof receiptSchema>) {
+function normalizeReceipt(data: z.input<typeof receiptSchema>) {
   const allItems = data.items;
   const validItems = allItems.filter(
     (item): item is typeof item & { price: number } => item.price !== null
@@ -530,5 +544,146 @@ describe("fixMultiQuantityPrices", () => {
       expect(fixed[0].price).toBe(20.0); // unchanged
       expect(fixed[1].price).toBeCloseTo(10.0, 2); // 30/3
     });
+  });
+});
+
+describe("structured output JSON schema", () => {
+  it("includes currency in properties", () => {
+    expect(receiptJsonSchema.properties).toHaveProperty("currency");
+    expect(receiptJsonSchema.properties.currency).toEqual({ type: "string" });
+  });
+
+  it("requires currency so the model is allowed to return it", () => {
+    // additionalProperties: false means any field not listed in properties AND
+    // required is contractually barred from the model's response. Omitting
+    // currency here was the root cause of AI currency detection never working.
+    expect(receiptJsonSchema.required).toContain("currency");
+  });
+
+  it("keeps currency out of the barred set (property + required agree)", () => {
+    const props = Object.keys(receiptJsonSchema.properties);
+    for (const key of receiptJsonSchema.required) {
+      expect(props).toContain(key);
+    }
+  });
+
+  it("validates a model response with a non-USD currency through the Zod schema", () => {
+    const result = receiptSchema.safeParse({
+      restaurant: "Tokyo Ramen",
+      date: "2026-08-01",
+      total: 1500,
+      subtotal: 1400,
+      tax: 100,
+      tip: null,
+      currency: "JPY",
+      items: [{ name: "Ramen", price: 1400, quantity: 1 }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.currency).toBe("JPY");
+    }
+  });
+
+  it("still defaults currency to USD when the model omits it", () => {
+    const result = receiptSchema.safeParse({
+      restaurant: "Test",
+      date: null,
+      total: 10,
+      subtotal: 10,
+      tax: 0,
+      tip: null,
+      items: [{ name: "Item", price: 10, quantity: 1 }],
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.currency).toBe("USD");
+    }
+  });
+});
+
+describe("currency flows through the parse response", () => {
+  // Each mocked client instance shares the same jest.fn() for messages.create
+  const mockCreate = new Anthropic().messages.create as jest.Mock;
+
+  function makeRequestWithFile() {
+    const fd = new FormData();
+    fd.append(
+      "file",
+      new File(["fake-image-bytes"], "receipt.png", { type: "image/png" })
+    );
+    fd.append("sessionId", "test-session");
+    return {
+      formData: async () => fd,
+      headers: new Headers(),
+    } as unknown as Parameters<typeof POST>[0];
+  }
+
+  function modelResponse(overrides: Record<string, unknown> = {}) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            restaurant: "Cafe de Paris",
+            date: "2026-08-01",
+            total: 24.5,
+            subtotal: 20.0,
+            tax: 2.0,
+            tip: 2.5,
+            currency: "EUR",
+            items: [{ name: "Croissant", price: 4.0, quantity: 2 }],
+            ...overrides,
+          }),
+        },
+      ],
+    };
+  }
+
+  beforeEach(() => {
+    process.env.ANTHROPIC_API_KEY = "test-key";
+    delete process.env.UPLOADTHING_TOKEN;
+    delete process.env.WEBHOOK_URL;
+    mockCreate.mockReset();
+  });
+
+  it("passes the currency-inclusive JSON schema to the Anthropic API", async () => {
+    mockCreate.mockResolvedValue(modelResponse());
+
+    const res = await POST(makeRequestWithFile());
+    expect(res.status).toBe(200);
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        output_config: expect.objectContaining({
+          format: expect.objectContaining({
+            schema: receiptJsonSchema,
+          }),
+        }),
+      })
+    );
+  });
+
+  it("returns a non-USD currency from the mocked parse response", async () => {
+    mockCreate.mockResolvedValue(modelResponse({ currency: "EUR" }));
+
+    const res = await POST(makeRequestWithFile());
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.currency).toBe("EUR");
+  });
+
+  it("falls back to USD when the model response omits currency", async () => {
+    const response = modelResponse();
+    const parsed = JSON.parse(response.content[0].text);
+    delete parsed.currency;
+    response.content[0].text = JSON.stringify(parsed);
+    mockCreate.mockResolvedValue(response);
+
+    const res = await POST(makeRequestWithFile());
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.currency).toBe("USD");
   });
 });

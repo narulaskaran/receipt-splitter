@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { z } from "zod";
 import { sendReceiptParsedNotification, sendErrorNotification } from "@/lib/webhook-notifications";
 import { uploadReceiptFile } from "@/lib/uploadthing-storage";
 import { MAX_FILE_SIZE_BYTES } from "@/lib/constants";
 import { type GeolocationData } from "@/types";
 import { fixMultiQuantityPrices } from "@/lib/receipt-utils";
+import {
+  receiptSchema,
+  receiptJsonSchema,
+} from "@/lib/receipt-schema";
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -42,26 +45,6 @@ type ValidDocumentType = "application/pdf";
 function formatFileSizeMB(bytes: number): number {
   return bytes / (1024 * 1024);
 }
-
-// Zod schema for receipt validation
-// Note: price is nullable to handle item modifiers (e.g., "ADD CHEESE") that don't have
-// their own price listed on the receipt. These items are filtered out during normalization.
-const receiptItemSchema = z.object({
-  name: z.string(),
-  price: z.number().nullable(),
-  quantity: z.number().optional(),
-});
-
-const receiptSchema = z.object({
-  restaurant: z.string().nullable(),
-  date: z.string().nullable(),
-  total: z.number().nullable(),
-  subtotal: z.number().nullable(),
-  tax: z.number().nullable(),
-  tip: z.number().nullable(),
-  items: z.array(receiptItemSchema),
-  currency: z.string().optional().default('USD'),
-});
 
 export async function POST(request: NextRequest) {
   try {
@@ -240,32 +223,7 @@ export async function POST(request: NextRequest) {
         output_config: {
           format: {
             type: "json_schema",
-            schema: {
-              type: "object",
-              additionalProperties: false,
-              properties: {
-                restaurant: { type: ["string", "null"] },
-                date: { type: ["string", "null"] },
-                total: { type: ["number", "null"] },
-                subtotal: { type: ["number", "null"] },
-                tax: { type: ["number", "null"] },
-                tip: { type: ["number", "null"] },
-                items: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    additionalProperties: false,
-                    properties: {
-                      name: { type: "string" },
-                      price: { type: ["number", "null"] },
-                      quantity: { type: "number" },
-                    },
-                    required: ["name", "price", "quantity"],
-                  },
-                },
-              },
-              required: ["restaurant", "date", "total", "subtotal", "tax", "tip", "items"],
-            },
+            schema: receiptJsonSchema,
           },
         },
       });

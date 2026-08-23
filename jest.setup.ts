@@ -4,6 +4,31 @@ import "@testing-library/jest-dom";
 // Window API Mocks
 // =============================================================================
 
+// Mock localStorage that persists within each test but resets between tests.
+// Defined unconditionally so node-environment suites can still reset state.
+const localStorageMock = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: jest.fn((key: string) => store[key] ?? null),
+    setItem: jest.fn((key: string, value: string) => {
+      store[key] = value;
+    }),
+    removeItem: jest.fn((key: string) => {
+      delete store[key];
+    }),
+    clear: jest.fn(() => {
+      store = {};
+    }),
+    get length() {
+      return Object.keys(store).length;
+    },
+    key: jest.fn((index: number) => Object.keys(store)[index] ?? null),
+  };
+})();
+
+// DOM-dependent mocks only apply under a DOM environment (jsdom);
+// node-environment test suites skip them.
+if (typeof window !== "undefined") {
 // Avoid opening windows during tests
 Object.defineProperty(window, "open", {
   writable: true,
@@ -52,10 +77,23 @@ Object.defineProperty(navigator, "clipboard", {
 });
 
 // =============================================================================
+// Storage API Mock
+// =============================================================================
+
+Object.defineProperty(window, "localStorage", {
+  writable: true,
+  configurable: true,
+  value: localStorageMock,
+});
+}
+
+// =============================================================================
 // Crypto API Mock
 // =============================================================================
 
-// Mock crypto.randomUUID for consistent test IDs
+// Mock crypto.randomUUID for consistent test IDs (DOM environments only;
+// node-environment suites keep Node's real crypto).
+if (typeof window !== "undefined") {
 Object.defineProperty(global, "crypto", {
   writable: true,
   configurable: true,
@@ -69,37 +107,7 @@ Object.defineProperty(global, "crypto", {
     }),
   },
 });
-
-// =============================================================================
-// Storage API Mock
-// =============================================================================
-
-// Create a mock localStorage that persists within each test but resets between tests
-const localStorageMock = (() => {
-  let store: Record<string, string> = {};
-  return {
-    getItem: jest.fn((key: string) => store[key] ?? null),
-    setItem: jest.fn((key: string, value: string) => {
-      store[key] = value;
-    }),
-    removeItem: jest.fn((key: string) => {
-      delete store[key];
-    }),
-    clear: jest.fn(() => {
-      store = {};
-    }),
-    get length() {
-      return Object.keys(store).length;
-    },
-    key: jest.fn((index: number) => Object.keys(store)[index] ?? null),
-  };
-})();
-
-Object.defineProperty(window, "localStorage", {
-  writable: true,
-  configurable: true,
-  value: localStorageMock,
-});
+}
 
 // =============================================================================
 // Fetch API Mock (base setup - tests can override as needed)
