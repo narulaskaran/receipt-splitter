@@ -1,5 +1,5 @@
 import { Edit, Calculator } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Decimal from "decimal.js";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,29 +35,37 @@ export function ReceiptDetails({
 }: ReceiptDetailsProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedReceipt, setEditedReceipt] = useState<Receipt>(receipt);
+  // Whether the user explicitly set a total during this edit session.
+  // Until then, total auto-calculates from subtotal + tax + tip; once the
+  // user types a total, it is respected so a genuine printed-total
+  // mismatch can surface via the RECEIPT_TOTAL_MISMATCH guard on save.
+  const [totalManuallyEdited, setTotalManuallyEdited] = useState(false);
 
   // Opens the edit dialog
   const openEditDialog = () => {
     setEditedReceipt({ ...receipt });
+    setTotalManuallyEdited(false);
     setIsEditing(true);
   };
 
-  // Auto-calculate total whenever subtotal, tax, or tip changes
-  useEffect(() => {
-    const subtotal = new Decimal(editedReceipt.subtotal || 0);
-    const tax = new Decimal(editedReceipt.tax || 0);
-    const tip = new Decimal(editedReceipt.tip || 0);
-
-    const calculatedTotal = subtotal.add(tax).add(tip).toNumber();
-
-    // Only update if different to avoid infinite loops
-    if (calculatedTotal !== editedReceipt.total) {
-      setEditedReceipt((prev) => ({
-        ...prev,
-        total: calculatedTotal,
-      }));
-    }
-  }, [editedReceipt.subtotal, editedReceipt.tax, editedReceipt.tip]);
+  // Updates an amount field; recalculates the total unless the user has
+  // explicitly edited it
+  const updateAmount = (
+    field: "subtotal" | "tax" | "tip",
+    value: number
+  ) => {
+    setEditedReceipt((prev) => {
+      const next = { ...prev, [field]: value };
+      if (!totalManuallyEdited) {
+        next.total =
+          new Decimal(next.subtotal || 0)
+            .add(new Decimal(next.tax || 0))
+            .add(new Decimal(next.tip || 0))
+            .toNumber();
+      }
+      return next;
+    });
+  };
 
   // Handles the save operation
   const handleSave = () => {
@@ -230,10 +238,7 @@ export function ReceiptDetails({
                   step="0.01"
                   value={editedReceipt.subtotal}
                   onChange={(e) =>
-                    setEditedReceipt({
-                      ...editedReceipt,
-                      subtotal: parseFloat(e.target.value) || 0,
-                    })
+                    updateAmount("subtotal", parseFloat(e.target.value) || 0)
                   }
                 />
               </div>
@@ -247,10 +252,7 @@ export function ReceiptDetails({
                   step="0.01"
                   value={editedReceipt.tax}
                   onChange={(e) =>
-                    setEditedReceipt({
-                      ...editedReceipt,
-                      tax: parseFloat(e.target.value) || 0,
-                    })
+                    updateAmount("tax", parseFloat(e.target.value) || 0)
                   }
                 />
               </div>
@@ -271,26 +273,30 @@ export function ReceiptDetails({
                         ? 0
                         : parseFloat(e.target.value) || 0;
 
-                    setEditedReceipt({
-                      ...editedReceipt,
-                      tip: value,
-                    });
+                    updateAmount("tip", value);
                   }}
                   placeholder="Leave empty for $0 tip"
                 />
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="total">Total (Auto-calculated)</Label>
+                <Label htmlFor="total">Total</Label>
                 <Input
                   id="total"
                   type="number"
                   step="0.01"
                   value={editedReceipt.total}
-                  readOnly
-                  disabled
-                  className="bg-muted cursor-not-allowed"
+                  onChange={(e) => {
+                    setTotalManuallyEdited(true);
+                    setEditedReceipt((prev) => ({
+                      ...prev,
+                      total: parseFloat(e.target.value) || 0,
+                    }));
+                  }}
                 />
+                <p className="text-xs text-muted-foreground">
+                  Auto-calculated from subtotal + tax + tip unless edited
+                </p>
               </div>
             </div>
           </div>
