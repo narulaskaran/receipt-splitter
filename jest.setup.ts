@@ -29,62 +29,62 @@ const localStorageMock = (() => {
 // DOM-dependent mocks only apply under a DOM environment (jsdom);
 // node-environment test suites skip them.
 if (typeof window !== "undefined") {
-// Avoid opening windows during tests
-Object.defineProperty(window, "open", {
-  writable: true,
-  configurable: true,
-  value: jest.fn(() => null),
-});
+    // Avoid opening windows during tests
+    Object.defineProperty(window, "open", {
+      writable: true,
+      configurable: true,
+      value: jest.fn(() => null),
+    });
 
-// Mock window.matchMedia for components that use media queries
-Object.defineProperty(window, "matchMedia", {
-  writable: true,
-  configurable: true,
-  value: jest.fn().mockImplementation((query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: jest.fn(),
-    removeListener: jest.fn(),
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
-  })),
-});
+    // Mock window.matchMedia for components that use media queries
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      configurable: true,
+      value: jest.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: jest.fn(),
+        removeListener: jest.fn(),
+        addEventListener: jest.fn(),
+        removeEventListener: jest.fn(),
+        dispatchEvent: jest.fn(),
+      })),
+    });
 
-// Mock window.alert
-window.alert = jest.fn();
+    // Mock window.alert
+    window.alert = jest.fn();
 
-// =============================================================================
-// Navigator API Mocks
-// =============================================================================
+    // =============================================================================
+    // Navigator API Mocks
+    // =============================================================================
 
-// Mock navigator.share
-Object.defineProperty(navigator, "share", {
-  writable: true,
-  configurable: true,
-  value: jest.fn().mockResolvedValue(undefined),
-});
+    // Mock navigator.share
+    Object.defineProperty(navigator, "share", {
+      writable: true,
+      configurable: true,
+      value: jest.fn().mockResolvedValue(undefined),
+    });
 
-// Mock navigator.clipboard
-Object.defineProperty(navigator, "clipboard", {
-  writable: true,
-  configurable: true,
-  value: {
-    writeText: jest.fn().mockResolvedValue(undefined),
-    readText: jest.fn().mockResolvedValue(""),
-  },
-});
+    // Mock navigator.clipboard
+    Object.defineProperty(navigator, "clipboard", {
+      writable: true,
+      configurable: true,
+      value: {
+        writeText: jest.fn().mockResolvedValue(undefined),
+        readText: jest.fn().mockResolvedValue(""),
+      },
+    });
 
-// =============================================================================
-// Storage API Mock
-// =============================================================================
+    // =============================================================================
+    // Storage API Mock
+    // =============================================================================
 
-Object.defineProperty(window, "localStorage", {
-  writable: true,
-  configurable: true,
-  value: localStorageMock,
-});
+    Object.defineProperty(window, "localStorage", {
+      writable: true,
+      configurable: true,
+      value: localStorageMock,
+    });
 }
 
 // =============================================================================
@@ -94,19 +94,19 @@ Object.defineProperty(window, "localStorage", {
 // Mock crypto.randomUUID for consistent test IDs (DOM environments only;
 // node-environment suites keep Node's real crypto).
 if (typeof window !== "undefined") {
-Object.defineProperty(global, "crypto", {
-  writable: true,
-  configurable: true,
-  value: {
-    randomUUID: jest.fn(() => "00000000-0000-4000-8000-000000000000"),
-    getRandomValues: jest.fn((arr: Uint8Array) => {
-      for (let i = 0; i < arr.length; i++) {
-        arr[i] = Math.floor(Math.random() * 256);
-      }
-      return arr;
-    }),
-  },
-});
+    Object.defineProperty(global, "crypto", {
+      writable: true,
+      configurable: true,
+      value: {
+        randomUUID: jest.fn(() => "00000000-0000-4000-8000-000000000000"),
+        getRandomValues: jest.fn((arr: Uint8Array) => {
+          for (let i = 0; i < arr.length; i++) {
+            arr[i] = Math.floor(Math.random() * 256);
+          }
+          return arr;
+        }),
+      },
+    });
 }
 
 // =============================================================================
