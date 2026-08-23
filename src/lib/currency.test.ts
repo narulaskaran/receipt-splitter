@@ -146,6 +146,12 @@ describe('Currency utilities', () => {
       expect(isSupportedCurrency('INVALID')).toBe(false);
     });
 
+    it('returns false for Object.prototype property names', () => {
+      expect(isSupportedCurrency('toString')).toBe(false);
+      expect(isSupportedCurrency('constructor')).toBe(false);
+      expect(isSupportedCurrency('hasOwnProperty')).toBe(false);
+    });
+
     it('returns false for empty string', () => {
       expect(isSupportedCurrency('')).toBe(false);
     });

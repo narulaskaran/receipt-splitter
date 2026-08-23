@@ -1,4 +1,13 @@
 import { type Receipt, type GeolocationData } from '@/types';
+import { getCurrencyInfo } from '@/lib/currency';
+
+/**
+ * Currency symbol for a receipt's currency (USD default), used to format
+ * monetary amounts in webhook payloads.
+ */
+function currencySymbol(receipt: Receipt): string {
+  return getCurrencyInfo(receipt.currency || 'USD').symbol;
+}
 
 export interface ErrorNotificationContext {
   sessionId?: string;
@@ -92,7 +101,7 @@ class SlackFormatter implements WebhookPayloadFormatter {
           },
           {
             type: 'mrkdwn',
-            text: `*Total:*\n$${receipt.total?.toFixed(2) || '0.00'}`,
+            text: `*Total:*\n${currencySymbol(receipt)}${receipt.total?.toFixed(2) || '0.00'}`,
           },
           {
             type: 'mrkdwn',
@@ -108,15 +117,15 @@ class SlackFormatter implements WebhookPayloadFormatter {
       fields: [
         {
           type: 'mrkdwn',
-          text: `*Subtotal:*\n$${receipt.subtotal?.toFixed(2) || '0.00'}`,
+          text: `*Subtotal:*\n${currencySymbol(receipt)}${receipt.subtotal?.toFixed(2) || '0.00'}`,
         },
         {
           type: 'mrkdwn',
-          text: `*Tax:*\n$${receipt.tax?.toFixed(2) || '0.00'}`,
+          text: `*Tax:*\n${currencySymbol(receipt)}${receipt.tax?.toFixed(2) || '0.00'}`,
         },
         {
           type: 'mrkdwn',
-          text: `*Tip:*\n$${receipt.tip?.toFixed(2) || '0.00'}`,
+          text: `*Tip:*\n${currencySymbol(receipt)}${receipt.tip?.toFixed(2) || '0.00'}`,
         },
       ],
     });
@@ -144,7 +153,7 @@ class SlackFormatter implements WebhookPayloadFormatter {
     const itemsText = receipt.items
       .map(
         (item) =>
-          `• ${item.name} - $${item.price.toFixed(2)}${item.quantity > 1 ? ` (x${item.quantity})` : ''}`
+          `• ${item.name} - ${currencySymbol(receipt)}${item.price.toFixed(2)}${item.quantity > 1 ? ` (x${item.quantity})` : ''}`
       )
       .join('\n');
 
