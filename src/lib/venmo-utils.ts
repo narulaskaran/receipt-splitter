@@ -4,7 +4,18 @@ import { isValidPhoneNumber } from './split-sharing';
  * Configuration for Venmo payment links
  */
 export const VENMO_CONFIG = {
-  BASE_URL: 'https://venmo.com/',
+  /**
+   * Native app URL. The Venmo app percent-decodes notes (`%20` → space) and
+   * treats `+` as a literal character. Opening `https://venmo.com/?…` (the
+   * homepage) lets Venmo's web interstitial re-serialize the query with `+`
+   * for spaces, which is why swapping `+` for `%20` on that URL was not enough.
+   */
+  APP_URL: 'venmo://paycharge',
+  /**
+   * Web compose page. Used when the native app scheme is not appropriate
+   * (desktop). Do not use `https://venmo.com/` — that is the homepage.
+   */
+  WEB_URL: 'https://venmo.com/pay',
   MAX_NOTE_LENGTH: 60, // Venmo has a character limit for notes
   MAX_AMOUNT: 2999.99, // Venmo's single transaction limit
 } as const;
@@ -43,8 +54,70 @@ export function validateVenmoParams(params: VenmoPaymentParams): boolean {
   return true;
 }
 
+function buildValidatedParams(
+  phoneNumber: string,
+  amount: number,
+  note: string,
+  currencyCode: string
+): VenmoPaymentParams | null {
+  // Venmo only supports USD
+  if (currencyCode !== 'USD') {
+    console.warn(`Venmo only supports USD. Attempted to generate link for ${currencyCode}`);
+    return null;
+  }
+
+  const params: VenmoPaymentParams = {
+    phoneNumber,
+    amount,
+    note: note.slice(0, VENMO_CONFIG.MAX_NOTE_LENGTH), // Truncate if too long
+  };
+
+  if (!validateVenmoParams(params)) {
+    return null;
+  }
+
+  return params;
+}
+
 /**
- * Generates a Venmo payment link
+ * Builds a Venmo query string.
+ *
+ * Uses `encodeURIComponent` (RFC 3986, spaces as `%20`) rather than
+ * `URLSearchParams#toString()` (form-urlencoded, spaces as `+`). The Venmo
+ * app does not treat `+` as a space, so notes like "Olive Garden - Karan"
+ * would show up as "Olive+Garden+-+Karan".
+ */
+function buildVenmoQuery(params: VenmoPaymentParams): string {
+  const cleanPhone = params.phoneNumber.replace(/\D/g, '');
+  const parts = [
+    `txn=${encodeURIComponent('pay')}`,
+    `recipients=${encodeURIComponent(cleanPhone)}`,
+    `amount=${encodeURIComponent(params.amount.toFixed(2))}`,
+  ];
+
+  const trimmedNote = params.note.trim();
+  if (trimmedNote) {
+    parts.push(`note=${encodeURIComponent(trimmedNote)}`);
+  }
+
+  return parts.join('&');
+}
+
+function venmoQueryOrNull(
+  phoneNumber: string,
+  amount: number,
+  note: string,
+  currencyCode: string
+): string | null {
+  const params = buildValidatedParams(phoneNumber, amount, note, currencyCode);
+  if (!params) {
+    return null;
+  }
+  return buildVenmoQuery(params);
+}
+
+/**
+ * Generates a Venmo payment link that opens the native app.
  *
  * NOTE: Venmo only supports USD. This function should only be called for USD amounts.
  *
@@ -60,52 +133,35 @@ export function generateVenmoLink(
   note: string = '',
   currencyCode: string = 'USD'
 ): string | null {
-  // Venmo only supports USD
-  if (currencyCode !== 'USD') {
-    console.warn(`Venmo only supports USD. Attempted to generate link for ${currencyCode}`);
+  const query = venmoQueryOrNull(phoneNumber, amount, note, currencyCode);
+  if (query === null) {
     return null;
   }
-
-  const params: VenmoPaymentParams = {
-    phoneNumber,
-    amount,
-    note: note.slice(0, VENMO_CONFIG.MAX_NOTE_LENGTH), // Truncate if too long
-  };
-
-  // Validate parameters
-  if (!validateVenmoParams(params)) {
-    return null;
-  }
-
-  // Clean phone number (remove non-digits)
-  const cleanPhone = phoneNumber.replace(/\D/g, '');
-
-  // Build URL parameters
-  const urlParams = new URLSearchParams({
-    txn: 'pay',
-    recipients: cleanPhone,
-    amount: amount.toFixed(2), // Venmo always uses 2 decimal places for USD
-  });
-
-  // Add note if provided
-  if (note.trim()) {
-    urlParams.set('note', note.trim());
-  }
-
-  // Venmo displays `+` as a literal character, so encode spaces as %20.
-  return `${VENMO_CONFIG.BASE_URL}?${toVenmoQueryString(urlParams)}`;
+  return `${VENMO_CONFIG.APP_URL}?${query}`;
 }
 
 /**
- * Serializes query params for Venmo deep links.
- *
- * `URLSearchParams#toString()` encodes spaces as `+`. Venmo does not treat
- * `+` as a space, so notes like "Olive Garden - Karan" would show up as
- * "Olive+Garden+-+Karan". Literal `+` characters are already `%2B` and are
- * left unchanged.
+ * Generates a Venmo web compose URL as a fallback when the native app scheme
+ * cannot be used (desktop browsers).
  */
-function toVenmoQueryString(params: URLSearchParams): string {
-  return params.toString().replace(/\+/g, '%20');
+export function generateVenmoWebLink(
+  phoneNumber: string,
+  amount: number,
+  note: string = '',
+  currencyCode: string = 'USD'
+): string | null {
+  const query = venmoQueryOrNull(phoneNumber, amount, note, currencyCode);
+  if (query === null) {
+    return null;
+  }
+  return `${VENMO_CONFIG.WEB_URL}?${query}`;
+}
+
+function isVenmoAppPreferred(): boolean {
+  if (typeof navigator === 'undefined') {
+    return false;
+  }
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 }
 
 /**
@@ -121,14 +177,25 @@ export function openVenmoPayment(
   amount: number,
   note: string = ''
 ): boolean {
-  const link = generateVenmoLink(phoneNumber, amount, note);
-  
-  if (!link) {
+  const appLink = generateVenmoLink(phoneNumber, amount, note);
+  const webLink = generateVenmoWebLink(phoneNumber, amount, note);
+
+  if (!appLink || !webLink) {
     return false;
   }
 
   try {
-    window.open(link, '_blank', 'noopener,noreferrer');
+    // Phones must use the native scheme so the app receives `%20` spaces.
+    // `https://venmo.com/?…` is rewritten by Venmo's web interstitial with `+`.
+    if (isVenmoAppPreferred()) {
+      // `_self` is a top-level navigation from the user gesture, which iOS
+      // allows for custom URL schemes. `window.open(..., '_blank')` is often
+      // treated as a popup and blocked for `venmo://`.
+      window.open(appLink, '_self');
+      return true;
+    }
+
+    window.open(webLink, '_blank', 'noopener,noreferrer');
     return true;
   } catch (error) {
     console.error('Failed to open Venmo payment link:', error);

@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/card";
 import { type SharedSplitData } from "@/lib/split-sharing";
 import { formatCurrency } from "@/lib/receipt-utils";
-import { formatVenmoNote, openVenmoPayment } from "@/lib/venmo-utils";
+import { formatVenmoNote, generateVenmoLink } from "@/lib/venmo-utils";
 import { formatDisplayDate } from "@/lib/date-utils";
 import Image from "next/image";
 
@@ -24,14 +24,12 @@ function SplitPersonRow({
   name,
   amount,
   currency,
-  canPayWithVenmo,
-  onPay,
+  venmoHref,
 }: {
   name: string;
   amount: number;
   currency: string;
-  canPayWithVenmo: boolean;
-  onPay: () => void;
+  venmoHref: string | null;
 }) {
   const formattedAmount = formatCurrency(amount, currency);
 
@@ -47,15 +45,19 @@ function SplitPersonRow({
       <span className="shrink-0 tabular-nums font-medium">
         {formattedAmount}
       </span>
-      {canPayWithVenmo && (
+      {venmoHref && (
         <Button
           size="sm"
-          onClick={onPay}
-          aria-label={`Pay ${formattedAmount} for ${name} with Venmo`}
+          asChild
           className="shrink-0 bg-[#008CFF] px-3 text-white hover:bg-[#0074D9]"
         >
-          <Image src="/venmo.png" alt="" width={14} height={14} />
-          Pay
+          <a
+            href={venmoHref}
+            aria-label={`Pay ${formattedAmount} for ${name} with Venmo`}
+          >
+            <Image src="/venmo.png" alt="" width={14} height={14} />
+            Pay
+          </a>
         </Button>
       )}
     </li>
@@ -97,15 +99,15 @@ export function SplitSummary({ splitData, phoneNumber }: SplitSummaryProps) {
                 name={name}
                 amount={splitData.amounts[index]}
                 currency={splitData.currency}
-                canPayWithVenmo={canPayWithVenmo}
-                onPay={() => {
-                  if (!phoneNumber) return;
-                  openVenmoPayment(
-                    phoneNumber,
-                    splitData.amounts[index],
-                    formatVenmoNote(splitData.note, name)
-                  );
-                }}
+                venmoHref={
+                  canPayWithVenmo && phoneNumber
+                    ? generateVenmoLink(
+                        phoneNumber,
+                        splitData.amounts[index],
+                        formatVenmoNote(splitData.note, name)
+                      )
+                    : null
+                }
               />
             ))}
           </ul>

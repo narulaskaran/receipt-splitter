@@ -1,5 +1,6 @@
 import {
   generateVenmoLink,
+  generateVenmoWebLink,
   openVenmoPayment,
   shareVenmoPayment,
   formatVenmoNote,
@@ -54,51 +55,68 @@ describe('validateVenmoParams', () => {
 });
 
 describe('generateVenmoLink', () => {
-  it('generates correct Venmo link with all parameters', () => {
+  it('generates a native paycharge link with RFC 3986 note encoding', () => {
     const link = generateVenmoLink('5551234567', 25.50, 'Pizza Palace');
     
-    expect(link).toBe('https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Pizza%20Palace');
+    expect(link).toBe('venmo://paycharge?txn=pay&recipients=5551234567&amount=25.50&note=Pizza%20Palace');
   });
 
   it('encodes spaces in notes as %20 so Venmo does not show plus signs', () => {
     const link = generateVenmoLink('5551234567', 29.53, 'Olive Garden - Karan');
 
     expect(link).toBe(
-      'https://venmo.com/?txn=pay&recipients=5551234567&amount=29.53&note=Olive%20Garden%20-%20Karan'
+      'venmo://paycharge?txn=pay&recipients=5551234567&amount=29.53&note=Olive%20Garden%20-%20Karan'
     );
     expect(link).not.toContain('+');
+  });
+
+  it('encodes the reported restaurant+payer note without plus signs', () => {
+    const note = formatVenmoNote('ANGEL INDIAN RESTAURANT', 'anuraag');
+    const link = generateVenmoLink('5551234567', 25.80, note);
+
+    expect(note).toBe('ANGEL INDIAN RESTAURANT - anuraag');
+    expect(link).toBe(
+      'venmo://paycharge?txn=pay&recipients=5551234567&amount=25.80&note=ANGEL%20INDIAN%20RESTAURANT%20-%20anuraag'
+    );
+    expect(link).not.toContain('+');
+  });
+
+  it('does not use the Venmo homepage URL that re-encodes spaces as pluses', () => {
+    const link = generateVenmoLink('5551234567', 25.50, 'Pizza Palace');
+
+    expect(link).not.toMatch(/^https:\/\/venmo\.com\/\?/);
   });
 
   it('encodes literal plus signs in notes as %2B', () => {
     const link = generateVenmoLink('5551234567', 25.50, 'A+B special');
 
     expect(link).toBe(
-      'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=A%2BB%20special'
+      'venmo://paycharge?txn=pay&recipients=5551234567&amount=25.50&note=A%2BB%20special'
     );
   });
 
   it('generates link without note when note is empty', () => {
     const link = generateVenmoLink('5551234567', 25.50, '');
     
-    expect(link).toBe('https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50');
+    expect(link).toBe('venmo://paycharge?txn=pay&recipients=5551234567&amount=25.50');
   });
 
   it('generates link without note parameter when note is not provided', () => {
     const link = generateVenmoLink('5551234567', 25.50);
     
-    expect(link).toBe('https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50');
+    expect(link).toBe('venmo://paycharge?txn=pay&recipients=5551234567&amount=25.50');
   });
 
   it('handles phone numbers with formatting', () => {
     const link = generateVenmoLink('(555) 123-4567', 25.50, 'Test');
     
-    expect(link).toBe('https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test');
+    expect(link).toBe('venmo://paycharge?txn=pay&recipients=5551234567&amount=25.50&note=Test');
   });
 
   it('handles 11-digit phone numbers with country code', () => {
     const link = generateVenmoLink('15551234567', 25.50, 'Test');
     
-    expect(link).toBe('https://venmo.com/?txn=pay&recipients=15551234567&amount=25.50&note=Test');
+    expect(link).toBe('venmo://paycharge?txn=pay&recipients=15551234567&amount=25.50&note=Test');
   });
 
   it('truncates notes that are too long', () => {
@@ -130,7 +148,7 @@ describe('generateVenmoLink', () => {
   it('generates link for USD currency (explicit)', () => {
     const link = generateVenmoLink('5551234567', 25.50, 'Test', 'USD');
 
-    expect(link).toBe('https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test');
+    expect(link).toBe('venmo://paycharge?txn=pay&recipients=5551234567&amount=25.50&note=Test');
   });
 
   it('returns null for EUR currency (Venmo only supports USD)', () => {
@@ -164,20 +182,58 @@ describe('generateVenmoLink', () => {
   });
 });
 
-describe('openVenmoPayment', () => {
-  beforeEach(() => {
-    getMockWindowOpen().mockClear();
+describe('generateVenmoWebLink', () => {
+  it('uses the /pay compose page with %20-encoded notes', () => {
+    const link = generateVenmoWebLink('5551234567', 25.50, 'Pizza Palace');
+
+    expect(link).toBe(
+      'https://venmo.com/pay?txn=pay&recipients=5551234567&amount=25.50&note=Pizza%20Palace'
+    );
+    expect(link).not.toContain('+');
+    expect(link).not.toMatch(/^https:\/\/venmo\.com\/\?/);
   });
 
-  it('opens valid Venmo payment link', () => {
+  it('returns null for invalid parameters', () => {
+    expect(generateVenmoWebLink('invalid', 25.50, 'Test')).toBeNull();
+  });
+});
+
+describe('openVenmoPayment', () => {
+  const originalUserAgent = navigator.userAgent;
+
+  beforeEach(() => {
+    getMockWindowOpen().mockClear();
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: originalUserAgent,
+    });
+  });
+
+  it('opens the web compose URL on desktop', () => {
     getMockWindowOpen().mockReturnValue({} as Window);
     const result = openVenmoPayment('5551234567', 25.50, 'Test Restaurant');
     
     expect(result).toBe(true);
     expect(getMockWindowOpen()).toHaveBeenCalledWith(
-      'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test%20Restaurant',
+      'https://venmo.com/pay?txn=pay&recipients=5551234567&amount=25.50&note=Test%20Restaurant',
       '_blank',
       'noopener,noreferrer'
+    );
+  });
+
+  it('opens the native paycharge URL on mobile so notes keep %20 spaces', () => {
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+    });
+    getMockWindowOpen().mockReturnValue({} as Window);
+
+    const result = openVenmoPayment('5551234567', 25.80, 'ANGEL INDIAN RESTAURANT - anuraag');
+
+    expect(result).toBe(true);
+    expect(getMockWindowOpen()).toHaveBeenCalledWith(
+      'venmo://paycharge?txn=pay&recipients=5551234567&amount=25.80&note=ANGEL%20INDIAN%20RESTAURANT%20-%20anuraag',
+      '_self'
     );
   });
 
@@ -217,7 +273,7 @@ describe('shareVenmoPayment', () => {
     expect(getMockNavigatorShare()).toHaveBeenCalledWith({
       title: 'Pay Alice via Venmo',
       text: 'Pay Alice $25.50 via Venmo',
-      url: 'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test%20Restaurant',
+      url: 'venmo://paycharge?txn=pay&recipients=5551234567&amount=25.50&note=Test%20Restaurant',
     });
     expect(getMockWindowOpen()).not.toHaveBeenCalled();
   });
@@ -230,7 +286,7 @@ describe('shareVenmoPayment', () => {
     
     expect(getMockNavigatorShare()).toHaveBeenCalled();
     expect(getMockWindowOpen()).toHaveBeenCalledWith(
-      'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test%20Restaurant',
+      'https://venmo.com/pay?txn=pay&recipients=5551234567&amount=25.50&note=Test%20Restaurant',
       '_blank',
       'noopener,noreferrer'
     );
@@ -275,7 +331,7 @@ describe('shareVenmoPayment', () => {
     expect(getMockNavigatorShare()).toHaveBeenCalledWith({
       title: 'Pay someone via Venmo',
       text: 'Pay someone $25.50 via Venmo',
-      url: expect.stringContaining('venmo.com'),
+      url: expect.stringContaining('venmo://paycharge'),
     });
   });
 
@@ -289,7 +345,7 @@ describe('shareVenmoPayment', () => {
     await shareVenmoPayment('5551234567', 25.50, 'Test Restaurant', 'Alice');
 
     expect(getMockWindowOpen()).toHaveBeenCalledWith(
-      'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test%20Restaurant',
+      'https://venmo.com/pay?txn=pay&recipients=5551234567&amount=25.50&note=Test%20Restaurant',
       '_blank',
       'noopener,noreferrer'
     );
@@ -325,7 +381,7 @@ describe('shareVenmoPayment', () => {
     expect(getMockNavigatorShare()).toHaveBeenCalledWith({
       title: 'Pay Alice via Venmo',
       text: 'Pay Alice $25.50 via Venmo',
-      url: 'https://venmo.com/?txn=pay&recipients=5551234567&amount=25.50&note=Test%20Restaurant',
+      url: 'venmo://paycharge?txn=pay&recipients=5551234567&amount=25.50&note=Test%20Restaurant',
     });
   });
 });
