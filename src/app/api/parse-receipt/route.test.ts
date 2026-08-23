@@ -673,6 +673,19 @@ describe("currency flows through the parse response", () => {
     expect(body.currency).toBe("EUR");
   });
 
+  it("falls back to USD when the model returns an unsupported currency code", async () => {
+    // THB is a valid ISO 4217 code but not in src/lib/currency.ts's supported
+    // list. Without this guard, amounts would display as raw code while
+    // formatting applied USD rules — fall back to USD instead.
+    mockCreate.mockResolvedValue(modelResponse({ currency: "THB" }));
+
+    const res = await POST(makeRequestWithFile());
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.currency).toBe("USD");
+  });
+
   it("falls back to USD when the model response omits currency", async () => {
     const response = modelResponse();
     const parsed = JSON.parse(response.content[0].text);

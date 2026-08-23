@@ -5,6 +5,7 @@ import { uploadReceiptFile } from "@/lib/uploadthing-storage";
 import { MAX_FILE_SIZE_BYTES } from "@/lib/constants";
 import { type GeolocationData } from "@/types";
 import { fixMultiQuantityPrices } from "@/lib/receipt-utils";
+import { isSupportedCurrency } from "@/lib/currency";
 import {
   receiptSchema,
   receiptJsonSchema,
@@ -335,6 +336,18 @@ export async function POST(request: NextRequest) {
 
       const subtotalValue = validationResult.data.subtotal ?? 0;
 
+      // Guard against unsupported currency codes: the model can return any ISO
+      // code, but only currencies in src/lib/currency.ts have display/formatting
+      // metadata. Fall back to USD (the documented default) to avoid a silent
+      // financial mismatch between the raw code and USD formatting rules.
+      let currency = validationResult.data.currency;
+      if (!isSupportedCurrency(currency)) {
+        console.warn(
+          `[parse-receipt] Unsupported currency "${currency}" returned by the model; falling back to USD`
+        );
+        currency = "USD";
+      }
+
       // Normalize items: ensure quantity defaults to 1
       const normalizedItems = validItems.map((item) => ({
         ...item,
@@ -355,6 +368,7 @@ export async function POST(request: NextRequest) {
 
       const normalizedReceipt = {
         ...validationResult.data,
+        currency,
         subtotal: subtotalValue,
         tax: validationResult.data.tax ?? 0,
         total: validationResult.data.total ?? 0,
