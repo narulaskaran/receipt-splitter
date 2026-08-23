@@ -174,7 +174,6 @@ import { calculateTotals } from '@/lib/receipt-utils';
 
 - Components use shadcn/ui primitives from `@/components/ui/`
 - State is managed with React hooks and persisted to localStorage
-- Forms use react-hook-form with Zod validation
 - Toast notifications use the Sonner library
 
 ### Testing Patterns

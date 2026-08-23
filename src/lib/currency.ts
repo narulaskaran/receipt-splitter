@@ -136,43 +136,6 @@ function buildCurrencyInfo(currencyCode: string): CurrencyInfo {
 }
 
 /**
- * Supported currencies registry (for backward compatibility)
- * Lazy-loaded from CURRENCY_METADATA
- */
-export const SUPPORTED_CURRENCIES: Record<string, CurrencyInfo> = new Proxy({} as Record<string, CurrencyInfo>, {
-  get(target, prop: string) {
-    if (!(prop in CURRENCY_METADATA)) {
-      return undefined;
-    }
-
-    // Return cached or build new
-    if (!currencyInfoCache.has(prop)) {
-      currencyInfoCache.set(prop, buildCurrencyInfo(prop));
-    }
-
-    return currencyInfoCache.get(prop);
-  },
-
-  has(target, prop: string) {
-    return prop in CURRENCY_METADATA;
-  },
-
-  ownKeys() {
-    return Object.keys(CURRENCY_METADATA);
-  },
-
-  getOwnPropertyDescriptor(target, prop) {
-    if (prop in CURRENCY_METADATA) {
-      return {
-        enumerable: true,
-        configurable: true,
-      };
-    }
-    return undefined;
-  },
-});
-
-/**
  * Get currency info, falling back to USD if not found
  */
 export function getCurrencyInfo(currencyCode: string): CurrencyInfo {
