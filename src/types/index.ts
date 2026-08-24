@@ -74,13 +74,6 @@ export interface ReceiptState {
   error: string | null;
 }
 
-// Util type for keeping track of item assignments
-export interface ItemAssignment {
-  itemIndex: number;
-  personId: string;
-  sharePercentage: number;
-}
-
 // Geolocation data from Vercel headers
 export interface GeolocationData {
   country: string | null;      // x-vercel-ip-country

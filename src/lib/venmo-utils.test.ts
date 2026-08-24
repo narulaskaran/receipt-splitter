@@ -2,7 +2,6 @@ import {
   generateVenmoLink,
   generateVenmoWebLink,
   openVenmoPayment,
-  shareVenmoPayment,
   formatVenmoNote,
   validateVenmoParams,
   VENMO_CONFIG,
@@ -12,7 +11,6 @@ import {
 // Note: window.open, navigator.share are mocked globally in jest.setup.ts
 // Use getter functions to ensure we get fresh mock references
 const getMockWindowOpen = () => window.open as jest.Mock;
-const getMockNavigatorShare = () => navigator.share as jest.Mock;
 
 describe('validateVenmoParams', () => {
   const validParams: VenmoPaymentParams = {
@@ -256,133 +254,6 @@ describe('openVenmoPayment', () => {
     expect(consoleSpy).toHaveBeenCalledWith('Failed to open Venmo payment link:', expect.any(Error));
     
     consoleSpy.mockRestore();
-  });
-});
-
-describe('shareVenmoPayment', () => {
-  beforeEach(() => {
-    getMockNavigatorShare().mockClear();
-    getMockWindowOpen().mockClear();
-  });
-
-  it('uses native sharing when available', async () => {
-    getMockNavigatorShare().mockResolvedValue(undefined);
-
-    await shareVenmoPayment('5551234567', 25.50, 'Test Restaurant', 'Alice');
-    
-    expect(getMockNavigatorShare()).toHaveBeenCalledWith({
-      title: 'Pay Alice via Venmo',
-      text: 'Pay Alice $25.50 via Venmo',
-      url: 'venmo://paycharge?txn=pay&recipients=5551234567&amount=25.50&note=Test%20Restaurant',
-    });
-    expect(getMockWindowOpen()).not.toHaveBeenCalled();
-  });
-
-  it('falls back to window.open when sharing fails', async () => {
-    getMockNavigatorShare().mockRejectedValue(new Error('Sharing failed'));
-    getMockWindowOpen().mockReturnValue({} as Window);
-
-    await shareVenmoPayment('5551234567', 25.50, 'Test Restaurant', 'Alice');
-    
-    expect(getMockNavigatorShare()).toHaveBeenCalled();
-    expect(getMockWindowOpen()).toHaveBeenCalledWith(
-      'https://venmo.com/pay?txn=pay&recipients=5551234567&amount=25.50&note=Test%20Restaurant',
-      '_blank',
-      'noopener,noreferrer'
-    );
-  });
-
-  it('does not open link when user cancels sharing', async () => {
-    const abortError = new Error('User cancelled');
-    abortError.name = 'AbortError';
-    getMockNavigatorShare().mockRejectedValue(abortError);
-
-    await shareVenmoPayment('5551234567', 25.50, 'Test Restaurant', 'Alice');
-    
-    expect(getMockNavigatorShare()).toHaveBeenCalled();
-    expect(getMockWindowOpen()).not.toHaveBeenCalled();
-  });
-
-  it('throws error for invalid parameters', async () => {
-    await expect(
-      shareVenmoPayment('invalid', 25.50, 'Test', 'Alice')
-    ).rejects.toThrow('Invalid payment parameters');
-    
-    expect(getMockNavigatorShare()).not.toHaveBeenCalled();
-    expect(getMockWindowOpen()).not.toHaveBeenCalled();
-  });
-
-  it('throws error when window.open also fails', async () => {
-    getMockNavigatorShare().mockRejectedValue(new Error('Sharing failed'));
-    getMockWindowOpen().mockImplementation(() => {
-      throw new Error('Window blocked');
-    });
-    
-    await expect(
-      shareVenmoPayment('5551234567', 25.50, 'Test', 'Alice')
-    ).rejects.toThrow('Failed to open Venmo payment');
-  });
-
-  it('uses default person name when not provided', async () => {
-    getMockNavigatorShare().mockResolvedValue(undefined);
-
-    await shareVenmoPayment('5551234567', 25.50, 'Test Restaurant');
-    
-    expect(getMockNavigatorShare()).toHaveBeenCalledWith({
-      title: 'Pay someone via Venmo',
-      text: 'Pay someone $25.50 via Venmo',
-      url: expect.stringContaining('venmo://paycharge'),
-    });
-  });
-
-  it('opens link directly when navigator.share is not available', async () => {
-    // Temporarily remove navigator.share
-    const originalShare = navigator.share;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    delete (navigator as any).share;
-    getMockWindowOpen().mockReturnValue({} as Window);
-
-    await shareVenmoPayment('5551234567', 25.50, 'Test Restaurant', 'Alice');
-
-    expect(getMockWindowOpen()).toHaveBeenCalledWith(
-      'https://venmo.com/pay?txn=pay&recipients=5551234567&amount=25.50&note=Test%20Restaurant',
-      '_blank',
-      'noopener,noreferrer'
-    );
-
-    // Restore navigator.share
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (navigator as any).share = originalShare;
-  });
-
-  it('throws error for EUR currency (Venmo only supports USD)', async () => {
-    await expect(
-      shareVenmoPayment('5551234567', 25.50, 'Test', 'Alice', 'EUR')
-    ).rejects.toThrow('Venmo only supports USD payments');
-
-    expect(getMockNavigatorShare()).not.toHaveBeenCalled();
-    expect(getMockWindowOpen()).not.toHaveBeenCalled();
-  });
-
-  it('throws error for JPY currency (Venmo only supports USD)', async () => {
-    await expect(
-      shareVenmoPayment('5551234567', 1000, 'Test', 'Alice', 'JPY')
-    ).rejects.toThrow('Venmo only supports USD payments');
-
-    expect(getMockNavigatorShare()).not.toHaveBeenCalled();
-    expect(getMockWindowOpen()).not.toHaveBeenCalled();
-  });
-
-  it('works with explicit USD currency', async () => {
-    getMockNavigatorShare().mockResolvedValue(undefined);
-
-    await shareVenmoPayment('5551234567', 25.50, 'Test Restaurant', 'Alice', 'USD');
-
-    expect(getMockNavigatorShare()).toHaveBeenCalledWith({
-      title: 'Pay Alice via Venmo',
-      text: 'Pay Alice $25.50 via Venmo',
-      url: 'venmo://paycharge?txn=pay&recipients=5551234567&amount=25.50&note=Test%20Restaurant',
-    });
   });
 });
 

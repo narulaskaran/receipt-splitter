@@ -459,6 +459,51 @@ describe('webhook-notifications', () => {
     });
   });
 
+
+  describe('currency symbol formatting', () => {
+    beforeEach(() => {
+      process.env.WEBHOOK_URL = 'https://hooks.slack.com/test';
+      (global.fetch as jest.Mock).mockResolvedValue({ ok: true });
+      jest.clearAllMocks();
+    });
+
+    const getPayload = () =>
+      JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+
+    it("uses the receipt currency's symbol in Slack amounts", async () => {
+      await sendReceiptParsedNotification(
+        { ...mockReceipt, currency: 'EUR' },
+        null,
+        'test-session-id',
+        'receipt.jpg',
+        'image/jpeg',
+        null
+      );
+
+      const bodyString = JSON.stringify(getPayload());
+      expect(bodyString).toContain('\u20ac25.00'); // Total
+      expect(bodyString).toContain('Burger - \u20ac10.00');
+      expect(bodyString).not.toContain('$25.00');
+    });
+
+    it('defaults to $ for USD and missing currency', async () => {
+      const noCurrency = { ...mockReceipt } as Partial<Receipt>;
+      delete noCurrency.currency;
+
+      await sendReceiptParsedNotification(
+        noCurrency as Receipt,
+        null,
+        'test-session-id',
+        'receipt.jpg',
+        'image/jpeg',
+        null
+      );
+
+      const bodyString = JSON.stringify(getPayload());
+      expect(bodyString).toContain('$25.00');
+    });
+  });
+
   describe('sendErrorNotification', () => {
     describe('with Slack formatter (default)', () => {
       beforeEach(() => {

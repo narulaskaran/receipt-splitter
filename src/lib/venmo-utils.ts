@@ -206,57 +206,6 @@ export function openVenmoPayment(
 }
 
 /**
- * Shares a Venmo payment link using the Web Share API if available,
- * otherwise opens the link directly
- *
- * NOTE: Venmo only supports USD.
- *
- * @param phoneNumber - Recipient's phone number
- * @param amount - Payment amount in USD
- * @param note - Payment note/memo
- * @param personName - Name of the person for the share title
- * @param currencyCode - Currency code (must be 'USD', defaults to 'USD')
- * @returns Promise that resolves when sharing is complete
- */
-export async function shareVenmoPayment(
-  phoneNumber: string,
-  amount: number,
-  note: string = '',
-  personName: string = 'someone',
-  currencyCode: string = 'USD'
-): Promise<void> {
-  const link = generateVenmoLink(phoneNumber, amount, note, currencyCode);
-
-  if (!link) {
-    throw new Error(currencyCode !== 'USD'
-      ? 'Venmo only supports USD payments'
-      : 'Invalid payment parameters');
-  }
-
-  // Try native sharing first
-  if (navigator.share) {
-    try {
-      await navigator.share({
-        title: `Pay ${personName} via Venmo`,
-        text: `Pay ${personName} $${amount.toFixed(2)} via Venmo`,
-        url: link,
-      });
-      return;
-    } catch (error) {
-      // User cancelled or sharing failed, fall back to opening link
-      if (error instanceof Error && error.name === 'AbortError') {
-        return; // User cancelled, don't open link
-      }
-    }
-  }
-
-  // Fallback to opening link directly
-  if (!openVenmoPayment(phoneNumber, amount, note)) {
-    throw new Error('Failed to open Venmo payment');
-  }
-}
-
-/**
  * Formats a note for Venmo payment based on split note and person name
  * 
  * @param splitNote - Note from the split (e.g., restaurant name)
