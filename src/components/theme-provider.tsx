@@ -24,6 +24,18 @@ const initialState: ThemeProviderState = {
 
 const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
+// When attribute === "class", theme classes are toggled via classList above;
+// never overwrite the root's entire class attribute.
+function applyAttribute(
+  root: HTMLElement,
+  attribute: string,
+  value: Theme
+): void {
+  if (attribute !== "class") {
+    root.setAttribute(attribute, value);
+  }
+}
+
 export function ThemeProvider({
   children,
   defaultTheme = "system",
@@ -53,12 +65,12 @@ export function ThemeProvider({
         : "light";
 
       root.classList.add(systemTheme);
-      root.setAttribute(attribute, systemTheme);
+      applyAttribute(root, attribute, systemTheme);
       return;
     }
 
     root.classList.add(theme);
-    root.setAttribute(attribute, theme);
+    applyAttribute(root, attribute, theme);
   }, [theme, enableSystem, disableTransitionOnChange, attribute]);
 
   // Listen for system theme changes
@@ -74,7 +86,7 @@ export function ThemeProvider({
         
         root.classList.remove("light", "dark");
         root.classList.add(systemTheme);
-        root.setAttribute(attribute, systemTheme);
+        applyAttribute(root, attribute, systemTheme);
       }
     };
 
