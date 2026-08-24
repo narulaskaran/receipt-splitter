@@ -8,7 +8,9 @@ import {
   isValidDateFormat,
   SplitDataError,
   VALIDATION_LIMITS,
+  MAX_SHARE_URL_LENGTH,
   type SharedSplitData,
+  type SharedReceiptBreakdown,
 } from "./split-sharing";
 import { type Person } from "@/types";
 
@@ -41,6 +43,11 @@ const mockPeople: Person[] = [
     tip: 2.0,
     finalTotal: 13.0,
   },
+];
+
+const mockReceiptBreakdown: SharedReceiptBreakdown[] = [
+  { label: "Pizza Palace", amounts: [32.5, 19.5, 0] },
+  { label: "Dessert Bar · 2024-01-15", amounts: [0, 0, 13] },
 ];
 
 describe("serializeSplitData", () => {
@@ -126,6 +133,91 @@ describe("serializeSplitData", () => {
     // Should preserve special characters in URL encoding
     expect(params.get("names")).toBe("François & Co.,José María");
     expect(params.get("note")).toBe("Café René & Co.");
+  });
+
+  it("should serialize multi-receipt itemization in sorted person order", () => {
+    const params = serializeSplitData(
+      mockPeople,
+      "Pizza Palace, Dessert Bar",
+      "5551234567",
+      "USD",
+      null,
+      mockReceiptBreakdown
+    );
+
+    expect(JSON.parse(params.get("receipts")!)).toEqual([
+      { label: "Pizza Palace", amounts: [3250, 1950, 0] },
+      { label: "Dessert Bar · 2024-01-15", amounts: [0, 0, 1300] },
+    ]);
+  });
+
+  it("should preserve valid per-receipt amounts above the minor-unit value 99999", () => {
+    const people: Person[] = [{ ...mockPeople[0], finalTotal: 2000 }];
+    const params = serializeSplitData(
+      people,
+      "Large Split",
+      "5551234567",
+      "USD",
+      null,
+      [
+        { label: "First receipt", amounts: [1000] },
+        { label: "Second receipt", amounts: [1000] },
+      ]
+    );
+
+    expect(deserializeSplitData(params)?.receipts).toEqual([
+      { label: "First receipt", amounts: [1000] },
+      { label: "Second receipt", amounts: [1000] },
+    ]);
+  });
+
+  it("should align itemization with sorted names when people arrive unsorted", () => {
+    const unsortedPeople = [mockPeople[1], mockPeople[0]];
+    const params = serializeSplitData(
+      unsortedPeople,
+      "Unsorted Split",
+      "5551234567",
+      "USD",
+      null,
+      [
+        { label: "Lunch", amounts: [19.5, 32.5] },
+        { label: "Dessert", amounts: [0, 0] },
+      ]
+    );
+
+    expect(JSON.parse(params.get("receipts")!)).toEqual([
+      { label: "Lunch", amounts: [3250, 1950] },
+      { label: "Dessert", amounts: [0, 0] },
+    ]);
+  });
+
+  it("should omit itemization that does not reconcile with aggregate amounts", () => {
+    const params = serializeSplitData(
+      mockPeople,
+      "Pizza Palace, Dessert Bar",
+      "5551234567",
+      "USD",
+      null,
+      [
+        { label: "Pizza Palace", amounts: [30, 19.5, 13] },
+        { label: "Dessert Bar", amounts: [0, 0, 0] },
+      ]
+    );
+
+    expect(params.get("receipts")).toBeNull();
+  });
+
+  it("keeps single-receipt shares compact by omitting itemization", () => {
+    const params = serializeSplitData(
+      mockPeople,
+      "Pizza Palace",
+      "5551234567",
+      "USD",
+      null,
+      [{ label: "Pizza Palace", amounts: [32.5, 19.5, 13] }]
+    );
+
+    expect(params.get("receipts")).toBeNull();
   });
 });
 
@@ -311,6 +403,62 @@ describe("deserializeSplitData", () => {
     expect(result!.note).toBe("Café René & Co.");
     expect(result!.phone).toBe("5551234567");
   });
+
+  it("should round-trip optional multi-receipt itemization", () => {
+    const params = serializeSplitData(
+      mockPeople,
+      "Pizza Palace, Dessert Bar",
+      "5551234567",
+      "USD",
+      null,
+      mockReceiptBreakdown
+    );
+
+    const result = deserializeSplitData(params);
+
+    expect(result?.receipts).toEqual(mockReceiptBreakdown);
+  });
+
+  it("should preserve legacy links without itemization", () => {
+    const params = new URLSearchParams({
+      names: "Alice,Bob",
+      amounts: "30.00,20.00",
+      total: "50.00",
+      note: "Test Split",
+      phone: "5551234567",
+    });
+
+    expect(deserializeSplitData(params)?.receipts).toBeUndefined();
+  });
+
+  it("should reject malformed itemization instead of rendering partial data", () => {
+    const params = new URLSearchParams({
+      names: "Alice,Bob",
+      amounts: "30.00,20.00",
+      total: "50.00",
+      note: "Test Split",
+      phone: "5551234567",
+      receipts: JSON.stringify([{ label: "Lunch", amounts: [30] }]),
+    });
+
+    expect(deserializeSplitData(params)).toBeNull();
+  });
+
+  it("should reject itemization that conflicts with aggregate amounts", () => {
+    const params = new URLSearchParams({
+      names: "Alice,Bob",
+      amounts: "30.00,20.00",
+      total: "50.00",
+      note: "Test Split",
+      phone: "5551234567",
+      receipts: JSON.stringify([
+        { label: "Lunch", amounts: [3000, 2000] },
+        { label: "Dessert", amounts: [100, 0] },
+      ]),
+    });
+
+    expect(deserializeSplitData(params)).toBeNull();
+  });
 });
 
 describe("generateShareableUrl", () => {
@@ -359,6 +507,37 @@ describe("generateShareableUrl", () => {
 
     expect(url).toMatch(/^https:\/\/example\.com\/split\?/);
   });
+
+  it("should omit oversized optional itemization while keeping the URL valid", () => {
+    const oversizedBreakdown = Array.from({ length: 50 }, (_, index) => ({
+      label: `Restaurant ${index} ${"x".repeat(65)} & Café`,
+      amounts: [0.65, 0.39, 0.26],
+    }));
+
+    const rawParams = serializeSplitData(
+      mockPeople,
+      "Receipt Split",
+      "5551234567",
+      "USD",
+      null,
+      oversizedBreakdown
+    );
+    expect(rawParams.get("receipts")).not.toBeNull();
+
+    const url = generateShareableUrl(
+      "https://receipt-splitter.app",
+      mockPeople,
+      "Receipt Split",
+      "5551234567",
+      "USD",
+      null,
+      oversizedBreakdown
+    );
+
+    expect(url.length).toBeLessThanOrEqual(MAX_SHARE_URL_LENGTH);
+    expect(url).not.toContain("receipts=");
+    expect(deserializeSplitData(new URL(url).searchParams)).not.toBeNull();
+  });
 });
 
 describe("validateSplitData", () => {
@@ -387,6 +566,43 @@ describe("validateSplitData", () => {
     };
 
     expect(validateSplitDataDetailed(minimalData).isValid).toBe(true);
+  });
+
+  it("should validate per-receipt itemization with one amount per person", () => {
+    const itemizedData: SharedSplitData = {
+      ...validSplitData,
+      receipts: [{ label: "Lunch", amounts: [30, 20] }],
+    };
+
+    expect(validateSplitDataDetailed(itemizedData).isValid).toBe(true);
+  });
+
+  it("should reject itemization beyond the receipt-count limit", () => {
+    const itemizedData: SharedSplitData = {
+      ...validSplitData,
+      receipts: Array.from({ length: VALIDATION_LIMITS.MAX_RECEIPTS_COUNT + 1 }, (_, index) => ({
+        label: `Receipt ${index}`,
+        amounts: [30, 20],
+      })),
+    };
+
+    const result = validateSplitDataDetailed(itemizedData);
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toContain(SplitDataError.TOO_MANY_RECEIPTS);
+  });
+
+  it("should reject itemization that conflicts with aggregate amounts", () => {
+    const itemizedData: SharedSplitData = {
+      ...validSplitData,
+      receipts: [
+        { label: "Lunch", amounts: [30, 20] },
+        { label: "Dessert", amounts: [1, 0] },
+      ],
+    };
+
+    const result = validateSplitDataDetailed(itemizedData);
+    expect(result.isValid).toBe(false);
+    expect(result.errors).toContain(SplitDataError.INVALID_RECEIPT_BREAKDOWN);
   });
 
   it("should reject data missing required note field", () => {
@@ -893,6 +1109,44 @@ describe("Multi-Currency Support", () => {
       expect(params.get("total")).toBe("2250");
       expect(params.get("currency")).toBe("JPY");
       expect(params.get("note")).toBe("Sushi Restaurant");
+    });
+
+    it("should round-trip JPY receipt itemization after minor-unit conversion", () => {
+      const params = serializeSplitData(
+        mockPeopleJPY,
+        "Sushi Restaurant, Dessert Bar",
+        "5551234567",
+        "JPY",
+        null,
+        [
+          { label: "Sushi Restaurant", amounts: [750, 500] },
+          { label: "Dessert Bar", amounts: [500, 500] },
+        ]
+      );
+
+      expect(deserializeSplitData(params)?.receipts).toEqual([
+        { label: "Sushi Restaurant", amounts: [750, 500] },
+        { label: "Dessert Bar", amounts: [500, 500] },
+      ]);
+    });
+
+    it("should omit a JPY itemized amount that rounds beyond the shared limit", () => {
+      const people: Person[] = [{ ...mockPeopleJPY[0], finalTotal: 99999.5 }];
+      const url = generateShareableUrl(
+        "https://receipt-splitter.app",
+        people,
+        "Large Yen Split",
+        "5551234567",
+        "JPY",
+        null,
+        [
+          { label: "First receipt", amounts: [99999.5] },
+          { label: "Second receipt", amounts: [0] },
+        ]
+      );
+
+      expect(url).not.toContain("receipts=");
+      expect(deserializeSplitData(new URL(url).searchParams)).not.toBeNull();
     });
 
     it("should serialize KRW amounts correctly (0 decimal places)", () => {

@@ -12,6 +12,17 @@ export interface SharedSplitData {
   phone: string; // Required: needed for Venmo payment links
   currency: string; // Currency code (e.g., 'USD', 'JPY', 'EUR')
   date?: string; // Optional: receipt date for display
+  receipts?: SharedReceiptBreakdown[]; // Optional multi-receipt detail
+}
+
+/**
+ * Per-receipt amounts follow the same person order as the `people` argument
+ * passed to serializeSplitData. They are normalized to the sorted name order
+ * in the URL payload.
+ */
+export interface SharedReceiptBreakdown {
+  label: string;
+  amounts: number[];
 }
 
 /**
@@ -33,6 +44,9 @@ export enum SplitDataError {
   TOO_MANY_PEOPLE = "TOO_MANY_PEOPLE",
   AMOUNT_TOO_LARGE = "AMOUNT_TOO_LARGE",
   INVALID_SPLIT_DETAILS = "INVALID_SPLIT_DETAILS",
+  INVALID_RECEIPT_BREAKDOWN = "INVALID_RECEIPT_BREAKDOWN",
+  RECEIPT_LABEL_TOO_LONG = "RECEIPT_LABEL_TOO_LONG",
+  TOO_MANY_RECEIPTS = "TOO_MANY_RECEIPTS",
 }
 
 /**
@@ -51,12 +65,18 @@ export const VALIDATION_LIMITS = {
   MAX_NAME_LENGTH: 50,
   MAX_NOTE_LENGTH: 100,
   MAX_PEOPLE_COUNT: 50,
+  MAX_RECEIPTS_COUNT: 50,
+  MAX_RECEIPT_LABEL_LENGTH: 100,
   MAX_AMOUNT: 99999.99,
   // Base tolerance for rounding differences when summing individual amounts
   // We will scale this dynamically by number of people to account for
   // compounding rounding errors (up to 1 cent per person)
   SPLIT_AMOUNT_DEVIATION_PER_PERSON: 0.01,
 } as const;
+
+/** Keep optional itemization bounded while leaving the required split usable. */
+export const MAX_SHARE_URL_LENGTH = 8000;
+const MAX_RECEIPT_PAYLOAD_LENGTH = 6000;
 
 /**
  * Serializes split data into URL-safe parameters
@@ -66,6 +86,7 @@ export const VALIDATION_LIMITS = {
  * @param phone - Required phone number for Venmo payments
  * @param currency - Currency code for the split (defaults to USD)
  * @param date - Optional receipt date
+ * @param receiptBreakdown - Optional per-receipt amounts for multi-receipt shares
  * @returns URLSearchParams object ready to be appended to a URL
  */
 export function serializeSplitData(
@@ -73,7 +94,8 @@ export function serializeSplitData(
   note: string,
   phone: string,
   currency: string = DEFAULT_CURRENCY,
-  date?: string | null
+  date?: string | null,
+  receiptBreakdown?: SharedReceiptBreakdown[]
 ): URLSearchParams {
   // Validate input before proceeding
   const validation = validateSerializationInput(people, note, phone, date);
@@ -84,7 +106,10 @@ export function serializeSplitData(
   }
 
   // Sort people by name for consistent ordering
-  const sortedPeople = [...people].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedPeopleWithIndexes = people
+    .map((person, index) => ({ person, index }))
+    .sort((a, b) => a.person.name.localeCompare(b.person.name));
+  const sortedPeople = sortedPeopleWithIndexes.map(({ person }) => person);
 
   const names = sortedPeople.map((person) => person.name);
   const amountsMinorUnits = sortedPeople.map((person) => toMinorUnits(person.finalTotal, currency));
@@ -106,7 +131,103 @@ export function serializeSplitData(
     params.set("date", date);
   }
 
+  const serializedReceipts = serializeReceiptBreakdown(
+    receiptBreakdown,
+    sortedPeopleWithIndexes.map(({ index }) => index),
+    sortedPeople.map((person) => person.finalTotal),
+    currency
+  );
+  if (serializedReceipts) {
+    params.set("receipts", serializedReceipts);
+  }
+
   return params;
+}
+
+function serializeReceiptBreakdown(
+  receiptBreakdown: SharedReceiptBreakdown[] | undefined,
+  sortedPersonIndexes: number[],
+  personTotals: number[],
+  currency: string
+): string | null {
+  if (!receiptBreakdown || receiptBreakdown.length <= 1) {
+    return null;
+  }
+  if (
+    !isValidReceiptBreakdown(
+      receiptBreakdown,
+      sortedPersonIndexes.length,
+      currency
+    )
+  ) {
+    return null;
+  }
+
+  const normalizedBreakdown = receiptBreakdown.map((receipt) => ({
+    label: receipt.label.trim(),
+    amounts: sortedPersonIndexes.map((index) => receipt.amounts[index]),
+  }));
+  if (!receiptBreakdownMatchesTotals(normalizedBreakdown, personTotals, currency)) {
+    return null;
+  }
+
+  const payload = normalizedBreakdown.map((receipt) => ({
+    label: receipt.label,
+    amounts: receipt.amounts.map((amount) => toMinorUnits(amount, currency)),
+  }));
+  const serialized = JSON.stringify(payload);
+  return serialized.length <= MAX_RECEIPT_PAYLOAD_LENGTH ? serialized : null;
+}
+
+function isValidReceiptBreakdown(
+  receiptBreakdown: SharedReceiptBreakdown[],
+  personCount: number,
+  currency: string
+): boolean {
+  if (
+    receiptBreakdown.length === 0 ||
+    receiptBreakdown.length > VALIDATION_LIMITS.MAX_RECEIPTS_COUNT
+  ) {
+    return false;
+  }
+
+  return receiptBreakdown.every(
+    (receipt) =>
+      typeof receipt.label === "string" &&
+      receipt.label.trim().length > 0 &&
+      receipt.label.trim().length <= VALIDATION_LIMITS.MAX_RECEIPT_LABEL_LENGTH &&
+      Array.isArray(receipt.amounts) &&
+      receipt.amounts.length === personCount &&
+      receipt.amounts.every((amount) =>
+        isValidReceiptAmount(amount, currency)
+      )
+  );
+}
+
+function isValidReceiptAmount(amount: number, currency: string): boolean {
+  if (!Number.isFinite(amount) || amount < 0) {
+    return false;
+  }
+  const normalized = fromMinorUnits(toMinorUnits(amount, currency), currency);
+  return normalized <= VALIDATION_LIMITS.MAX_AMOUNT;
+}
+
+function receiptBreakdownMatchesTotals(
+  receiptBreakdown: SharedReceiptBreakdown[],
+  personTotals: number[],
+  currency: string
+): boolean {
+  return personTotals.every((total, personIndex) => {
+    const itemizedTotal = receiptBreakdown.reduce(
+      (sum, receipt) =>
+        sum + toMinorUnits(receipt.amounts[personIndex], currency),
+      0
+    );
+    const totalMinorUnits = toMinorUnits(total, currency);
+    return (
+      Math.abs(itemizedTotal - totalMinorUnits) <= receiptBreakdown.length
+    );
+  });
 }
 
 /**
@@ -125,6 +246,7 @@ export function deserializeSplitData(
     const noteParam = searchParams.get("note");
     const phoneParam = searchParams.get("phone");
     const currencyParam = searchParams.get("currency");
+    const receiptsParam = searchParams.get("receipts");
 
     // Required parameters check (currency defaults to USD for backwards compatibility)
     if (
@@ -184,6 +306,13 @@ export function deserializeSplitData(
 
     // Optional parameters
     const date = searchParams.get("date") || undefined;
+    const receipts = parseReceiptBreakdown(receiptsParam, names.length, currency);
+    if (
+      receipts === null ||
+      (receipts && !receiptBreakdownMatchesTotals(receipts, amounts, currency))
+    ) {
+      return null;
+    }
 
     return {
       names,
@@ -193,11 +322,84 @@ export function deserializeSplitData(
       phone,
       currency,
       date,
+      ...(receipts ? { receipts } : {}),
     };
   } catch {
     // Return null for any parsing errors
     return null;
   }
+}
+
+function parseReceiptBreakdown(
+  serialized: string | null,
+  personCount: number,
+  currency: string
+): SharedReceiptBreakdown[] | null | undefined {
+  if (serialized === null) {
+    return undefined;
+  }
+  if (serialized.length > MAX_RECEIPT_PAYLOAD_LENGTH) {
+    return null;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(serialized);
+    if (
+      !Array.isArray(parsed) ||
+      !isValidReceiptBreakdownShape(parsed, personCount, currency)
+    ) {
+      return null;
+    }
+
+    const receipts = parsed.map((receipt) => {
+      const item = receipt as { label: string; amounts: number[] };
+      return {
+        label: item.label.trim(),
+        amounts: item.amounts.map((amount) =>
+          Number.isInteger(amount) ? fromMinorUnits(amount, currency) : amount
+        ),
+      };
+    });
+    return receipts;
+  } catch {
+    return null;
+  }
+}
+
+function isValidReceiptBreakdownShape(
+  value: unknown[],
+  personCount: number,
+  currency: string
+): value is SharedReceiptBreakdown[] {
+  if (
+    value.length === 0 ||
+    value.length > VALIDATION_LIMITS.MAX_RECEIPTS_COUNT
+  ) {
+    return false;
+  }
+
+  return value.every((receipt) => {
+    if (!receipt || typeof receipt !== "object") return false;
+    const item = receipt as { label?: unknown; amounts?: unknown };
+    return (
+      typeof item.label === "string" &&
+      item.label.trim().length > 0 &&
+      item.label.trim().length <= VALIDATION_LIMITS.MAX_RECEIPT_LABEL_LENGTH &&
+      Array.isArray(item.amounts) &&
+      item.amounts.length === personCount &&
+      item.amounts.every(
+        (amount) =>
+          typeof amount === "number" &&
+          Number.isFinite(amount) &&
+          isValidReceiptAmount(
+            Number.isInteger(amount)
+              ? fromMinorUnits(amount, currency)
+              : amount,
+            currency
+          )
+      )
+    );
+  });
 }
 
 /**
@@ -209,6 +411,7 @@ export function deserializeSplitData(
  * @param phone - Required phone number for Venmo payments
  * @param currency - Currency code for the split (defaults to USD)
  * @param date - Optional receipt date
+ * @param receiptBreakdown - Optional per-receipt amounts for multi-receipt shares
  * @returns Complete shareable URL
  */
 export function generateShareableUrl(
@@ -217,11 +420,25 @@ export function generateShareableUrl(
   note: string,
   phone: string,
   currency: string = DEFAULT_CURRENCY,
-  date?: string | null
+  date?: string | null,
+  receiptBreakdown?: SharedReceiptBreakdown[]
 ): string {
-  const params = serializeSplitData(people, note, phone, currency, date);
+  const params = serializeSplitData(
+    people,
+    note,
+    phone,
+    currency,
+    date,
+    receiptBreakdown
+  );
   // Ensure baseUrl doesn't end with slash to avoid double slashes
   const cleanBaseUrl = baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl;
+  if (params.has("receipts")) {
+    const withBreakdown = `${cleanBaseUrl}/split?${params.toString()}`;
+    if (withBreakdown.length > MAX_SHARE_URL_LENGTH) {
+      params.delete("receipts");
+    }
+  }
   return `${cleanBaseUrl}/split?${params.toString()}`;
 }
 
@@ -299,6 +516,64 @@ export function validateSplitDataDetailed(
       errorMessages.push(
         `Maximum ${VALIDATION_LIMITS.MAX_PEOPLE_COUNT} people allowed in a split`
       );
+    }
+
+    if (splitData.receipts) {
+      if (
+        splitData.receipts.length === 0 ||
+        splitData.receipts.length > VALIDATION_LIMITS.MAX_RECEIPTS_COUNT
+      ) {
+        errors.push(SplitDataError.TOO_MANY_RECEIPTS);
+        errorMessages.push(
+          `Between 1 and ${VALIDATION_LIMITS.MAX_RECEIPTS_COUNT} receipts are allowed in itemization`
+        );
+      }
+
+      splitData.receipts.forEach((receipt, index) => {
+        if (!receipt.label || receipt.label.trim().length === 0) {
+          errors.push(SplitDataError.INVALID_RECEIPT_BREAKDOWN);
+          errorMessages.push(`Receipt ${index + 1} has an empty label`);
+        } else if (
+          receipt.label.trim().length > VALIDATION_LIMITS.MAX_RECEIPT_LABEL_LENGTH
+        ) {
+          errors.push(SplitDataError.RECEIPT_LABEL_TOO_LONG);
+          errorMessages.push(
+            `Receipt label "${receipt.label.trim()}" exceeds ${VALIDATION_LIMITS.MAX_RECEIPT_LABEL_LENGTH} characters`
+          );
+        }
+
+        if (
+          !Array.isArray(receipt.amounts) ||
+          receipt.amounts.length !== splitData.names.length ||
+          receipt.amounts.some(
+            (amount) =>
+              !isValidReceiptAmount(amount, splitData.currency)
+          )
+        ) {
+          errors.push(SplitDataError.INVALID_RECEIPT_BREAKDOWN);
+          errorMessages.push(
+            `Receipt ${index + 1} must include one valid amount for each person`
+          );
+        }
+      });
+
+      if (
+        isValidReceiptBreakdown(
+          splitData.receipts,
+          splitData.names.length,
+          splitData.currency
+        ) &&
+        !receiptBreakdownMatchesTotals(
+          splitData.receipts,
+          splitData.amounts,
+          splitData.currency
+        )
+      ) {
+        errors.push(SplitDataError.INVALID_RECEIPT_BREAKDOWN);
+        errorMessages.push(
+          "Per-receipt amounts must add up to each person's aggregate amount"
+        );
+      }
     }
 
     // Validate names
