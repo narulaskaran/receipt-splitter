@@ -28,6 +28,7 @@ import {
   getUnassignedItems,
   getSessionUnassigned,
   calculateSessionPersonTotals,
+  calculateSessionPersonTotalsByCurrency,
   calculatePerReceiptPersonTotals,
   sessionShareNote,
   sessionShareDate,
@@ -211,8 +212,19 @@ export default function Home() {
       ).map(({ stored, people }) => ({
         name: stored.receipt.restaurant || "Untitled receipt",
         date: stored.receipt.date,
+        currency: stored.receipt.currency.trim().toUpperCase(),
         people,
       })),
+    [state.receipts, state.people, state.assignedItems]
+  );
+
+  const currencyTotals = useMemo(
+    () =>
+      calculateSessionPersonTotalsByCurrency(
+        state.receipts,
+        state.people,
+        state.assignedItems
+      ),
     [state.receipts, state.people, state.assignedItems]
   );
 
@@ -797,18 +809,25 @@ export default function Home() {
         <TabsContent value="results" className="space-y-6">
           <ValidationErrors errors={validationResult.errors} currencyCode={activeReceipt?.currency} />
 
-          <ResultsSummary
-            people={state.people}
-            receiptName={sessionShareNote(state.receipts)}
-            receiptDate={sessionShareDate(state.receipts)}
-            currencyCode={sessionCurrency(state.receipts)}
-            validationResult={validationResult}
-            receiptBreakdown={receiptBreakdown}
-          />
+          {currencyTotals.map((group) => (
+            <ResultsSummary
+              key={group.currency}
+              people={group.people}
+              receiptName={sessionShareNote(state.receipts)}
+              receiptDate={sessionShareDate(state.receipts)}
+              currencyCode={group.currency}
+              validationResult={validationResult}
+              receiptBreakdown={receiptBreakdown.filter(
+                (receipt) => receipt.currency === group.currency
+              )}
+              currencyGroups={currencyTotals}
+            />
+          ))}
 
           <PersonItems
             people={state.people}
             currencyCode={sessionCurrency(state.receipts)}
+            currencyGroups={currencyTotals}
           />
         </TabsContent>
       </Tabs>

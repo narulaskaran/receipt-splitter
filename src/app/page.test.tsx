@@ -618,6 +618,45 @@ describe("Home Page", () => {
       expect(toast.error).not.toHaveBeenCalled();
     });
 
+    it("renders separate result cards and disables Venmo sharing for mixed currencies", () => {
+      const euroReceipt = createMockReceipt({
+        restaurant: "Paris Bistro",
+        currency: "EUR",
+        subtotal: 10,
+        tax: 1,
+        tip: 0,
+        total: 11,
+        items: [{ name: "Croissant", price: 10, quantity: 1 }],
+      });
+      loadV2({
+        people: mockPeople,
+        activeTab: "results",
+        receipts: [
+          { id: "r1", receipt: mockReceipt },
+          { id: "r2", receipt: euroReceipt },
+        ],
+        assignedItems: [
+          [
+            "r1",
+            [
+              [0, [{ personId: "a", sharePercentage: 100 }]],
+              [1, [{ personId: "b", sharePercentage: 100 }]],
+            ],
+          ],
+          ["r2", [[0, [{ personId: "a", sharePercentage: 100 }]]]],
+        ],
+      });
+      render(<Home />);
+
+      expect(screen.getByText("Results Summary · USD")).toBeInTheDocument();
+      expect(screen.getByText("Results Summary · EUR")).toBeInTheDocument();
+      expect(
+        screen.getAllByText("Venmo sharing is available only for single-currency splits.")
+      ).toHaveLength(2);
+      expect(screen.getByText("USD")).toBeInTheDocument();
+      expect(screen.getByText("EUR")).toBeInTheDocument();
+    });
+
   });
 
   describe("multi-receipt assign tab", () => {

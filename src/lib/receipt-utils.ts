@@ -551,8 +551,9 @@ export function validateReceiptInvariants(
 }
 
 /**
- * Session currency is the first receipt's currency. Mixed-currency splits
- * are not supported; later receipts must match this code.
+ * Session currency is the first receipt's currency. It remains the session
+ * pin for display and confirmation messaging; accepted overrides are grouped
+ * separately in calculateSessionPersonTotalsByCurrency.
  */
 export function sessionCurrency(receipts: StoredReceipt[]): string | undefined {
   return receipts[0]?.receipt.currency;
@@ -618,6 +619,35 @@ export function calculateSessionPersonTotals(
     tax: person.tax.toNumber(),
     tip: person.tip.toNumber(),
     finalTotal: person.finalTotal.toNumber(),
+  }));
+}
+
+export interface SessionCurrencyTotals {
+  currency: string;
+  people: Person[];
+}
+
+/**
+ * Aggregates session totals independently for each currency. Currency groups
+ * preserve first-seen order and never combine amounts across exchange rates.
+ */
+export function calculateSessionPersonTotalsByCurrency(
+  receipts: StoredReceipt[],
+  people: Person[],
+  assignedItems: Map<string, ItemAssignments>
+): SessionCurrencyTotals[] {
+  const receiptGroups = new Map<string, StoredReceipt[]>();
+
+  for (const stored of receipts) {
+    const currency = stored.receipt.currency.trim().toUpperCase();
+    const group = receiptGroups.get(currency) ?? [];
+    group.push(stored);
+    receiptGroups.set(currency, group);
+  }
+
+  return [...receiptGroups.entries()].map(([currency, groupedReceipts]) => ({
+    currency,
+    people: calculateSessionPersonTotals(groupedReceipts, people, assignedItems),
   }));
 }
 
