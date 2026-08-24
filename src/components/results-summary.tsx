@@ -70,6 +70,10 @@ export function ResultsSummary({
   const createShareText = (): string => {
     let text = "";
 
+    if (!isSingleCurrency && currencyCode) {
+      text += `Currency: ${currencyCode}\n`;
+    }
+
     if (showBreakdown) {
       text += "Day total\n";
       sortedPeople.forEach((person) => {
@@ -234,14 +238,14 @@ export function ResultsSummary({
     <div className="w-full flex flex-col gap-4">
       <div className="flex flex-col gap-3">
         <label
-          htmlFor="venmo-phone"
+          htmlFor={`venmo-phone-${currencyCode ?? "default"}`}
           className="font-medium text-sm sm:text-base"
         >
           Your Phone Number (for Venmo):
         </label>
         <div className="flex gap-3">
           <input
-            id="venmo-phone"
+            id={`venmo-phone-${currencyCode ?? "default"}`}
             type="tel"
             placeholder="e.g. 555-123-4567"
             value={phoneNumber}
