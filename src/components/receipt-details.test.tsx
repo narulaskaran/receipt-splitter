@@ -99,7 +99,7 @@ describe("ReceiptDetails", () => {
       expect(screen.getByLabelText("Subtotal")).toHaveValue(100);
       expect(screen.getByLabelText("Tax")).toHaveValue(10);
       expect(screen.getByLabelText("Tip")).toHaveValue(15);
-      expect(screen.getByLabelText("Total (Auto-calculated)")).toHaveValue(125);
+      expect(screen.getByLabelText("Total")).toHaveValue(125);
     });
 
     it("displays empty string in tip field when tip is null", () => {
@@ -121,7 +121,7 @@ describe("ReceiptDetails", () => {
       fireEvent.click(screen.getByRole("button", { name: /edit/i }));
 
       await waitFor(() => {
-        const totalInput = screen.getByLabelText("Total (Auto-calculated)");
+        const totalInput = screen.getByLabelText("Total");
         // Auto-calculation: 100 + 10 + 0 = 110 (tip becomes 0)
         expect(totalInput).toHaveValue(110);
       });
@@ -197,14 +197,17 @@ describe("ReceiptDetails", () => {
       expect(tipInput).toHaveValue(20);
     });
 
-    it("total field is read-only and disabled", () => {
+    it("total field is editable and auto-calculated unless edited", () => {
       render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
 
       fireEvent.click(screen.getByRole("button", { name: /edit/i }));
 
-      const totalInput = screen.getByLabelText("Total (Auto-calculated)");
-      expect(totalInput).toHaveAttribute("readonly");
-      expect(totalInput).toBeDisabled();
+      const totalInput = screen.getByLabelText("Total");
+      expect(totalInput).toBeEnabled();
+
+      // Editing the total marks it as explicit (no longer auto-overwritten)
+      fireEvent.change(totalInput, { target: { value: "99" } });
+      expect(totalInput).toHaveValue(99);
     });
 
     it("allows clearing tip field", () => {
@@ -230,7 +233,7 @@ describe("ReceiptDetails", () => {
       fireEvent.change(subtotalInput, { target: { value: "200" } });
 
       await waitFor(() => {
-        const totalInput = screen.getByLabelText("Total (Auto-calculated)");
+        const totalInput = screen.getByLabelText("Total");
         // Should be 200 (subtotal) + 10 (tax) + 15 (tip) = 225
         expect(totalInput).toHaveValue(225);
       });
@@ -245,7 +248,7 @@ describe("ReceiptDetails", () => {
       fireEvent.change(taxInput, { target: { value: "20" } });
 
       await waitFor(() => {
-        const totalInput = screen.getByLabelText("Total (Auto-calculated)");
+        const totalInput = screen.getByLabelText("Total");
         // Should be 100 (subtotal) + 20 (tax) + 15 (tip) = 135
         expect(totalInput).toHaveValue(135);
       });
@@ -260,7 +263,7 @@ describe("ReceiptDetails", () => {
       fireEvent.change(tipInput, { target: { value: "25" } });
 
       await waitFor(() => {
-        const totalInput = screen.getByLabelText("Total (Auto-calculated)");
+        const totalInput = screen.getByLabelText("Total");
         // Should be 100 (subtotal) + 10 (tax) + 25 (tip) = 135
         expect(totalInput).toHaveValue(135);
       });
@@ -275,7 +278,7 @@ describe("ReceiptDetails", () => {
       fireEvent.change(tipInput, { target: { value: "" } });
 
       await waitFor(() => {
-        const totalInput = screen.getByLabelText("Total (Auto-calculated)");
+        const totalInput = screen.getByLabelText("Total");
         // Should be 100 (subtotal) + 10 (tax) + 0 (tip) = 110
         expect(totalInput).toHaveValue(110);
       });
@@ -412,7 +415,7 @@ describe("ReceiptDetails", () => {
       fireEvent.change(subtotalInput, { target: { value: "150" } });
 
       await waitFor(() => {
-        const totalInput = screen.getByLabelText("Total (Auto-calculated)");
+        const totalInput = screen.getByLabelText("Total");
         // Should be 150 + 10 + 15 = 175
         expect(totalInput).toHaveValue(175);
       });
@@ -448,7 +451,7 @@ describe("ReceiptDetails", () => {
       fireEvent.change(tipInput, { target: { value: "30" } });
 
       await waitFor(() => {
-        const totalInput = screen.getByLabelText("Total (Auto-calculated)");
+        const totalInput = screen.getByLabelText("Total");
         // Should be 200 + 20 + 30 = 250
         expect(totalInput).toHaveValue(250);
       });
@@ -599,6 +602,81 @@ describe("ReceiptDetails", () => {
           expect.objectContaining({ date: "2030-12-31" })
         );
       });
+    });
+  });
+
+  describe("total mismatch guard", () => {
+    it("auto-calculates total from subtotal + tax + tip when untouched", () => {
+      openDialogAndEdit(mockReceipt, { Tax: "20" });
+
+      expect(screen.getByLabelText("Total")).toHaveValue(135);
+    });
+
+    it("flags a genuine printed-total mismatch on save instead of silently rewriting it", () => {
+      const { save } = openDialogAndEdit();
+      // User explicitly types the printed total from the paper receipt
+      fireEvent.change(screen.getByLabelText("Total"), {
+        target: { value: "118" },
+      });
+      // Then edits subtotal; the explicit total must NOT be auto-overwritten
+      fireEvent.change(screen.getByLabelText("Subtotal"), {
+        target: { value: "90" },
+      });
+
+      expect(screen.getByLabelText("Total")).toHaveValue(118);
+
+      save();
+
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.stringContaining("doesn't match")
+      );
+      expect(mockOnReceiptUpdate).not.toHaveBeenCalled();
+    });
+
+    it("saves normally when amounts are consistent", () => {
+      mockOnReceiptUpdate.mockReturnValue(true);
+
+      const { save } = openDialogAndEdit();
+
+      save();
+
+      expect(toast.success).toHaveBeenCalledWith("Receipt details updated");
+    });
+
+    it.each(["Tax", "Tip"])(
+      "editing %s after Total was manually set preserves the manual total",
+      (field) => {
+        const fieldValues: Record<string, string> = { Tax: "20", Tip: "25" };
+        openDialogAndEdit();
+
+        // User explicitly types the printed total
+        fireEvent.change(screen.getByLabelText("Total"), {
+          target: { value: "118" },
+        });
+        // Then edits another amount; the explicit total must NOT be overwritten
+        fireEvent.change(screen.getByLabelText(field), {
+          target: { value: fieldValues[field] },
+        });
+
+        expect(screen.getByLabelText("Total")).toHaveValue(118);
+      }
+    );
+
+    it("resets to auto-calculation when the dialog is reopened", () => {
+      const { cancel } = openDialogAndEdit();
+
+      // Manually set a total, then abandon the session
+      fireEvent.change(screen.getByLabelText("Total"), {
+        target: { value: "118" },
+      });
+      cancel();
+
+      // Reopen: editing an amount must go back to auto-calculating the total
+      fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+      fireEvent.change(screen.getByLabelText("Tax"), {
+        target: { value: "20" },
+      });
+      expect(screen.getByLabelText("Total")).toHaveValue(135);
     });
   });
 });
