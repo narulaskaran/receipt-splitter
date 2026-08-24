@@ -182,7 +182,7 @@ export function getCurrencyInfo(currencyCode: string): CurrencyInfo {
   }
 
   // Build and cache if supported
-  if (currencyCode in CURRENCY_METADATA) {
+  if (Object.hasOwn(CURRENCY_METADATA, currencyCode)) {
     const info = buildCurrencyInfo(currencyCode);
     currencyInfoCache.set(currencyCode, info);
     return info;
@@ -255,5 +255,5 @@ export function getSupportedCurrencies(): CurrencyInfo[] {
  * Validate if a currency code is supported
  */
 export function isSupportedCurrency(currencyCode: string): boolean {
-  return currencyCode in CURRENCY_METADATA;
+  return Object.hasOwn(CURRENCY_METADATA, currencyCode);
 }
