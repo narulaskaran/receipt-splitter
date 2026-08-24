@@ -284,6 +284,7 @@ export function ReceiptDetails({
                 <Input
                   id="total"
                   type="number"
+                  min="0"
                   step="0.01"
                   value={editedReceipt.total}
                   onChange={(e) => {

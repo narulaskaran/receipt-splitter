@@ -606,10 +606,6 @@ describe("ReceiptDetails", () => {
   });
 
   describe("total mismatch guard", () => {
-    beforeEach(() => {
-      jest.clearAllMocks();
-    });
-
     it("auto-calculates total from subtotal + tax + tip when untouched", () => {
       openDialogAndEdit(mockReceipt, { Tax: "20" });
 
@@ -645,6 +641,42 @@ describe("ReceiptDetails", () => {
       save();
 
       expect(toast.success).toHaveBeenCalledWith("Receipt details updated");
+    });
+
+    it.each(["Tax", "Tip"])(
+      "editing %s after Total was manually set preserves the manual total",
+      (field) => {
+        const fieldValues: Record<string, string> = { Tax: "20", Tip: "25" };
+        openDialogAndEdit();
+
+        // User explicitly types the printed total
+        fireEvent.change(screen.getByLabelText("Total"), {
+          target: { value: "118" },
+        });
+        // Then edits another amount; the explicit total must NOT be overwritten
+        fireEvent.change(screen.getByLabelText(field), {
+          target: { value: fieldValues[field] },
+        });
+
+        expect(screen.getByLabelText("Total")).toHaveValue(118);
+      }
+    );
+
+    it("resets to auto-calculation when the dialog is reopened", () => {
+      const { cancel } = openDialogAndEdit();
+
+      // Manually set a total, then abandon the session
+      fireEvent.change(screen.getByLabelText("Total"), {
+        target: { value: "118" },
+      });
+      cancel();
+
+      // Reopen: editing an amount must go back to auto-calculating the total
+      fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+      fireEvent.change(screen.getByLabelText("Tax"), {
+        target: { value: "20" },
+      });
+      expect(screen.getByLabelText("Total")).toHaveValue(135);
     });
   });
 });
