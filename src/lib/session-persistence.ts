@@ -279,10 +279,22 @@ function parseStoredReceipts(raw: unknown): StoredReceipt[] {
 }
 
 function parseReceipt(raw: unknown): Receipt | null {
-  if (!isRecord(raw) || !Array.isArray(raw.items)) {
+  if (
+    !isRecord(raw) ||
+    !Array.isArray(raw.items) ||
+    !isFiniteNonNegativeNumber(raw.subtotal) ||
+    !isFiniteNonNegativeNumber(raw.tax) ||
+    !isFiniteNonNegativeNumber(raw.total) ||
+    typeof raw.currency !== "string" ||
+    raw.currency.trim() === ""
+  ) {
     return null;
   }
   return raw as unknown as Receipt;
+}
+
+function isFiniteNonNegativeNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
 }
 
 function parsePeople(raw: unknown): Person[] {

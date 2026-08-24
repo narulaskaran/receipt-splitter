@@ -191,6 +191,48 @@ describe("session-persistence", () => {
   });
 
   describe("corrupt and empty input", () => {
+    it("drops v2 receipts with invalid required financial fields", () => {
+      const validId = "valid-receipt";
+      const invalidReceipts = [
+        { ...mockReceipt, subtotal: -0.01 },
+        { ...mockReceipt, tax: Number.NaN },
+        { ...mockReceipt, total: Number.POSITIVE_INFINITY },
+        { ...mockReceipt, currency: "" },
+        { ...mockReceipt, currency: 123 },
+      ];
+      const migrated = migrateSession({
+        version: SESSION_VERSION,
+        state: {
+          receipts: [
+            { id: validId, receipt: mockReceipt },
+            ...invalidReceipts.map((receipt, index) => ({
+              id: `invalid-${index}`,
+              receipt,
+            })),
+          ],
+          people: [],
+          groups: [],
+          assignedItems: [],
+          isLoading: false,
+          error: null,
+        },
+        activeTab: "upload",
+      });
+
+      expect(migrated?.state.receipts).toEqual([
+        { id: validId, receipt: mockReceipt },
+      ]);
+    });
+
+    it("drops a v1 receipt when required financial fields are invalid", () => {
+      const migrated = migrateSession(
+        v1Blob({ originalReceipt: { ...mockReceipt, total: -1 } })
+      );
+
+      expect(migrated).not.toBeNull();
+      expect(migrated!.state.receipts).toEqual([]);
+    });
+
     it("returns null for corrupt JSON", () => {
       expect(deserializeSession("invalid json {")).toBeNull();
       expect(deserializeSession("")).toBeNull();
