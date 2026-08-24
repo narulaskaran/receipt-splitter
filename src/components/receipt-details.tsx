@@ -67,6 +67,17 @@ export function ReceiptDetails({
     });
   };
 
+  const resetTotalToAutoCalculated = () => {
+    setEditedReceipt((prev) => ({
+      ...prev,
+      total: new Decimal(prev.subtotal || 0)
+        .add(new Decimal(prev.tax || 0))
+        .add(new Decimal(prev.tip || 0))
+        .toNumber(),
+    }));
+    setTotalManuallyEdited(false);
+  };
+
   // Handles the save operation
   const handleSave = () => {
     // Validate the numbers
@@ -297,6 +308,18 @@ export function ReceiptDetails({
                 />
                 <p className="text-xs text-muted-foreground">
                   Auto-calculated from subtotal + tax + tip unless edited
+                  {totalManuallyEdited && (
+                    <>
+                      {" "}
+                      <button
+                        type="button"
+                        className="text-primary underline underline-offset-2 hover:no-underline"
+                        onClick={resetTotalToAutoCalculated}
+                      >
+                        Reset total to auto-calculated
+                      </button>
+                    </>
+                  )}
                 </p>
               </div>
             </div>
