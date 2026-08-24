@@ -157,7 +157,7 @@ export function generateVenmoWebLink(
   return `${VENMO_CONFIG.WEB_URL}?${query}`;
 }
 
-function isVenmoAppPreferred(): boolean {
+export function isVenmoAppPreferred(): boolean {
   if (typeof navigator === 'undefined') {
     return false;
   }
@@ -177,25 +177,27 @@ export function openVenmoPayment(
   amount: number,
   note: string = ''
 ): boolean {
-  const appLink = generateVenmoLink(phoneNumber, amount, note);
-  const webLink = generateVenmoWebLink(phoneNumber, amount, note);
+  const preferNativeApp = isVenmoAppPreferred();
+  const link = preferNativeApp
+    ? generateVenmoLink(phoneNumber, amount, note)
+    : generateVenmoWebLink(phoneNumber, amount, note);
 
-  if (!appLink || !webLink) {
+  if (!link) {
     return false;
   }
 
   try {
     // Phones must use the native scheme so the app receives `%20` spaces.
     // `https://venmo.com/?…` is rewritten by Venmo's web interstitial with `+`.
-    if (isVenmoAppPreferred()) {
+    if (preferNativeApp) {
       // `_self` is a top-level navigation from the user gesture, which iOS
       // allows for custom URL schemes. `window.open(..., '_blank')` is often
       // treated as a popup and blocked for `venmo://`.
-      window.open(appLink, '_self');
+      window.open(link, '_self');
       return true;
     }
 
-    window.open(webLink, '_blank', 'noopener,noreferrer');
+    window.open(link, '_blank', 'noopener,noreferrer');
     return true;
   } catch (error) {
     console.error('Failed to open Venmo payment link:', error);
