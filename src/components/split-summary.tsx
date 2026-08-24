@@ -7,9 +7,15 @@ import {
 } from "@/components/ui/card";
 import { type SharedSplitData } from "@/lib/split-sharing";
 import { formatCurrency } from "@/lib/receipt-utils";
-import { formatVenmoNote, openVenmoPayment } from "@/lib/venmo-utils";
+import {
+  formatVenmoNote,
+  generateVenmoLink,
+  generateVenmoWebLink,
+  isVenmoAppPreferred,
+} from "@/lib/venmo-utils";
 import { formatDisplayDate } from "@/lib/date-utils";
 import Image from "next/image";
+import { useEffect, useState } from "react";
 
 interface SplitSummaryProps {
   splitData: SharedSplitData;
@@ -24,14 +30,12 @@ function SplitPersonRow({
   name,
   amount,
   currency,
-  canPayWithVenmo,
-  onPay,
+  venmoHref,
 }: {
   name: string;
   amount: number;
   currency: string;
-  canPayWithVenmo: boolean;
-  onPay: () => void;
+  venmoHref: string | null;
 }) {
   const formattedAmount = formatCurrency(amount, currency);
 
@@ -47,15 +51,19 @@ function SplitPersonRow({
       <span className="shrink-0 tabular-nums font-medium">
         {formattedAmount}
       </span>
-      {canPayWithVenmo && (
+      {venmoHref && (
         <Button
           size="sm"
-          onClick={onPay}
-          aria-label={`Pay ${formattedAmount} for ${name} with Venmo`}
+          asChild
           className="shrink-0 bg-[#008CFF] px-3 text-white hover:bg-[#0074D9]"
         >
-          <Image src="/venmo.png" alt="" width={14} height={14} />
-          Pay
+          <a
+            href={venmoHref}
+            aria-label={`Pay ${formattedAmount} for ${name} with Venmo`}
+          >
+            <Image src="/venmo.png" alt="" width={14} height={14} />
+            Pay
+          </a>
         </Button>
       )}
     </li>
@@ -64,6 +72,26 @@ function SplitPersonRow({
 
 export function SplitSummary({ splitData, phoneNumber }: SplitSummaryProps) {
   const canPayWithVenmo = Boolean(phoneNumber) && splitData.currency === "USD";
+
+  // `navigator` is unavailable during SSR, so default to the native app scheme
+  // (matching the server render) and switch desktop browsers to the web
+  // compose URL after hydration. Without this, desktop visitors clicking Pay
+  // would hit a bare `venmo://` href that the browser cannot handle.
+  const [preferNativeApp, setPreferNativeApp] = useState(true);
+  useEffect(() => {
+    setPreferNativeApp(isVenmoAppPreferred());
+  }, []);
+
+  const buildVenmoHref = (name: string, index: number): string | null => {
+    if (!canPayWithVenmo || !phoneNumber) {
+      return null;
+    }
+    const note = formatVenmoNote(splitData.note, name);
+    return preferNativeApp
+      ? generateVenmoLink(phoneNumber, splitData.amounts[index], note)
+      : generateVenmoWebLink(phoneNumber, splitData.amounts[index], note);
+  };
+
   const meta = [
     splitData.date ? formatDisplayDate(splitData.date) : null,
     personCountLabel(splitData.names.length),
@@ -97,15 +125,7 @@ export function SplitSummary({ splitData, phoneNumber }: SplitSummaryProps) {
                 name={name}
                 amount={splitData.amounts[index]}
                 currency={splitData.currency}
-                canPayWithVenmo={canPayWithVenmo}
-                onPay={() => {
-                  if (!phoneNumber) return;
-                  openVenmoPayment(
-                    phoneNumber,
-                    splitData.amounts[index],
-                    formatVenmoNote(splitData.note, name)
-                  );
-                }}
+                venmoHref={buildVenmoHref(name, index)}
               />
             ))}
           </ul>

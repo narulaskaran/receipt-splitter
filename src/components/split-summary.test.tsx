@@ -1,10 +1,19 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { SplitSummary } from "./split-summary";
 import { type SharedSplitData } from "@/lib/split-sharing";
 
 jest.mock("@/lib/receipt-utils", () => ({
   formatCurrency: jest.fn((amount: number) => `$${amount.toFixed(2)}`),
 }));
+
+const originalUserAgent = navigator.userAgent;
+
+function setUserAgent(ua: string) {
+  Object.defineProperty(navigator, "userAgent", {
+    configurable: true,
+    value: ua,
+  });
+}
 
 const mockSplitData: SharedSplitData = {
   names: ["Alice", "Bob", "Charlie"],
@@ -26,6 +35,15 @@ const mockMinimalSplitData: SharedSplitData = {
 };
 
 describe("SplitSummary", () => {
+  beforeEach(() => {
+    // Default the suite to a phone user agent so Pay links resolve to the
+    // native app scheme; the desktop fallback has its own test below.
+    setUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
+  });
+
+  afterEach(() => {
+    setUserAgent(originalUserAgent);
+  });
   it("renders restaurant, total, date, and people", () => {
     render(<SplitSummary splitData={mockSplitData} phoneNumber="5551234567" />);
 
@@ -103,28 +121,73 @@ describe("SplitSummary", () => {
     render(<SplitSummary splitData={mockSplitData} phoneNumber="5551234567" />);
 
     expect(
-      screen.getByRole("button", { name: "Pay $32.50 for Alice with Venmo" })
+      screen.getByRole("link", { name: "Pay $32.50 for Alice with Venmo" })
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Pay $19.50 for Bob with Venmo" })
+      screen.getByRole("link", { name: "Pay $19.50 for Bob with Venmo" })
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Pay $13.00 for Charlie with Venmo" })
+      screen.getByRole("link", { name: "Pay $13.00 for Charlie with Venmo" })
     ).toBeInTheDocument();
   });
 
-  it("opens a Venmo link when Pay is clicked", () => {
+  it("links Pay actions to the native Venmo paycharge URL on mobile", async () => {
     render(<SplitSummary splitData={mockSplitData} phoneNumber="5551234567" />);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Pay $32.50 for Alice with Venmo" })
-    );
+    const payLink = await screen.findByRole("link", {
+      name: "Pay $32.50 for Alice with Venmo",
+    });
 
-    expect(window.open).toHaveBeenCalledWith(
-      expect.stringContaining("https://venmo.com/"),
-      "_blank",
-      "noopener,noreferrer"
+    await waitFor(() =>
+      expect(payLink.getAttribute("href")).toContain("venmo://paycharge")
     );
+    expect(payLink).toHaveAttribute(
+      "href",
+      "venmo://paycharge?txn=pay&recipients=5551234567&amount=32.50&note=Pizza%20Palace%20-%20Alice"
+    );
+    expect(payLink.getAttribute("href")).not.toContain("+");
+  });
+
+  it("falls back to the web compose URL for desktop user agents", async () => {
+    setUserAgent(
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+    );
+    render(<SplitSummary splitData={mockSplitData} phoneNumber="5551234567" />);
+
+    const payLink = screen.getByRole("link", {
+      name: "Pay $32.50 for Alice with Venmo",
+    });
+
+    await waitFor(() =>
+      expect(payLink.getAttribute("href")).toContain("https://venmo.com/pay")
+    );
+    expect(payLink).toHaveAttribute(
+      "href",
+      "https://venmo.com/pay?txn=pay&recipients=5551234567&amount=32.50&note=Pizza%20Palace%20-%20Alice"
+    );
+    expect(payLink.getAttribute("href")).not.toContain("+");
+  });
+
+  it("encodes restaurant names with spaces as %20 in the Pay href", () => {
+    const splitData: SharedSplitData = {
+      ...mockMinimalSplitData,
+      names: ["anuraag"],
+      amounts: [25.8],
+      total: 25.8,
+      note: "ANGEL INDIAN RESTAURANT",
+    };
+
+    render(<SplitSummary splitData={splitData} phoneNumber="5551234567" />);
+
+    const payLink = screen.getByRole("link", {
+      name: "Pay $25.80 for anuraag with Venmo",
+    });
+
+    expect(payLink).toHaveAttribute(
+      "href",
+      "venmo://paycharge?txn=pay&recipients=5551234567&amount=25.80&note=ANGEL%20INDIAN%20RESTAURANT%20-%20anuraag"
+    );
+    expect(payLink.getAttribute("href")).not.toContain("+");
   });
 
   it("always shows amounts even without a payment phone number", () => {
@@ -132,7 +195,7 @@ describe("SplitSummary", () => {
 
     expect(screen.getByText("$32.50")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /with Venmo/i })
+      screen.queryByRole("link", { name: /with Venmo/i })
     ).not.toBeInTheDocument();
   });
 
@@ -147,7 +210,7 @@ describe("SplitSummary", () => {
     expect(screen.getByText("Alice")).toBeInTheDocument();
     expect(screen.getByText("$32.50")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /with Venmo/i })
+      screen.queryByRole("link", { name: /with Venmo/i })
     ).not.toBeInTheDocument();
   });
 });
