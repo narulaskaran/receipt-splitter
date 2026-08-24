@@ -2,7 +2,6 @@ import {
   serializeSplitData,
   deserializeSplitData,
   generateShareableUrl,
-  validateSplitData,
   validateSplitDataDetailed,
   validateSerializationInput,
   isValidPhoneNumber,
@@ -374,7 +373,7 @@ describe("validateSplitData", () => {
   };
 
   it("should validate correct split data", () => {
-    expect(validateSplitData(validSplitData)).toBe(true);
+    expect(validateSplitDataDetailed(validSplitData).isValid).toBe(true);
   });
 
   it("should validate data without optional date field", () => {
@@ -387,7 +386,7 @@ describe("validateSplitData", () => {
       currency: "USD",
     };
 
-    expect(validateSplitData(minimalData)).toBe(true);
+    expect(validateSplitDataDetailed(minimalData).isValid).toBe(true);
   });
 
   it("should reject data missing required note field", () => {
@@ -396,7 +395,7 @@ describe("validateSplitData", () => {
       note: "",
     };
 
-    expect(validateSplitData(invalidData)).toBe(false);
+    expect(validateSplitDataDetailed(invalidData).isValid).toBe(false);
   });
 
   it("should reject data missing required phone field", () => {
@@ -405,7 +404,7 @@ describe("validateSplitData", () => {
       phone: "",
     };
 
-    expect(validateSplitData(invalidData)).toBe(false);
+    expect(validateSplitDataDetailed(invalidData).isValid).toBe(false);
   });
 
   it("should reject mismatched array lengths", () => {
@@ -415,7 +414,7 @@ describe("validateSplitData", () => {
       amounts: [30.0, 20.0], // mismatch
     };
 
-    expect(validateSplitData(invalidData)).toBe(false);
+    expect(validateSplitDataDetailed(invalidData).isValid).toBe(false);
   });
 
   it("should reject empty arrays", () => {
@@ -425,7 +424,7 @@ describe("validateSplitData", () => {
       amounts: [],
     };
 
-    expect(validateSplitData(invalidData)).toBe(false);
+    expect(validateSplitDataDetailed(invalidData).isValid).toBe(false);
   });
 
   it("should reject empty names", () => {
@@ -434,7 +433,7 @@ describe("validateSplitData", () => {
       names: ["Alice", "  ", "Bob"], // empty name
     };
 
-    expect(validateSplitData(invalidData)).toBe(false);
+    expect(validateSplitDataDetailed(invalidData).isValid).toBe(false);
   });
 
   it("should reject negative amounts", () => {
@@ -443,7 +442,7 @@ describe("validateSplitData", () => {
       amounts: [30.0, -20.0], // negative amount
     };
 
-    expect(validateSplitData(invalidData)).toBe(false);
+    expect(validateSplitDataDetailed(invalidData).isValid).toBe(false);
   });
 
   it("should reject invalid total", () => {
@@ -452,7 +451,7 @@ describe("validateSplitData", () => {
       total: -50.0, // negative total
     };
 
-    expect(validateSplitData(invalidData)).toBe(false);
+    expect(validateSplitDataDetailed(invalidData).isValid).toBe(false);
   });
 
   it("should reject when amounts do not add up to total", () => {
@@ -462,7 +461,7 @@ describe("validateSplitData", () => {
       total: 60.0, // does not match sum of amounts (50.00)
     };
 
-    expect(validateSplitData(invalidData)).toBe(false);
+    expect(validateSplitDataDetailed(invalidData).isValid).toBe(false);
   });
 
   it("should allow small rounding differences in total", () => {
@@ -472,7 +471,7 @@ describe("validateSplitData", () => {
       total: 50.67,
     };
 
-    expect(validateSplitData(dataWithRounding)).toBe(true);
+    expect(validateSplitDataDetailed(dataWithRounding).isValid).toBe(true);
   });
 
   it("should reject large differences in total", () => {
@@ -482,7 +481,7 @@ describe("validateSplitData", () => {
       total: 52.0, // difference > 1 cent tolerance
     };
 
-    expect(validateSplitData(dataWithLargeDifference)).toBe(false);
+    expect(validateSplitDataDetailed(dataWithLargeDifference).isValid).toBe(false);
   });
 
   it("allows up to 1 cent per person rounding difference", () => {
@@ -496,7 +495,7 @@ describe("validateSplitData", () => {
       date: "2025-09-05",
     };
 
-    expect(validateSplitData(data)).toBe(true);
+    expect(validateSplitDataDetailed(data).isValid).toBe(true);
   });
 
   it("rejects when difference exceeds per-person tolerance", () => {
@@ -511,7 +510,7 @@ describe("validateSplitData", () => {
       currency: "USD",
     };
 
-    expect(validateSplitData(data)).toBe(false);
+    expect(validateSplitDataDetailed(data).isValid).toBe(false);
   });
 });
 
@@ -526,7 +525,7 @@ describe("deserializeSplitData with provided URL query", () => {
     expect(result!.names).toEqual(["I", "K", "p", "s"]);
     expect(result!.amounts).toEqual([15.25, 21.75, 15.25, 15.25]);
     expect(result!.total).toBe(67.52);
-    expect(validateSplitData(result!)).toBe(true);
+    expect(validateSplitDataDetailed(result!).isValid).toBe(true);
   });
 });
 
@@ -552,7 +551,7 @@ describe("round-trip serialization", () => {
     expect(deserialized!.date).toBe("2024-01-15");
 
     // Validate the round-trip data
-    expect(validateSplitData(deserialized!)).toBe(true);
+    expect(validateSplitDataDetailed(deserialized!).isValid).toBe(true);
   });
 
   it("should handle edge cases in round-trip", () => {
@@ -577,7 +576,7 @@ describe("round-trip serialization", () => {
     expect(deserialized!.total).toBe(0.01);
     expect(deserialized!.note).toBe("Minimum");
     expect(deserialized!.phone).toBe("5551234567");
-    expect(validateSplitData(deserialized!)).toBe(true);
+    expect(validateSplitDataDetailed(deserialized!).isValid).toBe(true);
   });
 });
 
