@@ -62,6 +62,9 @@ export function ResultsSummary({
   const sortedPeople = [...people].sort((a, b) => b.finalTotal - a.finalTotal);
   const showBreakdown = (receiptBreakdown?.length ?? 0) > 1;
   const isSingleCurrency = (currencyGroups?.length ?? 1) === 1;
+  const phoneInputId = isSingleCurrency
+    ? "venmo-phone"
+    : `venmo-phone-${currencyCode ?? "default"}`;
   const showDayTotalHeading = showBreakdown || !isSingleCurrency;
 
   // Create a shareable text summary matching on-screen order:
@@ -227,14 +230,14 @@ export function ResultsSummary({
     <div className="w-full flex flex-col gap-4">
       <div className="flex flex-col gap-3">
         <label
-          htmlFor={`venmo-phone-${currencyCode ?? "default"}`}
+          htmlFor={phoneInputId}
           className="font-medium text-sm sm:text-base"
         >
           Your Phone Number (for Venmo):
         </label>
         <div className="flex gap-3">
           <input
-            id={`venmo-phone-${currencyCode ?? "default"}`}
+            id={phoneInputId}
             type="tel"
             placeholder="e.g. 555-123-4567"
             value={phoneNumber}
