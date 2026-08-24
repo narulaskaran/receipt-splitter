@@ -94,6 +94,7 @@ export function PersonItems({ people, currencyCode, currencyGroups }: PersonItem
               ) : null}
               {currencyGroup.people.map(person => {
             const displayCurrency = currencyGroup.currency;
+            const personKey = `${currencyGroup.currency}:${person.id}`;
             const grouped = hasReceiptGrouping(person.items);
             const groups = grouped ? groupItemsByReceipt(person.items) : [];
 
@@ -101,7 +102,7 @@ export function PersonItems({ people, currencyCode, currencyGroups }: PersonItem
             <div key={`${currencyGroup.currency}-${person.id}`} className="border rounded-md">
               <div 
                 className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted"
-                onClick={() => toggleExpand(person.id)}
+                onClick={() => toggleExpand(personKey)}
               >
                 <div className="font-medium">{person.name}</div>
                 <div className="flex items-center gap-3">
@@ -112,10 +113,10 @@ export function PersonItems({ people, currencyCode, currencyGroups }: PersonItem
                     className="p-0"
                     onClick={(e) => {
                       e.stopPropagation();
-                      toggleExpand(person.id);
+                      toggleExpand(personKey);
                     }}
                   >
-                    {expandedPerson === person.id ? (
+                    {expandedPerson === personKey ? (
                       <ChevronUp className="h-4 w-4" />
                     ) : (
                       <ChevronDown className="h-4 w-4" />
@@ -124,7 +125,7 @@ export function PersonItems({ people, currencyCode, currencyGroups }: PersonItem
                 </div>
               </div>
               
-              {expandedPerson === person.id && (
+              {expandedPerson === personKey && (
                 <div className="px-4 pb-4">
                   {person.items.length === 0 ? (
                     <p className="text-sm text-muted-foreground italic">No items assigned</p>
