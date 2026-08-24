@@ -213,4 +213,28 @@ describe("SplitSummary", () => {
       screen.queryByRole("link", { name: /with Venmo/i })
     ).not.toBeInTheDocument();
   });
+
+  it("renders multi-receipt amounts without adding per-receipt Venmo actions", () => {
+    const splitData: SharedSplitData = {
+      names: ["Alice", "Bob"],
+      amounts: [30, 20],
+      total: 50,
+      note: "Dinner Split",
+      phone: "5551234567",
+      currency: "USD",
+      receipts: [
+        { label: "Cafe", amounts: [12, 8] },
+        { label: "Dessert Bar", amounts: [18, 12] },
+      ],
+    };
+
+    render(<SplitSummary splitData={splitData} phoneNumber={splitData.phone} />);
+
+    expect(screen.getByRole("heading", { name: "By receipt" })).toBeInTheDocument();
+    expect(screen.getByText("Cafe")).toBeInTheDocument();
+    expect(screen.getByText("Dessert Bar")).toBeInTheDocument();
+    expect(screen.getAllByText("$12.00")).toHaveLength(2);
+    expect(screen.getByText("$8.00")).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /Pay/ })).toHaveLength(2);
+  });
 });
