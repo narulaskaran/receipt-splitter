@@ -758,6 +758,43 @@ describe("validateReceiptInvariants", () => {
       const result = validateReceiptInvariants(receipt, new Map(), []);
       expect(result.isValid).toBe(true);
     });
+
+    it("allows total off by exactly 1 cent (tolerance boundary)", () => {
+      const receipt: Receipt = {
+        restaurant: "Test",
+        date: "2024-01-01",
+        subtotal: 100,
+        tax: 10,
+        tip: 15,
+        total: 124.99,  // Expected 125, off by exactly $0.01
+        currency: "USD",
+        items: [],
+      };
+      const result = validateReceiptInvariants(receipt, new Map(), []);
+      expect(result.isValid).toBe(true);
+    });
+
+    it("detects total off by more than tolerance (2 cents)", () => {
+      const receipt: Receipt = {
+        restaurant: "Test",
+        date: "2024-01-01",
+        subtotal: 100,
+        tax: 10,
+        tip: 15,
+        total: 124.98,  // Expected 125, off by $0.02 > 1-cent tolerance
+        currency: "USD",
+        items: [],
+      };
+      const result = validateReceiptInvariants(receipt, new Map(), []);
+      expect(result.isValid).toBe(false);
+      expect(result.errors).toContainEqual(
+        expect.objectContaining({
+          type: AmountValidationError.RECEIPT_TOTAL_MISMATCH,
+          expected: 125,
+          actual: 124.98,
+        })
+      );
+    });
   });
 });
 
