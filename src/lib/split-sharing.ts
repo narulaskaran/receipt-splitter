@@ -430,16 +430,6 @@ export function validateSplitDataDetailed(
 }
 
 /**
- * Simple boolean validation for backward compatibility
- *
- * @param splitData - The split data to validate
- * @returns true if valid, false otherwise
- */
-export function validateSplitData(splitData: SharedSplitData): boolean {
-  return validateSplitDataDetailed(splitData).isValid;
-}
-
-/**
  * Validates serialization input before processing
  *
  * @param people - Array of people to validate

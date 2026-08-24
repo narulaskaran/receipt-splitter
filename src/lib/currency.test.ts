@@ -62,6 +62,12 @@ describe('Currency utilities', () => {
       const info = getCurrencyInfo('INVALID');
       expect(info.code).toBe('USD');
     });
+
+    it('defaults to USD for Object.prototype property names', () => {
+      const info = getCurrencyInfo('toString');
+      expect(info.code).toBe('USD');
+      expect(info.symbol).toBe('$');
+    });
   });
 
   describe('toMinorUnits', () => {
@@ -144,6 +150,12 @@ describe('Currency utilities', () => {
 
     it('returns false for invalid currency', () => {
       expect(isSupportedCurrency('INVALID')).toBe(false);
+    });
+
+    it('returns false for Object.prototype property names', () => {
+      expect(isSupportedCurrency('toString')).toBe(false);
+      expect(isSupportedCurrency('constructor')).toBe(false);
+      expect(isSupportedCurrency('hasOwnProperty')).toBe(false);
     });
 
     it('returns false for empty string', () => {

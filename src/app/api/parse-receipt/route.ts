@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { z } from "zod";
 import { sendReceiptParsedNotification, sendErrorNotification } from "@/lib/webhook-notifications";
 import { uploadReceiptFile } from "@/lib/uploadthing-storage";
 import { MAX_FILE_SIZE_BYTES } from "@/lib/constants";
 import { type GeolocationData } from "@/types";
 import { fixMultiQuantityPrices } from "@/lib/receipt-utils";
+import { isSupportedCurrency } from "@/lib/currency";
+import {
+  receiptSchema,
+  receiptJsonSchema,
+} from "@/lib/receipt-schema";
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -42,26 +46,6 @@ type ValidDocumentType = "application/pdf";
 function formatFileSizeMB(bytes: number): number {
   return bytes / (1024 * 1024);
 }
-
-// Zod schema for receipt validation
-// Note: price is nullable to handle item modifiers (e.g., "ADD CHEESE") that don't have
-// their own price listed on the receipt. These items are filtered out during normalization.
-const receiptItemSchema = z.object({
-  name: z.string(),
-  price: z.number().nullable(),
-  quantity: z.number().optional(),
-});
-
-const receiptSchema = z.object({
-  restaurant: z.string().nullable(),
-  date: z.string().nullable(),
-  total: z.number().nullable(),
-  subtotal: z.number().nullable(),
-  tax: z.number().nullable(),
-  tip: z.number().nullable(),
-  items: z.array(receiptItemSchema),
-  currency: z.string().optional().default('USD'),
-});
 
 export async function POST(request: NextRequest) {
   try {
@@ -240,32 +224,7 @@ export async function POST(request: NextRequest) {
         output_config: {
           format: {
             type: "json_schema",
-            schema: {
-              type: "object",
-              additionalProperties: false,
-              properties: {
-                restaurant: { type: ["string", "null"] },
-                date: { type: ["string", "null"] },
-                total: { type: ["number", "null"] },
-                subtotal: { type: ["number", "null"] },
-                tax: { type: ["number", "null"] },
-                tip: { type: ["number", "null"] },
-                items: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    additionalProperties: false,
-                    properties: {
-                      name: { type: "string" },
-                      price: { type: ["number", "null"] },
-                      quantity: { type: "number" },
-                    },
-                    required: ["name", "price", "quantity"],
-                  },
-                },
-              },
-              required: ["restaurant", "date", "total", "subtotal", "tax", "tip", "items"],
-            },
+            schema: receiptJsonSchema,
           },
         },
       });
@@ -377,6 +336,18 @@ export async function POST(request: NextRequest) {
 
       const subtotalValue = validationResult.data.subtotal ?? 0;
 
+      // Guard against unsupported currency codes: the model can return any ISO
+      // code, but only currencies in src/lib/currency.ts have display/formatting
+      // metadata. Fall back to USD (the documented default) to avoid a silent
+      // financial mismatch between the raw code and USD formatting rules.
+      let currency = validationResult.data.currency;
+      if (!isSupportedCurrency(currency)) {
+        console.warn(
+          `[parse-receipt] Unsupported currency "${currency}" returned by the model; falling back to USD`
+        );
+        currency = "USD";
+      }
+
       // Normalize items: ensure quantity defaults to 1
       const normalizedItems = validItems.map((item) => ({
         ...item,
@@ -397,6 +368,7 @@ export async function POST(request: NextRequest) {
 
       const normalizedReceipt = {
         ...validationResult.data,
+        currency,
         subtotal: subtotalValue,
         tax: validationResult.data.tax ?? 0,
         total: validationResult.data.total ?? 0,
