@@ -26,7 +26,7 @@
  *       Start it with: npm run dev
  */
 
-const { chromium } = require('playwright');
+const { chromium } = require('@playwright/test');
 const path = require('path');
 const fs = require('fs');
 const {
