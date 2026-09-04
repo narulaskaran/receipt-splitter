@@ -662,6 +662,65 @@ describe("ReceiptDetails", () => {
       }
     );
 
+    it("resets a manually edited total to the current auto-calculated amount", () => {
+      openDialogAndEdit();
+      expect(
+        screen.queryByRole("button", { name: /reset total to auto-calculated/i })
+      ).not.toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText("Total"), {
+        target: { value: "118" },
+      });
+
+      expect(
+        screen.getByRole("button", { name: /reset total to auto-calculated/i })
+      ).toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole("button", { name: /reset total to auto-calculated/i })
+      );
+
+      expect(screen.getByLabelText("Total")).toHaveValue(125);
+      expect(
+        screen.queryByRole("button", { name: /reset total to auto-calculated/i })
+      ).not.toBeInTheDocument();
+    });
+
+    it("auto-recalculates again when an amount changes after reset", () => {
+      openDialogAndEdit();
+      fireEvent.change(screen.getByLabelText("Total"), {
+        target: { value: "118" },
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: /reset total to auto-calculated/i })
+      );
+
+      fireEvent.change(screen.getByLabelText("Subtotal"), {
+        target: { value: "200" },
+      });
+
+      expect(screen.getByLabelText("Total")).toHaveValue(225);
+    });
+
+    it("preserves a total when it is manually edited again after reset", () => {
+      openDialogAndEdit();
+      fireEvent.change(screen.getByLabelText("Total"), {
+        target: { value: "118" },
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: /reset total to auto-calculated/i })
+      );
+      fireEvent.change(screen.getByLabelText("Total"), {
+        target: { value: "119" },
+      });
+
+      fireEvent.change(screen.getByLabelText("Tax"), {
+        target: { value: "20" },
+      });
+
+      expect(screen.getByLabelText("Total")).toHaveValue(119);
+    });
+
     it("resets to auto-calculation when the dialog is reopened", () => {
       const { cancel } = openDialogAndEdit();
 
