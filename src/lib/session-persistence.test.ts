@@ -196,6 +196,9 @@ describe("session-persistence", () => {
       const invalidReceipts = [
         { ...mockReceipt, subtotal: -0.01 },
         { ...mockReceipt, tax: Number.NaN },
+        { ...mockReceipt, tip: -1 },
+        { ...mockReceipt, tip: Number.NaN },
+        { ...mockReceipt, tip: Number.POSITIVE_INFINITY },
         { ...mockReceipt, total: Number.POSITIVE_INFINITY },
         { ...mockReceipt, currency: "" },
         { ...mockReceipt, currency: 123 },
@@ -221,6 +224,25 @@ describe("session-persistence", () => {
 
       expect(migrated?.state.receipts).toEqual([
         { id: validId, receipt: mockReceipt },
+      ]);
+    });
+
+    it("keeps a v2 receipt when tip is null", () => {
+      const migrated = migrateSession({
+        version: SESSION_VERSION,
+        state: {
+          receipts: [{ id: "no-tip", receipt: { ...mockReceipt, tip: null } }],
+          people: [],
+          groups: [],
+          assignedItems: [],
+          isLoading: false,
+          error: null,
+        },
+        activeTab: "upload",
+      });
+
+      expect(migrated?.state.receipts).toEqual([
+        { id: "no-tip", receipt: { ...mockReceipt, tip: null } },
       ]);
     });
 

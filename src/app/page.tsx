@@ -185,10 +185,6 @@ export default function Home() {
     setState(next);
   };
 
-  useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
-
   const activeReceipt = state.receipts[0]?.receipt ?? null;
 
   const validationResult = useMemo(() => {
@@ -329,8 +325,7 @@ export default function Home() {
       );
       return false;
     }
-    stateRef.current = result.next;
-    setState(result.next);
+    commitState(result.next);
     toast.success("Receipt successfully parsed!");
     return result.next.receipts[result.next.receipts.length - 1].id;
   };
