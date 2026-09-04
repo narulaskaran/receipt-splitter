@@ -6,6 +6,12 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
+    settings: {
+      // eslint-plugin-react 7.37 still calls context.getFilename() when
+      // version is "detect". That API was removed in ESLint 10.
+      // https://github.com/vercel/next.js/issues/89764
+      react: { version: "19.2.8" },
+    },
     rules: {
       "@next/next/no-img-element": "off",
       // New in eslint-plugin-react-hooks v7 (eslint-config-next 16).
