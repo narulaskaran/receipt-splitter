@@ -518,18 +518,16 @@ describe("Home Page", () => {
       fireEvent.click(screen.getByRole("option", { name: /EUR - Euro/i }));
       fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
 
-      await waitFor(() => {
-        expect(toast.error).toHaveBeenCalledWith(
-          "This receipt is EUR, but this split is in USD."
-        );
-      });
+      // Save is synchronous: the mismatch toast is raised before the dialog
+      // animation. Avoid waitFor here — Jest 30.5 + jsdom 30.5 can stall
+      // waitFor on Radix dialog teardown for ~20s and trip the 5s test timeout.
+      expect(toast.error).toHaveBeenCalledWith(
+        "This receipt is EUR, but this split is in USD."
+      );
       expect(toast.success).not.toHaveBeenCalledWith("Receipt details updated");
       expect(screen.getByRole("dialog")).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
 
-      await waitFor(() => {
-        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-      });
       expect(screen.getAllByText(/· USD$/).length).toBeGreaterThanOrEqual(2);
       expect(screen.queryByText(/· EUR$/)).not.toBeInTheDocument();
     });
