@@ -180,9 +180,10 @@ export default function Home() {
   const [resetImageTrigger, setResetImageTrigger] = useState(0);
   const stateRef = useRef(state);
 
-  useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
+  const commitState = (next: ReceiptState) => {
+    stateRef.current = next;
+    setState(next);
+  };
 
   const activeReceipt = state.receipts[0]?.receipt ?? null;
 
@@ -214,7 +215,7 @@ export default function Home() {
     if (session) {
       const restored = deserializeSession(session);
       if (restored) {
-        setState(restored.state);
+        commitState(restored.state);
         // Re-attach any thumbnails orphaned by a corrupted/rolled-back blob,
         // then migrate the legacy singular image key onto the newest receipt.
         pruneThumbnails(restored.state.receipts.map((r) => r.id));
@@ -271,8 +272,7 @@ export default function Home() {
     safeRemoveItem(RECEIPT_IMAGE_STORAGE_KEY);
     clearThumbnails();
     const empty = emptyReceiptState();
-    stateRef.current = empty;
-    setState(empty);
+    commitState(empty);
     setActiveTab("upload");
     setHasSession(false);
     setResetImageTrigger((v) => v + 1);
@@ -325,66 +325,59 @@ export default function Home() {
       );
       return false;
     }
-    stateRef.current = result.next;
-    setState(result.next);
+    commitState(result.next);
     toast.success("Receipt successfully parsed!");
     return result.next.receipts[result.next.receipts.length - 1].id;
   };
 
   const handleRemoveReceipt = (receiptId: string) => {
     removeThumbnail(receiptId);
-    setState((prevState) => {
-      const next = removeReceiptFromState(prevState, receiptId);
-      stateRef.current = next;
-      return next;
-    });
+    commitState(removeReceiptFromState(stateRef.current, receiptId));
     toast.success("Receipt removed");
   };
 
   // Handle people changes
   const handlePeopleChange = (updatedPeople: Person[]) => {
-    setState((prevState) => {
-      let nextAssigned = prevState.assignedItems;
+    const prevState = stateRef.current;
+    let nextAssigned = prevState.assignedItems;
 
-      // If we're removing a person, we need to update the assigned items
-      if (prevState.people.length > updatedPeople.length) {
-        const removedIds = new Set(
-          prevState.people
-            .filter((p) => !updatedPeople.some((up) => up.id === p.id))
-            .map((p) => p.id)
-        );
+    // If we're removing a person, we need to update the assigned items
+    if (prevState.people.length > updatedPeople.length) {
+      const removedIds = new Set(
+        prevState.people
+          .filter((p) => !updatedPeople.some((up) => up.id === p.id))
+          .map((p) => p.id)
+      );
 
-        // Clone outer map AND each inner map we change (shallow Map clone is not enough)
-        const nextOuter = new Map(prevState.assignedItems);
-        for (const [receiptId, inner] of prevState.assignedItems) {
-          const nextInner = new Map(inner);
-          nextInner.forEach((assignments, itemIndex) => {
-            const updatedAssignments = assignments.filter(
-              (a) => !removedIds.has(a.personId)
-            );
-            if (updatedAssignments.length === 0) {
-              nextInner.delete(itemIndex);
-            } else {
-              nextInner.set(itemIndex, updatedAssignments);
-            }
-          });
-          nextOuter.set(receiptId, nextInner);
-        }
-        nextAssigned = nextOuter;
+      // Clone outer map AND each inner map we change (shallow Map clone is not enough)
+      const nextOuter = new Map(prevState.assignedItems);
+      for (const [receiptId, inner] of prevState.assignedItems) {
+        const nextInner = new Map(inner);
+        nextInner.forEach((assignments, itemIndex) => {
+          const updatedAssignments = assignments.filter(
+            (a) => !removedIds.has(a.personId)
+          );
+          if (updatedAssignments.length === 0) {
+            nextInner.delete(itemIndex);
+          } else {
+            nextInner.set(itemIndex, updatedAssignments);
+          }
+        });
+        nextOuter.set(receiptId, nextInner);
       }
+      nextAssigned = nextOuter;
+    }
 
-      const next = {
-        ...prevState,
-        people: calculateSessionPersonTotals(
-          prevState.receipts,
-          updatedPeople,
-          nextAssigned
-        ),
-        assignedItems: nextAssigned,
-      };
-      stateRef.current = next;
-      return next;
-    });
+    const next = {
+      ...prevState,
+      people: calculateSessionPersonTotals(
+        prevState.receipts,
+        updatedPeople,
+        nextAssigned
+      ),
+      assignedItems: nextAssigned,
+    };
+    commitState(next);
   };
 
   // Handle receipt updates. Currency mismatches are rejected like uploads.
@@ -404,16 +397,14 @@ export default function Home() {
       );
       return false;
     }
-    setState((prevState) => {
-      const next = updateReceiptInState(
-        prevState,
+    commitState(
+      updateReceiptInState(
+        stateRef.current,
         receiptId,
         updatedReceipt,
         remappedAssignments
-      );
-      stateRef.current = next;
-      return next;
-    });
+      )
+    );
     return true;
   };
 
@@ -423,51 +414,45 @@ export default function Home() {
     itemIndex: number,
     assignments: PersonItemAssignment[]
   ) => {
-    setState((prevState) => {
-      if (!prevState.receipts.some((stored) => stored.id === receiptId)) {
-        return prevState;
-      }
+    const prevState = stateRef.current;
+    if (!prevState.receipts.some((stored) => stored.id === receiptId)) {
+      return;
+    }
 
-      const nextOuter = new Map(prevState.assignedItems);
-      const inner = new Map(nextOuter.get(receiptId) ?? []);
+    const nextOuter = new Map(prevState.assignedItems);
+    const inner = new Map(nextOuter.get(receiptId) ?? []);
 
-      if (assignments.length === 0) {
-        inner.delete(itemIndex);
-      } else {
-        inner.set(itemIndex, assignments);
-      }
-      nextOuter.set(receiptId, inner);
+    if (assignments.length === 0) {
+      inner.delete(itemIndex);
+    } else {
+      inner.set(itemIndex, assignments);
+    }
+    nextOuter.set(receiptId, inner);
 
-      const next = {
-        ...prevState,
-        assignedItems: nextOuter,
-        people: calculateSessionPersonTotals(
-          prevState.receipts,
-          prevState.people,
-          nextOuter
-        ),
-      };
-      stateRef.current = next;
-      return next;
-    });
+    const next = {
+      ...prevState,
+      assignedItems: nextOuter,
+      people: calculateSessionPersonTotals(
+        prevState.receipts,
+        prevState.people,
+        nextOuter
+      ),
+    };
+    commitState(next);
   };
 
   // Update loading state
   const setIsLoading = (isLoading: boolean) => {
-    setState((prevState) => {
-      const next = {
-        ...prevState,
-        isLoading,
-      };
-      stateRef.current = next;
-      return next;
+    commitState({
+      ...stateRef.current,
+      isLoading,
     });
   };
 
   // Handle group creation
   const handleGroupCreate = (name: string, memberIds: string[]) => {
     // Get emojis already used by existing groups for uniqueness
-    const existingEmojis = state.groups
+    const existingEmojis = stateRef.current.groups
       .map((group) => group.emoji)
       .filter(Boolean) as string[];
 
@@ -478,44 +463,42 @@ export default function Home() {
       emoji: getUniqueGroupEmoji(existingEmojis),
     };
 
-    setState((prevState) => ({
-      ...prevState,
-      groups: [...prevState.groups, newGroup],
-    }));
+    commitState({
+      ...stateRef.current,
+      groups: [...stateRef.current.groups, newGroup],
+    });
   };
 
   // Handle group update
   const handleGroupUpdate = (groupId: string, updates: Partial<Group>) => {
-    setState((prevState) => ({
-      ...prevState,
-      groups: prevState.groups.map((group) =>
+    commitState({
+      ...stateRef.current,
+      groups: stateRef.current.groups.map((group) =>
         group.id === groupId ? { ...group, ...updates } : group
       ),
-    }));
+    });
   };
 
   // Handle group deletion
   const handleGroupDelete = (groupId: string) => {
-    setState((prevState) => ({
-      ...prevState,
-      groups: prevState.groups.filter((group) => group.id !== groupId),
-    }));
+    commitState({
+      ...stateRef.current,
+      groups: stateRef.current.groups.filter((group) => group.id !== groupId),
+    });
   };
 
   // Handle emoji regeneration for a group
   const handleGroupEmojiRegenerate = (groupId: string) => {
-    setState((prevState) => {
-      const group = prevState.groups.find((g) => g.id === groupId);
-      if (!group) return prevState;
+    const group = stateRef.current.groups.find((g) => g.id === groupId);
+    if (!group) return;
 
-      const newEmoji = getRandomGroupEmojiExcluding(group.emoji);
+    const newEmoji = getRandomGroupEmojiExcluding(group.emoji);
 
-      return {
-        ...prevState,
-        groups: prevState.groups.map((g) =>
-          g.id === groupId ? { ...g, emoji: newEmoji } : g
-        ),
-      };
+    commitState({
+      ...stateRef.current,
+      groups: stateRef.current.groups.map((g) =>
+        g.id === groupId ? { ...g, emoji: newEmoji } : g
+      ),
     });
   };
 
@@ -565,44 +548,42 @@ export default function Home() {
 
   // Split unassigned items on one receipt evenly among all people
   const splitItemsEvenlyForReceipt = (receiptId: string) => {
-    setState((prevState) => {
-      const stored = prevState.receipts.find((r) => r.id === receiptId);
-      if (!stored || prevState.people.length === 0) return prevState;
+    const prevState = stateRef.current;
+    const stored = prevState.receipts.find((r) => r.id === receiptId);
+    if (!stored || prevState.people.length === 0) return;
 
-      const inner = new Map(prevState.assignedItems.get(receiptId) ?? []);
-      const currentlyUnassigned = getUnassignedItems(stored.receipt, inner);
+    const inner = new Map(prevState.assignedItems.get(receiptId) ?? []);
+    const currentlyUnassigned = getUnassignedItems(stored.receipt, inner);
 
-      if (currentlyUnassigned.length === 0) {
-        toast.info("No unassigned items to split evenly!");
-        return prevState;
-      }
+    if (currentlyUnassigned.length === 0) {
+      toast.info("No unassigned items to split evenly!");
+      return;
+    }
 
-      const equalAssignments = distributeEqualShares(
-        prevState.people.map((p) => p.id)
-      );
-      currentlyUnassigned.forEach((itemIndex) => {
-        inner.set(itemIndex, equalAssignments.map((a) => ({ ...a })));
-      });
-
-      const nextOuter = new Map(prevState.assignedItems);
-      nextOuter.set(receiptId, inner);
-
-      toast.success(
-        `Split remaining items on ${receiptRestaurantName(stored)}.`
-      );
-
-      const next = {
-        ...prevState,
-        assignedItems: nextOuter,
-        people: calculateSessionPersonTotals(
-          prevState.receipts,
-          prevState.people,
-          nextOuter
-        ),
-      };
-      stateRef.current = next;
-      return next;
+    const equalAssignments = distributeEqualShares(
+      prevState.people.map((p) => p.id)
+    );
+    currentlyUnassigned.forEach((itemIndex) => {
+      inner.set(itemIndex, equalAssignments.map((a) => ({ ...a })));
     });
+
+    const nextOuter = new Map(prevState.assignedItems);
+    nextOuter.set(receiptId, inner);
+
+    toast.success(
+      `Split remaining items on ${receiptRestaurantName(stored)}.`
+    );
+
+    const next = {
+      ...prevState,
+      assignedItems: nextOuter,
+      people: calculateSessionPersonTotals(
+        prevState.receipts,
+        prevState.people,
+        nextOuter
+      ),
+    };
+    commitState(next);
   };
 
   const hasReceipt = state.receipts.length > 0;
