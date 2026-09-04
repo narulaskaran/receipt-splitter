@@ -130,6 +130,35 @@ export function SplitSummary({ splitData, phoneNumber }: SplitSummaryProps) {
             ))}
           </ul>
         </section>
+        {splitData.receipts && splitData.receipts.length > 1 && (
+          <section aria-labelledby="receipt-breakdown-heading" className="mt-6">
+            <div className="border-t px-5 py-4 sm:px-6">
+              <h2 id="receipt-breakdown-heading" className="text-lg font-semibold">
+                By receipt
+              </h2>
+            </div>
+            <div className="flex flex-col gap-4 px-0">
+              {splitData.receipts.map((receipt, receiptIndex) => (
+                <div key={`${receipt.label}-${receiptIndex}`}>
+                  <h3 className="px-5 pb-2 text-sm font-semibold text-muted-foreground sm:px-6">
+                    {receipt.label}
+                  </h3>
+                  <ul className="flex flex-col divide-y divide-border border-y">
+                    {splitData.names.map((name, personIndex) => (
+                      <SplitPersonRow
+                        key={`${receiptIndex}-${name}-${personIndex}`}
+                        name={name}
+                        amount={receipt.amounts[personIndex]}
+                        currency={splitData.currency}
+                        venmoHref={null}
+                      />
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </CardContent>
     </Card>
   );
