@@ -284,6 +284,7 @@ function parseReceipt(raw: unknown): Receipt | null {
     !Array.isArray(raw.items) ||
     !isFiniteNonNegativeNumber(raw.subtotal) ||
     !isFiniteNonNegativeNumber(raw.tax) ||
+    !isValidTip(raw.tip) ||
     !isFiniteNonNegativeNumber(raw.total) ||
     typeof raw.currency !== "string" ||
     raw.currency.trim() === ""
@@ -295,6 +296,11 @@ function parseReceipt(raw: unknown): Receipt | null {
 
 function isFiniteNonNegativeNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+/** Tip may be omitted (`null` / `undefined`) to mean "no tip". */
+function isValidTip(value: unknown): boolean {
+  return value == null || isFiniteNonNegativeNumber(value);
 }
 
 function parsePeople(raw: unknown): Person[] {
