@@ -11,6 +11,7 @@ import {
   sessionCurrency,
   validateReceiptCurrency,
   calculateSessionPersonTotals,
+  calculateSessionPersonTotalsByCurrency,
   calculatePerReceiptPersonTotals,
   sessionShareNote,
   sessionShareDate,
@@ -886,6 +887,27 @@ describe("session-level receipt helpers", () => {
     // Bob has no assignments across either receipt
     expect(session[1].finalTotal).toBe(0);
     expect(session[1].items).toHaveLength(0);
+  });
+
+  it("groups session totals by currency without combining amounts", () => {
+    const euroReceipt: StoredReceipt = {
+      id: "rec-eur",
+      receipt: { ...receiptB, currency: "EUR", restaurant: "Cafe EUR" },
+    };
+    const groups = calculateSessionPersonTotalsByCurrency(
+      [storedA, euroReceipt],
+      mockPeople,
+      new Map([
+        ["rec-a", innerA],
+        ["rec-eur", innerB],
+      ])
+    );
+
+    expect(groups.map((group) => group.currency)).toEqual(["USD", "EUR"]);
+    expect(groups).toHaveLength(2);
+    expect(groups[0].people[0].finalTotal).toBe(60);
+    expect(groups[1].people[0].finalTotal).toBe(50);
+    expect(groups[0].people[0].finalTotal + groups[1].people[0].finalTotal).toBe(110);
   });
 
   it("validateSessionAssignments is false when receipt B is incomplete", () => {

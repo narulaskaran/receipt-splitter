@@ -11,7 +11,11 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { type Person } from "@/types";
-import { formatCurrency, type ReceiptValidationResult } from "@/lib/receipt-utils";
+import {
+  formatCurrency,
+  type ReceiptValidationResult,
+  type SessionCurrencyTotals,
+} from "@/lib/receipt-utils";
 import {
   generateShareableUrl,
   validateSerializationInput,
@@ -22,6 +26,7 @@ import { useState } from "react";
 export interface ReceiptBreakdown {
   name: string;
   date: string | null;
+  currency?: string;
   people: Person[];
 }
 
@@ -32,6 +37,8 @@ interface ResultsSummaryProps {
   currencyCode?: string;
   validationResult?: ReceiptValidationResult;
   receiptBreakdown?: ReceiptBreakdown[];
+  /** All currency groups in the session, used to gate Venmo sharing. */
+  currencyGroups?: SessionCurrencyTotals[];
 }
 
 function receiptLabel(receipt: ReceiptBreakdown): string {
@@ -45,6 +52,7 @@ export function ResultsSummary({
   currencyCode,
   validationResult,
   receiptBreakdown,
+  currencyGroups,
 }: ResultsSummaryProps) {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [shareStatus, setShareStatus] = useState<
@@ -53,11 +61,20 @@ export function ResultsSummary({
   // Sort people by final total (highest first)
   const sortedPeople = [...people].sort((a, b) => b.finalTotal - a.finalTotal);
   const showBreakdown = (receiptBreakdown?.length ?? 0) > 1;
+  const isSingleCurrency = (currencyGroups?.length ?? 1) === 1;
+  const phoneInputId = isSingleCurrency
+    ? "venmo-phone"
+    : `venmo-phone-${currencyCode ?? "default"}`;
+  const showDayTotalHeading = showBreakdown || !isSingleCurrency;
 
   // Create a shareable text summary matching on-screen order:
   // Day total (people amounts), then By receipt (restaurant + date).
   const createShareText = (): string => {
     let text = "";
+
+    if (!isSingleCurrency && currencyCode) {
+      text += `Currency: ${currencyCode}\n`;
+    }
 
     if (showBreakdown) {
       text += "Day total\n";
@@ -202,6 +219,7 @@ export function ResultsSummary({
     people.length > 0 &&
     people.every((person) => person.finalTotal > 0) &&
     phoneNumber.replace(/\D/g, "").length >= 10 &&
+    isSingleCurrency &&
     (!validationResult || validationResult.isValid);
 
   if (people.length === 0) {
@@ -212,14 +230,14 @@ export function ResultsSummary({
     <div className="w-full flex flex-col gap-4">
       <div className="flex flex-col gap-3">
         <label
-          htmlFor="venmo-phone"
+          htmlFor={phoneInputId}
           className="font-medium text-sm sm:text-base"
         >
           Your Phone Number (for Venmo):
         </label>
         <div className="flex gap-3">
           <input
-            id="venmo-phone"
+            id={phoneInputId}
             type="tel"
             placeholder="e.g. 555-123-4567"
             value={phoneNumber}
@@ -258,7 +276,12 @@ export function ResultsSummary({
 
       <Card className="w-full">
         <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <CardTitle className="text-xl sm:text-2xl">Results Summary</CardTitle>
+          <CardTitle className="text-xl sm:text-2xl">
+            Results Summary
+            {currencyGroups && currencyGroups.length > 1 && currencyCode
+              ? ` · ${currencyCode}`
+              : ""}
+          </CardTitle>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
             <Button
               variant="outline"
@@ -270,14 +293,21 @@ export function ResultsSummary({
             </Button>
           </div>
         </CardHeader>
+        {!isSingleCurrency ? (
+          <p className="px-6 text-sm text-muted-foreground">
+            Venmo sharing is available only for single-currency splits.
+          </p>
+        ) : null}
         <CardContent className="p-6">
           <div className="flex flex-col gap-6">
           <div
             data-testid={showBreakdown ? "day-total" : undefined}
             className="flex flex-col gap-2"
           >
-            {showBreakdown ? (
-              <h2 className="font-semibold text-base sm:text-lg">Day total</h2>
+            {showDayTotalHeading ? (
+              <h2 className="font-semibold text-base sm:text-lg">
+                Day total{!isSingleCurrency && currencyCode ? ` · ${currencyCode}` : ""}
+              </h2>
             ) : null}
 
           {/* Mobile-friendly responsive table */}

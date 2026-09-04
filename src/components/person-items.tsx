@@ -12,10 +12,12 @@ import {
 } from '@/components/ui/table';
 import { type Person, type PersonItem } from '@/types';
 import { formatCurrency } from '@/lib/receipt-utils';
+import { type SessionCurrencyTotals } from '@/lib/receipt-utils';
 
 interface PersonItemsProps {
   people: Person[];
   currencyCode?: string;
+  currencyGroups?: SessionCurrencyTotals[];
 }
 
 interface ReceiptItemGroup {
@@ -57,7 +59,7 @@ function renderItemRows(items: PersonItem[], currencyCode?: string, keyPrefix = 
   ));
 }
 
-export function PersonItems({ people, currencyCode }: PersonItemsProps) {
+export function PersonItems({ people, currencyCode, currencyGroups }: PersonItemsProps) {
   const [expandedPerson, setExpandedPerson] = useState<string | null>(null);
   
   // Toggle the expanded/collapsed state
@@ -73,6 +75,10 @@ export function PersonItems({ people, currencyCode }: PersonItemsProps) {
     return null;
   }
 
+  const displayGroups = currencyGroups?.length
+    ? currencyGroups
+    : [{ currency: currencyCode ?? "USD", people }];
+
   return (
     <Card className="w-full">
       <CardHeader>
@@ -80,30 +86,37 @@ export function PersonItems({ people, currencyCode }: PersonItemsProps) {
       </CardHeader>
       
       <CardContent>
-        <div className="flex flex-col gap-4">
-          {people.map(person => {
+        <div className="flex flex-col gap-6">
+          {displayGroups.map((currencyGroup) => (
+            <section key={currencyGroup.currency} className="flex flex-col gap-4">
+              {displayGroups.length > 1 ? (
+                <h2 className="font-semibold">{currencyGroup.currency}</h2>
+              ) : null}
+              {currencyGroup.people.map(person => {
+            const displayCurrency = currencyGroup.currency;
+            const personKey = `${currencyGroup.currency}:${person.id}`;
             const grouped = hasReceiptGrouping(person.items);
             const groups = grouped ? groupItemsByReceipt(person.items) : [];
 
             return (
-            <div key={person.id} className="border rounded-md">
+            <div key={`${currencyGroup.currency}-${person.id}`} className="border rounded-md">
               <div 
                 className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted"
-                onClick={() => toggleExpand(person.id)}
+                onClick={() => toggleExpand(personKey)}
               >
                 <div className="font-medium">{person.name}</div>
                 <div className="flex items-center gap-3">
-                  <span className="font-bold">{formatCurrency(person.finalTotal, currencyCode)}</span>
+                  <span className="font-bold">{formatCurrency(person.finalTotal, displayCurrency)}</span>
                   <Button
                     variant="ghost"
                     size="icon"
                     className="p-0"
                     onClick={(e) => {
                       e.stopPropagation();
-                      toggleExpand(person.id);
+                      toggleExpand(personKey);
                     }}
                   >
-                    {expandedPerson === person.id ? (
+                    {expandedPerson === personKey ? (
                       <ChevronUp className="h-4 w-4" />
                     ) : (
                       <ChevronDown className="h-4 w-4" />
@@ -112,7 +125,7 @@ export function PersonItems({ people, currencyCode }: PersonItemsProps) {
                 </div>
               </div>
               
-              {expandedPerson === person.id && (
+              {expandedPerson === personKey && (
                 <div className="px-4 pb-4">
                   {person.items.length === 0 ? (
                     <p className="text-sm text-muted-foreground italic">No items assigned</p>
@@ -137,24 +150,24 @@ export function PersonItems({ people, currencyCode }: PersonItemsProps) {
                                   {group.name}
                                 </TableCell>
                               </TableRow>,
-                              ...renderItemRows(group.items, currencyCode, `${group.id}-`),
+                              ...renderItemRows(group.items, displayCurrency, `${group.id}-`),
                             ])
-                          : renderItemRows(person.items, currencyCode)}
+                          : renderItemRows(person.items, displayCurrency)}
                         <TableRow>
                           <TableCell colSpan={2} className="font-medium">Subtotal</TableCell>
-                          <TableCell className="text-right">{formatCurrency(person.totalBeforeTax, currencyCode)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(person.totalBeforeTax, displayCurrency)}</TableCell>
                         </TableRow>
                         <TableRow>
                           <TableCell colSpan={2} className="font-medium">Tax</TableCell>
-                          <TableCell className="text-right">{formatCurrency(person.tax, currencyCode)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(person.tax, displayCurrency)}</TableCell>
                         </TableRow>
                         <TableRow>
                           <TableCell colSpan={2} className="font-medium">Tip</TableCell>
-                          <TableCell className="text-right">{formatCurrency(person.tip, currencyCode)}</TableCell>
+                          <TableCell className="text-right">{formatCurrency(person.tip, displayCurrency)}</TableCell>
                         </TableRow>
                         <TableRow>
                           <TableCell colSpan={2} className="font-medium">Total</TableCell>
-                          <TableCell className="text-right font-bold">{formatCurrency(person.finalTotal, currencyCode)}</TableCell>
+                          <TableCell className="text-right font-bold">{formatCurrency(person.finalTotal, displayCurrency)}</TableCell>
                         </TableRow>
                       </TableBody>
                     </Table>
@@ -162,8 +175,10 @@ export function PersonItems({ people, currencyCode }: PersonItemsProps) {
                 </div>
               )}
             </div>
-            );
-          })}
+              );
+            })}
+            </section>
+          ))}
         </div>
       </CardContent>
     </Card>

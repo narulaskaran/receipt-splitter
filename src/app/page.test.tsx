@@ -379,6 +379,44 @@ describe("Home Page", () => {
       expect(screen.getByText(/2 receipts · USD/)).toBeInTheDocument();
     });
 
+    it("accepts a mismatched currency after explicit confirmation", async () => {
+      (window.confirm as jest.Mock).mockReturnValueOnce(true);
+      loadV2({ people: mockPeople });
+      render(<Home />);
+
+      await uploadParsedReceipt(
+        createMockReceipt({ restaurant: "Paris Bistro", currency: "EUR" })
+      );
+
+      await waitFor(() => {
+        expect(window.confirm).toHaveBeenCalledWith(
+          "This receipt is EUR but this split is USD — keep anyway?"
+        );
+        expect(screen.getAllByText("Paris Bistro").length).toBeGreaterThan(0);
+      });
+      expect(toast.error).not.toHaveBeenCalled();
+    });
+
+    it("rejects a mismatched currency when confirmation is cancelled", async () => {
+      (window.confirm as jest.Mock).mockReturnValueOnce(false);
+      loadV2({ people: mockPeople });
+      render(<Home />);
+
+      await uploadParsedReceipt(
+        createMockReceipt({ restaurant: "Paris Bistro", currency: "EUR" })
+      );
+
+      await waitFor(() => {
+        expect(window.confirm).toHaveBeenCalledWith(
+          "This receipt is EUR but this split is USD — keep anyway?"
+        );
+        expect(toast.error).toHaveBeenCalledWith(
+          "This receipt is EUR, but this split is in USD."
+        );
+      });
+      expect(screen.queryByText("Paris Bistro")).not.toBeInTheDocument();
+    });
+
     it("rejects a mismatched currency without adding it or dropping existing people", async () => {
       loadV2({ people: mockPeople });
       render(<Home />);
@@ -546,6 +584,77 @@ describe("Home Page", () => {
       });
       expect(toast.error).not.toHaveBeenCalled();
     });
+
+    it("accepts a currency edit after explicit confirmation", async () => {
+      (window.confirm as jest.Mock).mockReturnValueOnce(true);
+      loadV2({
+        receipts: [
+          { id: "r1", receipt: mockReceipt },
+          {
+            id: "r2",
+            receipt: createMockReceipt({ restaurant: "Second Cafe" }),
+          },
+        ],
+        assignedItems: [
+          ["r1", []],
+          ["r2", []],
+        ],
+      });
+      render(<Home />);
+
+      fireEvent.click(screen.getAllByRole("button", { name: /edit/i })[0]);
+      fireEvent.click(screen.getByRole("combobox", { name: /currency/i }));
+      fireEvent.click(screen.getByRole("option", { name: /EUR - Euro/i }));
+      fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(window.confirm).toHaveBeenCalledWith(
+          "This receipt is EUR but this split is USD — keep anyway?"
+        );
+        expect(screen.getByText(/EUR - Euro/)).toBeInTheDocument();
+      });
+      expect(toast.error).not.toHaveBeenCalled();
+    });
+
+    it("renders separate result cards and disables Venmo sharing for mixed currencies", () => {
+      const euroReceipt = createMockReceipt({
+        restaurant: "Paris Bistro",
+        currency: "EUR",
+        subtotal: 10,
+        tax: 1,
+        tip: 0,
+        total: 11,
+        items: [{ name: "Croissant", price: 10, quantity: 1 }],
+      });
+      loadV2({
+        people: mockPeople,
+        activeTab: "results",
+        receipts: [
+          { id: "r1", receipt: mockReceipt },
+          { id: "r2", receipt: euroReceipt },
+        ],
+        assignedItems: [
+          [
+            "r1",
+            [
+              [0, [{ personId: "a", sharePercentage: 100 }]],
+              [1, [{ personId: "b", sharePercentage: 100 }]],
+            ],
+          ],
+          ["r2", [[0, [{ personId: "a", sharePercentage: 100 }]]]],
+        ],
+      });
+      render(<Home />);
+
+      expect(screen.getByText("Results Summary · USD")).toBeInTheDocument();
+      expect(screen.getByText("Results Summary · EUR")).toBeInTheDocument();
+      expect(
+        screen.getAllByText("Venmo sharing is available only for single-currency splits.")
+      ).toHaveLength(2);
+      expect(screen.getByText("USD")).toBeInTheDocument();
+      expect(screen.getByText("EUR")).toBeInTheDocument();
+    });
+
   });
 
   describe("multi-receipt assign tab", () => {
