@@ -24,6 +24,13 @@ import { type Receipt } from "@/types";
 import { formatCurrency, validateReceiptInvariants, AmountValidationError } from "@/lib/receipt-utils";
 import { getSupportedCurrencies } from "@/lib/currency";
 
+function computedReceiptTotal(receipt: Pick<Receipt, "subtotal" | "tax" | "tip">): number {
+  return new Decimal(receipt.subtotal || 0)
+    .add(new Decimal(receipt.tax || 0))
+    .add(new Decimal(receipt.tip || 0))
+    .toNumber();
+}
+
 interface ReceiptDetailsProps {
   receipt: Receipt;
   onReceiptUpdate: (receipt: Receipt) => boolean | void;
@@ -57,11 +64,7 @@ export function ReceiptDetails({
     setEditedReceipt((prev) => {
       const next = { ...prev, [field]: value };
       if (!totalManuallyEdited) {
-        next.total =
-          new Decimal(next.subtotal || 0)
-            .add(new Decimal(next.tax || 0))
-            .add(new Decimal(next.tip || 0))
-            .toNumber();
+        next.total = computedReceiptTotal(next);
       }
       return next;
     });
@@ -70,10 +73,7 @@ export function ReceiptDetails({
   const resetTotalToAutoCalculated = () => {
     setEditedReceipt((prev) => ({
       ...prev,
-      total: new Decimal(prev.subtotal || 0)
-        .add(new Decimal(prev.tax || 0))
-        .add(new Decimal(prev.tip || 0))
-        .toNumber(),
+      total: computedReceiptTotal(prev),
     }));
     setTotalManuallyEdited(false);
   };

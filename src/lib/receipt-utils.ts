@@ -1,7 +1,8 @@
 import Decimal from 'decimal.js';
 import { type Person, type Receipt, type ReceiptItem, type PersonItem, type PersonItemAssignment, type StoredReceipt, type ItemAssignments } from '@/types';
 import { VALIDATION_LIMITS } from './split-sharing';
-import { formatCurrency as formatCurrencyNew } from './currency';
+
+export { formatCurrency } from './currency';
 
 /**
  * Detects and corrects the common LLM mis-parse where a multi-quantity line-item's
@@ -192,15 +193,6 @@ export function validateItemAssignments(
   }
   
   return true;
-}
-
-/**
- * Formats a currency value for display
- * @param amount - The amount to format
- * @param currencyCode - ISO 4217 currency code (e.g., 'USD', 'EUR', 'GBP'). Defaults to 'USD'
- */
-export function formatCurrency(amount: number, currencyCode: string = 'USD'): string {
-  return formatCurrencyNew(amount, currencyCode);
 }
 
 /**
