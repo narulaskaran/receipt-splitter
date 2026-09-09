@@ -36,6 +36,7 @@ import {
   remapAssignmentsAfterDelete,
   distributeEqualShares,
 } from "@/lib/receipt-utils";
+import { UNTITLED_RECEIPT_NAME } from "@/lib/receipt-labels";
 import { EditSplitDialog } from "./edit-split-dialog";
 import { EditItemDialog } from "./edit-item-dialog";
 import { AddItemDialog } from "./add-item-dialog";
@@ -65,7 +66,7 @@ export function ItemAssignment({
   groups = [],
   assignedItems,
   unassignedItems,
-  title = receipt.restaurant || "Untitled receipt",
+  title = receipt.restaurant || UNTITLED_RECEIPT_NAME,
   subtitle,
   onSplitEvenly,
   onAssignItems,

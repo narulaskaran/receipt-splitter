@@ -39,6 +39,7 @@ import {
 } from "@/lib/receipt-utils";
 import { MAX_RECEIPTS_PER_SESSION } from "@/lib/constants";
 import {
+  UNTITLED_RECEIPT_NAME,
   receiptRestaurantName,
   receiptSubtitle,
 } from "@/lib/receipt-labels";
@@ -201,7 +202,7 @@ export default function Home() {
         state.people,
         state.assignedItems
       ).map(({ stored, people }) => ({
-        name: stored.receipt.restaurant || "Untitled receipt",
+        name: stored.receipt.restaurant || UNTITLED_RECEIPT_NAME,
         date: stored.receipt.date,
         people,
       })),
@@ -295,8 +296,7 @@ export default function Home() {
     }
   }, [activeTab, allItemsAssigned, state.people.length, state.receipts.length]);
 
-  // Calculate progress across every receipt in the session
-  const calculateProgress = (): number => {
+  const progress = useMemo(() => {
     if (state.receipts.length === 0) return 0;
 
     const totalItems = state.receipts.reduce(
@@ -307,7 +307,7 @@ export default function Home() {
     return totalItems === 0
       ? 100
       : ((totalItems - unassigned.length) / totalItems) * 100;
-  };
+  }, [state.receipts, state.assignedItems]);
 
   // Handle receipt upload — append to the current outing (people/groups stay).
   // Returns the new receipt id so the uploader can key its thumbnail to it.
@@ -697,11 +697,11 @@ export default function Home() {
           {hasReceipt && (
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <Progress
-                value={calculateProgress()}
+                value={progress}
                 className="w-full sm:w-48"
               />
               <span className="text-sm whitespace-nowrap w-12">
-                {Math.round(calculateProgress())}%
+                {Math.round(progress)}%
               </span>
             </div>
           )}
