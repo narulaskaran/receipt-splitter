@@ -735,5 +735,45 @@ describe("ResultsSummary", () => {
         ]);
       });
     });
+
+    it("uses Day total share text for a single-receipt mixed-currency group", async () => {
+      const originalShare = navigator.share;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (navigator as any).share;
+
+      try {
+        render(
+          <ResultsSummary
+            people={[alice]}
+            receiptName="Paris Bistro"
+            receiptDate="2024-01-02"
+            currencyCode="EUR"
+            receiptBreakdown={[
+              { name: "Paris Bistro", date: "2024-01-02", people: [alice] },
+            ]}
+            currencyGroups={[
+              { currency: "USD", people: [] },
+              { currency: "EUR", people: [alice] },
+            ]}
+          />
+        );
+
+        fireEvent.click(screen.getByRole("button", { name: /share text/i }));
+
+        await waitFor(() => {
+          const clipboardContent = (navigator.clipboard.writeText as jest.Mock).mock.calls[0][0];
+          expect(clipboardContent).toContain("Currency: EUR");
+          expect(clipboardContent).toContain("Day total");
+          expect(clipboardContent).not.toContain("Receipt for Paris Bistro");
+          expect(clipboardContent).not.toContain("By receipt");
+        });
+      } finally {
+        Object.defineProperty(navigator, "share", {
+          value: originalShare,
+          writable: true,
+          configurable: true,
+        });
+      }
+    });
   });
 });

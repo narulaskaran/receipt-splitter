@@ -92,91 +92,91 @@ export function PersonItems({ people, currencyCode, currencyGroups }: PersonItem
               {displayGroups.length > 1 ? (
                 <h2 className="font-semibold">{currencyGroup.currency}</h2>
               ) : null}
-              {currencyGroup.people.map(person => {
-            const displayCurrency = currencyGroup.currency;
-            const personKey = `${currencyGroup.currency}:${person.id}`;
-            const grouped = hasReceiptGrouping(person.items);
-            const groups = grouped ? groupItemsByReceipt(person.items) : [];
+              {currencyGroup.people.map((person) => {
+                const displayCurrency = currencyGroup.currency;
+                const personKey = `${currencyGroup.currency}:${person.id}`;
+                const grouped = hasReceiptGrouping(person.items);
+                const groups = grouped ? groupItemsByReceipt(person.items) : [];
 
-            return (
-            <div key={`${currencyGroup.currency}-${person.id}`} className="border rounded-md">
-              <div 
-                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted"
-                onClick={() => toggleExpand(personKey)}
-              >
-                <div className="font-medium">{person.name}</div>
-                <div className="flex items-center gap-3">
-                  <span className="font-bold">{formatCurrency(person.finalTotal, displayCurrency)}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="p-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleExpand(personKey);
-                    }}
-                  >
-                    {expandedPerson === personKey ? (
-                      <ChevronUp className="h-4 w-4" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4" />
+                return (
+                  <div key={`${currencyGroup.currency}-${person.id}`} className="border rounded-md">
+                    <div
+                      className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted"
+                      onClick={() => toggleExpand(personKey)}
+                    >
+                      <div className="font-medium">{person.name}</div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold">{formatCurrency(person.finalTotal, displayCurrency)}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleExpand(personKey);
+                          }}
+                        >
+                          {expandedPerson === personKey ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {expandedPerson === personKey && (
+                      <div className="px-4 pb-4">
+                        {person.items.length === 0 ? (
+                          <p className="text-sm text-muted-foreground italic">No items assigned</p>
+                        ) : (
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Item</TableHead>
+                                <TableHead className="text-right">Share</TableHead>
+                                <TableHead className="text-right">Amount</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {grouped
+                                ? groups.flatMap((group) => [
+                                    <TableRow key={`${group.id}-heading`}>
+                                      <TableCell
+                                        colSpan={3}
+                                        data-testid="receipt-group-heading"
+                                        className="font-medium bg-muted/50"
+                                      >
+                                        {group.name}
+                                      </TableCell>
+                                    </TableRow>,
+                                    ...renderItemRows(group.items, displayCurrency, `${group.id}-`),
+                                  ])
+                                : renderItemRows(person.items, displayCurrency)}
+                              <TableRow>
+                                <TableCell colSpan={2} className="font-medium">Subtotal</TableCell>
+                                <TableCell className="text-right">{formatCurrency(person.totalBeforeTax, displayCurrency)}</TableCell>
+                              </TableRow>
+                              <TableRow>
+                                <TableCell colSpan={2} className="font-medium">Tax</TableCell>
+                                <TableCell className="text-right">{formatCurrency(person.tax, displayCurrency)}</TableCell>
+                              </TableRow>
+                              <TableRow>
+                                <TableCell colSpan={2} className="font-medium">Tip</TableCell>
+                                <TableCell className="text-right">{formatCurrency(person.tip, displayCurrency)}</TableCell>
+                              </TableRow>
+                              <TableRow>
+                                <TableCell colSpan={2} className="font-medium">Total</TableCell>
+                                <TableCell className="text-right font-bold">{formatCurrency(person.finalTotal, displayCurrency)}</TableCell>
+                              </TableRow>
+                            </TableBody>
+                          </Table>
+                        )}
+                      </div>
                     )}
-                  </Button>
-                </div>
-              </div>
-              
-              {expandedPerson === personKey && (
-                <div className="px-4 pb-4">
-                  {person.items.length === 0 ? (
-                    <p className="text-sm text-muted-foreground italic">No items assigned</p>
-                  ) : (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Item</TableHead>
-                          <TableHead className="text-right">Share</TableHead>
-                          <TableHead className="text-right">Amount</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {grouped
-                          ? groups.flatMap((group) => [
-                              <TableRow key={`${group.id}-heading`}>
-                                <TableCell
-                                  colSpan={3}
-                                  data-testid="receipt-group-heading"
-                                  className="font-medium bg-muted/50"
-                                >
-                                  {group.name}
-                                </TableCell>
-                              </TableRow>,
-                              ...renderItemRows(group.items, displayCurrency, `${group.id}-`),
-                            ])
-                          : renderItemRows(person.items, displayCurrency)}
-                        <TableRow>
-                          <TableCell colSpan={2} className="font-medium">Subtotal</TableCell>
-                          <TableCell className="text-right">{formatCurrency(person.totalBeforeTax, displayCurrency)}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell colSpan={2} className="font-medium">Tax</TableCell>
-                          <TableCell className="text-right">{formatCurrency(person.tax, displayCurrency)}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell colSpan={2} className="font-medium">Tip</TableCell>
-                          <TableCell className="text-right">{formatCurrency(person.tip, displayCurrency)}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                          <TableCell colSpan={2} className="font-medium">Total</TableCell>
-                          <TableCell className="text-right font-bold">{formatCurrency(person.finalTotal, displayCurrency)}</TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  )}
-                </div>
-              )}
-            </div>
-              );
-            })}
+                  </div>
+                );
+              })}
             </section>
           ))}
         </div>

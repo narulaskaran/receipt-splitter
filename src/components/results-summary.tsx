@@ -77,13 +77,13 @@ export function ResultsSummary({
       text += `Currency: ${currencyCode}\n`;
     }
 
-    if (showBreakdown) {
+    if (showDayTotalHeading) {
       text += "Day total\n";
       sortedPeople.forEach((person) => {
         text += `${person.name}: ${formatCurrency(person.finalTotal, currencyCode)}\n`;
       });
 
-      if (receiptBreakdown) {
+      if (showBreakdown && receiptBreakdown) {
         text += "\nBy receipt\n";
         receiptBreakdown.forEach((receipt) => {
           text += `${receiptLabel(receipt)}:\n`;

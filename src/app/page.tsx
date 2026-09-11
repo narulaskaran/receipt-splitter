@@ -35,6 +35,7 @@ import {
   validateSessionAssignments,
   validateSessionInvariants,
   sessionCurrency,
+  receiptsInCurrency,
   validateReceiptCurrency,
   distributeEqualShares,
 } from "@/lib/receipt-utils";
@@ -72,6 +73,12 @@ type ParseResult =
   | { status: "added"; next: ReceiptState }
   | { status: "capped"; next: ReceiptState }
   | { status: "mismatch"; next: ReceiptState; pinned: string };
+
+function confirmCurrencyOverride(receiptCurrency: string, pinned: string): boolean {
+  return window.confirm(
+    `This receipt is ${receiptCurrency} but this split is ${pinned} — keep anyway?`
+  );
+}
 
 function addParsedReceipt(
   prev: ReceiptState,
@@ -340,9 +347,7 @@ export default function Home() {
       return false;
     }
     if (result.status === "mismatch") {
-      const confirmed = window.confirm(
-        `This receipt is ${receipt.currency} but this split is ${result.pinned} — keep anyway?`
-      );
+      const confirmed = confirmCurrencyOverride(receipt.currency, result.pinned);
       if (!confirmed) {
         toast.error(
           `This receipt is ${receipt.currency}, but this split is in ${result.pinned}.`
@@ -419,9 +424,7 @@ export default function Home() {
     );
     let allowCurrencyOverride = false;
     if (pinned) {
-      allowCurrencyOverride = window.confirm(
-        `This receipt is ${updatedReceipt.currency} but this split is ${pinned} — keep anyway?`
-      );
+      allowCurrencyOverride = confirmCurrencyOverride(updatedReceipt.currency, pinned);
       if (!allowCurrencyOverride) {
         toast.error(
           `This receipt is ${updatedReceipt.currency}, but this split is in ${pinned}.`
@@ -791,20 +794,23 @@ export default function Home() {
         <TabsContent value="results" className="space-y-6">
           <ValidationErrors errors={validationResult.errors} currencyCode={activeReceipt?.currency} />
 
-          {currencyTotals.map((group) => (
-            <ResultsSummary
-              key={group.currency}
-              people={group.people}
-              receiptName={sessionShareNote(state.receipts)}
-              receiptDate={sessionShareDate(state.receipts)}
-              currencyCode={group.currency}
-              validationResult={validationResult}
-              receiptBreakdown={receiptBreakdown.filter(
-                (receipt) => receipt.currency === group.currency
-              )}
-              currencyGroups={currencyTotals}
-            />
-          ))}
+          {currencyTotals.map((group) => {
+            const groupReceipts = receiptsInCurrency(state.receipts, group.currency);
+            return (
+              <ResultsSummary
+                key={group.currency}
+                people={group.people}
+                receiptName={sessionShareNote(groupReceipts)}
+                receiptDate={sessionShareDate(groupReceipts)}
+                currencyCode={group.currency}
+                validationResult={validationResult}
+                receiptBreakdown={receiptBreakdown.filter(
+                  (receipt) => receipt.currency === group.currency
+                )}
+                currencyGroups={currencyTotals}
+              />
+            );
+          })}
 
           <PersonItems
             people={state.people}

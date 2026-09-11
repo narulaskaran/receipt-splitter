@@ -9,6 +9,7 @@ import {
   remapAssignmentsAfterDelete,
   distributeEqualShares,
   sessionCurrency,
+  receiptsInCurrency,
   validateReceiptCurrency,
   calculateSessionPersonTotals,
   calculateSessionPersonTotalsByCurrency,
@@ -785,6 +786,7 @@ describe("validateReceiptInvariants", () => {
           type: AmountValidationError.RECEIPT_TOTAL_MISMATCH,
           expected: 125,
           actual: 124.98,
+          currency: "USD",
         })
       );
     });
@@ -847,6 +849,20 @@ describe("session-level receipt helpers", () => {
   it("sessionCurrency returns the first receipt's currency", () => {
     expect(sessionCurrency([storedA, storedB])).toBe("USD");
     expect(sessionCurrency([])).toBeUndefined();
+    expect(
+      sessionCurrency([
+        { id: "rec-lower", receipt: { ...receiptA, currency: " usd " } },
+      ])
+    ).toBe("USD");
+  });
+
+  it("receiptsInCurrency filters to a normalized currency code", () => {
+    const euroStored: StoredReceipt = {
+      id: "rec-eur",
+      receipt: { ...receiptB, currency: "eur", restaurant: "Cafe EUR" },
+    };
+    expect(receiptsInCurrency([storedA, euroStored], "EUR")).toEqual([euroStored]);
+    expect(receiptsInCurrency([storedA, euroStored], "usd")).toEqual([storedA]);
   });
 
   it("validateReceiptCurrency rejects EUR vs USD and accepts a match", () => {
@@ -897,9 +913,63 @@ describe("session-level receipt helpers", () => {
 
     expect(groups.map((group) => group.currency)).toEqual(["USD", "EUR"]);
     expect(groups).toHaveLength(2);
+    expect(groups[0].people.map((person) => person.name)).toEqual(["Alice"]);
+    expect(groups[1].people.map((person) => person.name)).toEqual(["Alice"]);
     expect(groups[0].people[0].finalTotal).toBe(60);
     expect(groups[1].people[0].finalTotal).toBe(50);
     expect(groups[0].people[0].finalTotal + groups[1].people[0].finalTotal).toBe(110);
+  });
+
+  it("omits people with no items from mixed-currency groups", () => {
+    const euroReceipt: StoredReceipt = {
+      id: "rec-eur",
+      receipt: { ...receiptB, currency: "EUR", restaurant: "Cafe EUR" },
+    };
+    const bobUsd: ItemAssignments = new Map([
+      [0, [{ personId: "b", sharePercentage: 100 }]],
+    ]);
+    const groups = calculateSessionPersonTotalsByCurrency(
+      [storedA, euroReceipt],
+      mockPeople,
+      new Map([
+        ["rec-a", bobUsd],
+        ["rec-eur", innerA],
+      ])
+    );
+
+    expect(groups[0].people.map((person) => person.name)).toEqual(["Bob"]);
+    expect(groups[1].people.map((person) => person.name)).toEqual(["Alice"]);
+  });
+
+  it("keeps zero-total people in a single-currency session", () => {
+    const groups = calculateSessionPersonTotalsByCurrency(
+      [storedA, storedB],
+      mockPeople,
+      bothAssigned
+    );
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].people.map((person) => person.name)).toEqual(["Alice", "Bob"]);
+    expect(groups[0].people[1].finalTotal).toBe(0);
+    expect(groups[0].people[1].items).toHaveLength(0);
+  });
+
+  it("calculateSessionPersonTotals still numerically sums mixed currencies", () => {
+    const euroReceipt: StoredReceipt = {
+      id: "rec-eur",
+      receipt: { ...receiptB, currency: "EUR" },
+    };
+    const session = calculateSessionPersonTotals(
+      [storedA, euroReceipt],
+      mockPeople,
+      new Map([
+        ["rec-a", innerA],
+        ["rec-eur", innerB],
+      ])
+    );
+
+    // 60 USD + 50 EUR is not a real total; display uses ByCurrency grouping.
+    expect(session[0].finalTotal).toBe(110);
   });
 
   it("validateSessionAssignments is false when receipt B is incomplete", () => {
@@ -1006,7 +1076,7 @@ describe("session-level receipt helpers", () => {
 
     const badB: StoredReceipt = {
       id: "rec-b",
-      receipt: { ...receiptB, subtotal: -40, total: 10 },
+      receipt: { ...receiptB, currency: "EUR", subtotal: -40, total: 10 },
     };
     const result = validateSessionInvariants(
       [storedA, badB],
@@ -1016,5 +1086,7 @@ describe("session-level receipt helpers", () => {
     expect(result.isValid).toBe(false);
     expect(result.errors.length).toBeGreaterThan(0);
     expect(result.errors.some((e) => e.type === AmountValidationError.NEGATIVE_AMOUNT)).toBe(true);
+    expect(result.errors.some((e) => e.currency === "EUR")).toBe(true);
+    expect(result.errors.every((e) => e.currency === "EUR")).toBe(true);
   });
 });

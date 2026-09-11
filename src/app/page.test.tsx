@@ -653,6 +653,72 @@ describe("Home Page", () => {
       ).toHaveLength(2);
       expect(screen.getByText("USD")).toBeInTheDocument();
       expect(screen.getByText("EUR")).toBeInTheDocument();
+      expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
+      expect(screen.queryByText("€0.00")).not.toBeInTheDocument();
+    });
+
+    it("scopes share text to receipts in that currency", async () => {
+      const originalShare = navigator.share;
+      const shareMock = jest.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, "share", {
+        configurable: true,
+        writable: true,
+        value: shareMock,
+      });
+
+      const euroReceipt = createMockReceipt({
+        restaurant: "Paris Bistro",
+        currency: "EUR",
+        subtotal: 10,
+        tax: 1,
+        tip: 0,
+        total: 11,
+        items: [{ name: "Croissant", price: 10, quantity: 1 }],
+      });
+      loadV2({
+        people: mockPeople,
+        activeTab: "results",
+        receipts: [
+          { id: "r1", receipt: mockReceipt },
+          { id: "r2", receipt: euroReceipt },
+        ],
+        assignedItems: [
+          [
+            "r1",
+            [
+              [0, [{ personId: "a", sharePercentage: 100 }]],
+              [1, [{ personId: "b", sharePercentage: 100 }]],
+            ],
+          ],
+          ["r2", [[0, [{ personId: "a", sharePercentage: 100 }]]]],
+        ],
+      });
+      render(<Home />);
+
+      const shareButtons = screen.getAllByRole("button", { name: /share text/i });
+      fireEvent.click(shareButtons[0]);
+      await waitFor(() => {
+        expect(shareMock).toHaveBeenCalled();
+      });
+      const usdText = shareMock.mock.calls[0][0].text as string;
+      expect(usdText).toContain("Currency: USD");
+      expect(usdText).toContain("Testaurant");
+      expect(usdText).not.toContain("Paris Bistro");
+
+      fireEvent.click(shareButtons[1]);
+      await waitFor(() => {
+        expect(shareMock).toHaveBeenCalledTimes(2);
+      });
+      const eurText = shareMock.mock.calls[1][0].text as string;
+      expect(eurText).toContain("Currency: EUR");
+      expect(eurText).toContain("Paris Bistro");
+      expect(eurText).not.toContain("Testaurant");
+
+      Object.defineProperty(navigator, "share", {
+        configurable: true,
+        writable: true,
+        value: originalShare,
+      });
     });
 
   });

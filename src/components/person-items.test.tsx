@@ -84,4 +84,24 @@ describe("PersonItems", () => {
     expect(screen.queryByTestId("receipt-group-heading")).not.toBeInTheDocument();
     expect(screen.queryByText("Receipt")).not.toBeInTheDocument();
   });
+
+  it("renders per-currency section headings from currencyGroups", () => {
+    const aliceUsd = personWithItems([], { id: "a", name: "Alice", finalTotal: 10 });
+    const bobEur = personWithItems([], { id: "b", name: "Bob", finalTotal: 5 });
+
+    render(
+      <PersonItems
+        people={mockPeople}
+        currencyGroups={[
+          { currency: "USD", people: [aliceUsd] },
+          { currency: "EUR", people: [bobEur] },
+        ]}
+      />
+    );
+
+    expect(screen.getByRole("heading", { name: "USD" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "EUR" })).toBeInTheDocument();
+    expect(screen.getByText("Alice")).toBeInTheDocument();
+    expect(screen.getByText("Bob")).toBeInTheDocument();
+  });
 });

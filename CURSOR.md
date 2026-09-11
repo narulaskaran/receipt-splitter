@@ -294,6 +294,7 @@ ANTHROPIC_API_KEY=your_api_key_here
 - **Proportional Distribution**: Tax and tip calculated based on item costs
 - **Group Calculations**: Automatic distribution within groups
 - **Precision Handling**: Uses Decimal.js for accurate financial calculations
+- **Per-currency grouping**: Mixed-currency sessions (after explicit confirmation) keep totals separate by currency
 - **Validation**: Ensures amounts add up correctly with tolerance for rounding
 
 ### 5. Enhanced Receipt Sharing System
