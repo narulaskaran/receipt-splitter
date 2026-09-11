@@ -9,7 +9,7 @@ Receipt Splitter is a Next.js web application for splitting receipts among frien
 ## Tech Stack
 
 - **Framework**: Next.js 16 with App Router
-- **Language**: TypeScript (strict mode)
+- **Language**: TypeScript 7 (strict mode; TypeScript 6 nested for ESLint)
 - **Styling**: Tailwind CSS v4
 - **UI Components**: shadcn/ui with Radix UI primitives
 - **State Management**: React hooks with localStorage persistence
@@ -279,7 +279,7 @@ Receipt Splitter supports 20 international currencies with automatic AI detectio
 ## Development Guidelines
 
 1. **Money Calculations**: Use `Decimal.js` for all monetary calculations to avoid floating point errors
-2. **Type Safety**: Project uses strict TypeScript - ensure all types are properly defined
+2. **Type Safety**: Project uses strict TypeScript 7 for `tsc`, with TypeScript 6 as the `typescript` package name so ESLint can use the JS API. Keep `jest.config.js` as JavaScript.
 3. **Testing**: Write tests for new functionality; tests live next to source files
 4. **Components**: Prefer composition using existing shadcn/ui components
 5. **Styling**: Use Tailwind CSS classes; avoid inline styles
