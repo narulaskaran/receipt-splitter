@@ -71,6 +71,28 @@ describe("ReceiptDetails", () => {
       expect(screen.getByText("Receipt Details")).toBeInTheDocument();
     });
 
+    it("renders a placeholder when no thumbnail is provided", () => {
+      render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
+
+      expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    });
+
+    it("renders the receipt image when a thumbnail is provided", () => {
+      render(
+        <ReceiptDetails
+          receipt={mockReceipt}
+          onReceiptUpdate={mockOnReceiptUpdate}
+          thumbnailUrl="data:image/jpeg;base64,thumb"
+          thumbnailAlt="Testaurant receipt image"
+        />
+      );
+
+      expect(screen.getByAltText("Testaurant receipt image")).toHaveAttribute(
+        "src",
+        "data:image/jpeg;base64,thumb"
+      );
+    });
+
     it("renders Edit button", () => {
       render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
 

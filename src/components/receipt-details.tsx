@@ -1,4 +1,4 @@
-import { Edit, Calculator } from "lucide-react";
+import { Edit, Calculator, FileText } from "lucide-react";
 import { useState } from "react";
 import Decimal from "decimal.js";
 import { Button } from "@/components/ui/button";
@@ -34,11 +34,17 @@ function computedReceiptTotal(receipt: Pick<Receipt, "subtotal" | "tax" | "tip">
 interface ReceiptDetailsProps {
   receipt: Receipt;
   onReceiptUpdate: (receipt: Receipt) => boolean | void;
+  /** Persisted receipt image shown beside the parsed totals. */
+  thumbnailUrl?: string;
+  /** Accessible label for the thumbnail (e.g. restaurant name). */
+  thumbnailAlt?: string;
 }
 
 export function ReceiptDetails({
   receipt,
   onReceiptUpdate,
+  thumbnailUrl,
+  thumbnailAlt = "Receipt preview",
 }: ReceiptDetailsProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editedReceipt, setEditedReceipt] = useState<Receipt>(receipt);
@@ -127,48 +133,64 @@ export function ReceiptDetails({
       </CardHeader>
 
       <CardContent>
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-sm text-muted-foreground">Restaurant</p>
-            <p className="font-medium">{receipt.restaurant || "Unknown"}</p>
-          </div>
+        <div className="flex flex-col sm:flex-row gap-4 sm:items-start">
+          {thumbnailUrl ? (
+            <img
+              src={thumbnailUrl}
+              alt={thumbnailAlt}
+              className="max-h-48 max-w-full w-auto rounded-md border object-contain shrink-0 mx-auto sm:mx-0"
+            />
+          ) : (
+            <div
+              className="flex h-40 w-28 items-center justify-center rounded-md border bg-muted/40 shrink-0 mx-auto sm:mx-0"
+              aria-hidden="true"
+            >
+              <FileText className="h-12 w-12 text-muted-foreground" />
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-4 flex-1 min-w-0">
+            <div>
+              <p className="text-sm text-muted-foreground">Restaurant</p>
+              <p className="font-medium">{receipt.restaurant || "Unknown"}</p>
+            </div>
 
-          <div>
-            <p className="text-sm text-muted-foreground">Date</p>
-            <p className="font-medium">{receipt.date || "Unknown"}</p>
-          </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Date</p>
+              <p className="font-medium">{receipt.date || "Unknown"}</p>
+            </div>
 
-          <div>
-            <p className="text-sm text-muted-foreground">Subtotal</p>
-            <p className="font-medium">{formatCurrency(receipt.subtotal, receipt.currency)}</p>
-          </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Subtotal</p>
+              <p className="font-medium">{formatCurrency(receipt.subtotal, receipt.currency)}</p>
+            </div>
 
-          <div>
-            <p className="text-sm text-muted-foreground">Tax</p>
-            <p className="font-medium">{formatCurrency(receipt.tax, receipt.currency)}</p>
-          </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Tax</p>
+              <p className="font-medium">{formatCurrency(receipt.tax, receipt.currency)}</p>
+            </div>
 
-          <div>
-            <p className="text-sm text-muted-foreground">Tip</p>
-            <p className="font-medium">{formatCurrency(receipt.tip || 0, receipt.currency)}</p>
-          </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Tip</p>
+              <p className="font-medium">{formatCurrency(receipt.tip || 0, receipt.currency)}</p>
+            </div>
 
-          <div>
-            <p className="text-sm text-muted-foreground">Total</p>
-            <p className="font-bold">{formatCurrency(receipt.total, receipt.currency)}</p>
-          </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Total</p>
+              <p className="font-bold">{formatCurrency(receipt.total, receipt.currency)}</p>
+            </div>
 
-          <div className="col-span-2">
-            <p className="text-sm text-muted-foreground">Currency</p>
-            <p className="font-medium">
-              {(() => {
-                const currencies = getSupportedCurrencies();
-                const currency = currencies.find(c => c.code === (receipt.currency || 'USD'));
-                return currency
-                  ? `${currency.code} - ${currency.name} (${currency.symbol})`
-                  : receipt.currency || 'USD';
-              })()}
-            </p>
+            <div className="col-span-2">
+              <p className="text-sm text-muted-foreground">Currency</p>
+              <p className="font-medium">
+                {(() => {
+                  const currencies = getSupportedCurrencies();
+                  const currency = currencies.find(c => c.code === (receipt.currency || 'USD'));
+                  return currency
+                    ? `${currency.code} - ${currency.name} (${currency.symbol})`
+                    : receipt.currency || 'USD';
+                })()}
+              </p>
+            </div>
           </div>
         </div>
       </CardContent>

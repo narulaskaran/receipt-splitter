@@ -9,18 +9,10 @@ jest.mock("browser-image-compression", () => jest.fn());
 describe("ReceiptUploader", () => {
   let mockOnReceiptParsed: jest.Mock;
   let mockSetIsLoading: jest.Mock;
-  let originalSetItem: typeof localStorage.setItem;
 
   beforeEach(() => {
     mockOnReceiptParsed = jest.fn();
     mockSetIsLoading = jest.fn();
-  });
-
-  afterEach(() => {
-    if (originalSetItem) {
-      localStorage.setItem = originalSetItem;
-      originalSetItem = undefined as never;
-    }
   });
 
   function renderUploader() {
@@ -67,20 +59,21 @@ describe("ReceiptUploader", () => {
     });
   });
 
-  it("shows PDF placeholder when PDF is uploaded", async () => {
-    (global.fetch as jest.Mock).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ restaurant: "Test Restaurant", total: 100, items: [] }),
-    });
-
-    renderUploader();
-
-    const pdfFile = new File(["mock pdf content"], "receipt.pdf", { type: "application/pdf" });
-    await userEvent.upload(getFileInput(), pdfFile);
-
-    await waitFor(() => {
-      expect(document.querySelectorAll("svg").length).toBeGreaterThan(0);
-    });
+  it("renders compact add-another prompt when receipts already exist", () => {
+    render(
+      <ReceiptUploader
+        onReceiptParsed={mockOnReceiptParsed}
+        isLoading={false}
+        setIsLoading={mockSetIsLoading}
+        resetImageTrigger={0}
+        hasReceipts
+      />
+    );
+    expect(
+      screen.getByText("Click or drag to add another receipt")
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/upload your receipts/i)).not.toBeInTheDocument();
+    expect(screen.queryByAltText("Receipt preview")).not.toBeInTheDocument();
   });
 
   it("rejects non-image and non-PDF files", async () => {
@@ -182,18 +175,16 @@ describe("ReceiptUploader", () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it("continues with preview when image caching fails due to QuotaExceededError", async () => {
-    originalSetItem = localStorage.setItem;
-    localStorage.setItem = jest.fn((key: string, value: string) => {
-      if (key === "receiptSplitterImage") {
-        throw new DOMException("Quota exceeded", "QuotaExceededError");
-      }
-      return originalSetItem(key, value);
-    }) as typeof localStorage.setItem;
-
+  it("does not show a dropzone preview after an accepted image upload", async () => {
+    mockOnReceiptParsed.mockReturnValueOnce("receipt-abc");
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ restaurant: "Test Restaurant", total: 100, items: [], subtotal: 100, tax: 0, tip: 0, currency: "USD" }),
+      json: async () => ({
+        restaurant: "Cafe",
+        total: 10,
+        items: [],
+        currency: "USD",
+      }),
     });
 
     renderUploader();
@@ -201,12 +192,11 @@ describe("ReceiptUploader", () => {
     const imageFile = new File([new ArrayBuffer(1024)], "test.jpg", { type: "image/jpeg" });
     await userEvent.upload(getFileInput(), imageFile);
 
-    // Should still show preview and call fetch — caching is best-effort
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalled();
+      expect(mockOnReceiptParsed).toHaveBeenCalledTimes(1);
     });
-    // No error toast for caching failure
-    expect(toast.error).not.toHaveBeenCalled();
+    expect(screen.queryByAltText("Receipt preview")).not.toBeInTheDocument();
+    expect(screen.getByText(/upload your receipts/i)).toBeInTheDocument();
   });
 
   it("dropping two files calls onReceiptParsed twice", async () => {
@@ -362,98 +352,65 @@ describe("ReceiptUploader", () => {
     );
   });
 
-  it("does not update thumbnail or cached image when onReceiptParsed rejects", async () => {
-    const OriginalFileReader = global.FileReader;
-    class FakeFileReader {
-      result: string | ArrayBuffer | null = null;
-      onload: ((this: FileReader, ev: ProgressEvent<FileReader>) => void) | null =
-        null;
-      onerror: ((this: FileReader, ev: ProgressEvent<FileReader>) => void) | null =
-        null;
-      readAsDataURL(file: Blob) {
-        const name = file instanceof File ? file.name : "blob";
-        this.result = `data:${file.type};base64,${btoa(name)}`;
-        queueMicrotask(() => {
-          this.onload?.call(
-            this as unknown as FileReader,
-            {} as ProgressEvent<FileReader>
-          );
-        });
-      }
+  it("does not persist a thumbnail when onReceiptParsed rejects after an accepted receipt", async () => {
+    mockOnReceiptParsed.mockReturnValueOnce("receipt-usd").mockReturnValueOnce(false);
+
+    (global.fetch as jest.Mock)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          restaurant: "NY Diner",
+          total: 10,
+          items: [],
+          subtotal: 10,
+          tax: 0,
+          tip: 0,
+          currency: "USD",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          restaurant: "Paris Bistro",
+          total: 20,
+          items: [],
+          subtotal: 20,
+          tax: 0,
+          tip: 0,
+          currency: "EUR",
+        }),
+      });
+
+    renderUploader();
+
+    const usdFile = new File(["usd-image"], "usd.jpg", { type: "image/jpeg" });
+    await userEvent.upload(getFileInput(), usdFile);
+
+    await waitFor(() => {
+      expect(mockOnReceiptParsed).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.queryByAltText("Receipt preview")).not.toBeInTheDocument();
+
+    const eurFile = new File(["eur-image-different-bytes"], "eur.jpg", {
+      type: "image/jpeg",
+    });
+    await userEvent.upload(getFileInput(), eurFile);
+
+    await waitFor(() => {
+      expect(mockOnReceiptParsed).toHaveBeenCalledTimes(2);
+    });
+    expect(mockOnReceiptParsed).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ restaurant: "Paris Bistro", currency: "EUR" })
+    );
+
+    const raw = localStorage.getItem("receiptSplitterThumbnails");
+    if (raw) {
+      const map = JSON.parse(raw);
+      expect(map["receipt-usd"]).toBeDefined();
+      expect(Object.keys(map)).toEqual(["receipt-usd"]);
     }
-    global.FileReader = FakeFileReader as unknown as typeof FileReader;
-
-    try {
-      mockOnReceiptParsed.mockReturnValueOnce(true).mockReturnValueOnce(false);
-
-      (global.fetch as jest.Mock)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            restaurant: "NY Diner",
-            total: 10,
-            items: [],
-            subtotal: 10,
-            tax: 0,
-            tip: 0,
-            currency: "USD",
-          }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: async () => ({
-            restaurant: "Paris Bistro",
-            total: 20,
-            items: [],
-            subtotal: 20,
-            tax: 0,
-            tip: 0,
-            currency: "EUR",
-          }),
-        });
-
-      renderUploader();
-
-      const usdFile = new File(["usd-image"], "usd.jpg", { type: "image/jpeg" });
-      await userEvent.upload(getFileInput(), usdFile);
-
-      await waitFor(() => {
-        expect(mockOnReceiptParsed).toHaveBeenCalledTimes(1);
-      });
-      await waitFor(() => {
-        expect(screen.getByAltText("Receipt preview")).toBeInTheDocument();
-      });
-
-      const usdDataUrl = `data:image/jpeg;base64,${btoa("usd.jpg")}`;
-      const previewAfterUsd = screen
-        .getByAltText("Receipt preview")
-        .getAttribute("src");
-      expect(previewAfterUsd).toBe(usdDataUrl);
-      // The legacy full-size key is no longer written at all (per-receipt
-      // thumbnails replace it), so nothing cached to be clobbered.
-      expect(localStorage.getItem("receiptSplitterImage")).toBeNull();
-      expect(usdDataUrl).not.toBe(`data:image/jpeg;base64,${btoa("eur.jpg")}`);
-
-      const eurFile = new File(["eur-image-different-bytes"], "eur.jpg", {
-        type: "image/jpeg",
-      });
-      await userEvent.upload(getFileInput(), eurFile);
-
-      await waitFor(() => {
-        expect(mockOnReceiptParsed).toHaveBeenCalledTimes(2);
-      });
-      expect(mockOnReceiptParsed).toHaveBeenNthCalledWith(
-        2,
-        expect.objectContaining({ restaurant: "Paris Bistro", currency: "EUR" })
-      );
-
-      expect(screen.getByAltText("Receipt preview").getAttribute("src")).toBe(
-        previewAfterUsd
-      );
-      expect(localStorage.getItem("receiptSplitterThumbnails")).toBeNull();
-    } finally {
-      global.FileReader = OriginalFileReader;
-    }
+    expect(localStorage.getItem("receiptSplitterImage")).toBeNull();
   });
 
   it("persists a compressed thumbnail keyed by the accepted receipt id", async () => {

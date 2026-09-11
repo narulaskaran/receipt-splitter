@@ -126,7 +126,8 @@ describe("ParsedReceiptsList", () => {
       />
     );
 
-    // r1 has a persisted thumbnail; r2 (no entry) shows the placeholder icon.
+    // r1 has a persisted thumbnail in the row; r2 (no entry, expanded) shows
+    // the details-card placeholder instead of an image.
     expect(screen.getByAltText("Cafe One receipt preview")).toHaveAttribute(
       "src",
       "data:image/jpeg;base64,thumbA"
@@ -134,5 +135,36 @@ describe("ParsedReceiptsList", () => {
     expect(
       screen.queryByAltText("Cafe Two receipt preview")
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByAltText("Cafe Two receipt image")
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the persisted thumbnail in the expanded receipt details card", () => {
+    localStorage.setItem(
+      "receiptSplitterThumbnails",
+      JSON.stringify({ r1: "data:image/jpeg;base64,thumbA" })
+    );
+    const stored = createStoredReceipt(
+      createMockReceipt({ restaurant: "Cafe One" }),
+      "r1"
+    );
+
+    render(
+      <ParsedReceiptsList
+        receipts={[stored]}
+        onReceiptUpdate={jest.fn()}
+        onRemoveReceipt={jest.fn()}
+      />
+    );
+
+    expect(screen.getByAltText("Cafe One receipt preview")).toHaveAttribute(
+      "src",
+      "data:image/jpeg;base64,thumbA"
+    );
+    expect(screen.getByAltText("Cafe One receipt image")).toHaveAttribute(
+      "src",
+      "data:image/jpeg;base64,thumbA"
+    );
   });
 });

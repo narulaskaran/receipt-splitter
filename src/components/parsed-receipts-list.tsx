@@ -31,13 +31,9 @@ export function ParsedReceiptsList({
   const lastId = receipts[receipts.length - 1]?.id ?? null;
   const [expandedId, setExpandedId] = useState<string | null>(lastId);
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
-  // Snapshot of the thumbnail cache; re-read whenever the receipt set changes
-  // so newly accepted receipts pick up their persisted thumbnail.
-  const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
-
-  useEffect(() => {
-    setThumbnails(getThumbnails());
-  }, [receipts]);
+  // Read on render so the details-card image appears once persist finishes
+  // and the parent re-renders (isLoading goes false after the thumbnail write).
+  const thumbnails = getThumbnails();
 
   useEffect(() => {
     if (lastId) {
@@ -128,6 +124,8 @@ export function ParsedReceiptsList({
                 <div className="border-t p-3">
                   <ReceiptDetails
                     receipt={receipt}
+                    thumbnailUrl={thumbnails[stored.id]}
+                    thumbnailAlt={`${label} receipt image`}
                     onReceiptUpdate={(updated) =>
                       onReceiptUpdate(stored.id, updated)
                     }

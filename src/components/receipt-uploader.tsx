@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { UploadCloud, Loader2, FileText } from "lucide-react";
+import { UploadCloud, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { type Receipt } from "@/types";
@@ -12,11 +12,7 @@ import {
 import imageCompression from "browser-image-compression";
 import { getSessionId } from "@/lib/session";
 import { RECEIPT_IMAGE_STORAGE_KEY, safeRemoveItem } from "@/lib/storage";
-import {
-  clearThumbnails,
-  getLatestThumbnailId,
-  getThumbnails,
-} from "@/lib/receipt-thumbnails";
+import { clearThumbnails } from "@/lib/receipt-thumbnails";
 import {
   createReceiptThumbnail,
   persistReceiptThumbnail,
@@ -27,7 +23,7 @@ interface ReceiptUploaderProps {
    * Called after a file is parsed. Return `false` to reject the receipt
    * (currency mismatch, session cap). Return the new receipt's id on accept
    * so the uploader can key the persisted thumbnail to that receipt.
-   * Preview/thumbnail updates only happen on accept.
+   * Thumbnail persistence only happens on accept.
    */
   onReceiptParsed: (receipt: Receipt) => string | false | void;
   isLoading: boolean;
@@ -35,6 +31,8 @@ interface ReceiptUploaderProps {
   resetImageTrigger?: number;
   /** How many more receipts the session can accept. Defaults to the session cap. */
   maxRemaining?: number;
+  /** When true, show the compact "add another" dropzone instead of the empty-state prompt. */
+  hasReceipts?: boolean;
 }
 
 const MAX_COMPRESSION_FILE_SIZE_MB = 50;
@@ -121,47 +119,19 @@ async function parseReceiptFile(file: File): Promise<Receipt> {
   return response.json();
 }
 
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        resolve(reader.result);
-      } else {
-        reject(new Error("Failed to read file"));
-      }
-    };
-    reader.onerror = () => {
-      reject(reader.error ?? new Error("Failed to read file"));
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
 /**
- * Update the dropzone preview and persist the per-receipt thumbnail.
+ * Persist the per-receipt thumbnail after an accepted parse.
  * `receiptId` is the id returned by onReceiptParsed; thumbnails are keyed by
  * it so each accepted receipt keeps its own preview across refresh.
  */
-async function updatePreview(
+async function persistAcceptedThumbnail(
   file: File,
-  receiptId: string | undefined,
-  setPreviewUrl: (url: string) => void
+  receiptId: string | undefined
 ): Promise<void> {
-  if (file.type.startsWith("image/")) {
-    if (receiptId) {
-      // Compressed thumbnail, persisted under this receipt's id (best-effort).
-      const thumbnail = await createReceiptThumbnail(file);
-      if (thumbnail) persistReceiptThumbnail(receiptId, thumbnail);
-    }
-    // Dropzone keeps showing the full-size preview for the last accepted file.
-    const dataUrl = await readFileAsDataUrl(file);
-    safeRemoveItem(RECEIPT_IMAGE_STORAGE_KEY);
-    setPreviewUrl(dataUrl);
-    return;
+  if (file.type.startsWith("image/") && receiptId) {
+    const thumbnail = await createReceiptThumbnail(file);
+    if (thumbnail) persistReceiptThumbnail(receiptId, thumbnail);
   }
-
-  setPreviewUrl("pdf-placeholder");
   safeRemoveItem(RECEIPT_IMAGE_STORAGE_KEY);
 }
 
@@ -171,36 +141,26 @@ export function ReceiptUploader({
   setIsLoading,
   resetImageTrigger,
   maxRemaining = MAX_RECEIPTS_PER_SESSION,
+  hasReceipts = false,
 }: ReceiptUploaderProps) {
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isCompressing, setIsCompressing] = useState(false);
   const [parseProgress, setParseProgress] = useState<{
     current: number;
     total: number;
   } | null>(null);
 
-  // Restore the last accepted receipt's preview from the thumbnail cache.
+  // Reset persisted thumbnails when resetImageTrigger changes (not on initial mount).
   // NOTE: this component must NOT touch the legacy singular image key here.
   // Child passive effects run before parent effects, and Home's restore effect
   // (src/app/page.tsx) performs migrateLegacyImage() with the real newest
   // receipt id once the session is available. Deleting or moving that key
   // here would race ahead of it and silently lose a legacy user's image.
-  useEffect(() => {
-    const latestId = getLatestThumbnailId();
-    if (latestId) {
-      const thumbnails = getThumbnails();
-      setPreviewUrl(thumbnails[latestId]);
-    }
-  }, []);
-
-  // Reset preview when resetImageTrigger changes (not on initial mount)
   const prevResetImageTrigger = useRef<number | undefined>(undefined);
   useEffect(() => {
     if (
       prevResetImageTrigger.current !== undefined &&
       prevResetImageTrigger.current !== resetImageTrigger
     ) {
-      setPreviewUrl(null);
       clearThumbnails();
       safeRemoveItem(RECEIPT_IMAGE_STORAGE_KEY);
     }
@@ -243,13 +203,12 @@ export function ReceiptUploader({
             const accepted = acceptedId !== false && acceptedId !== undefined;
             if (!accepted) continue;
             try {
-              await updatePreview(
+              await persistAcceptedThumbnail(
                 prepared,
-                typeof acceptedId === "string" ? acceptedId : undefined,
-                setPreviewUrl
+                typeof acceptedId === "string" ? acceptedId : undefined
               );
             } catch {
-              // Preview caching is best-effort and must not block a successful parse
+              // Thumbnail caching is best-effort and must not block a successful parse
             }
           } catch (error) {
             console.error("Receipt parsing error:", error);
@@ -281,66 +240,80 @@ export function ReceiptUploader({
   });
 
   const isBusy = isLoading || isCompressing;
+  const compact = hasReceipts;
   const parsingLabel =
     parseProgress && parseProgress.total > 1
       ? `Parsing receipt ${parseProgress.current} of ${parseProgress.total}...`
       : "Parsing receipt...";
 
   return (
-    <Card className="w-full">
-      <CardContent className="p-6">
+    <Card className={`w-full ${compact ? "py-3" : ""}`}>
+      <CardContent className={compact ? "px-4" : "p-6"}>
         <div
           {...getRootProps()}
-          className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+          className={`border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors ${
+            compact ? "px-4 py-3" : "p-8"
+          } ${
             isDragActive ? "border-primary bg-primary/5" : "border-input"
           } ${isBusy ? "opacity-60 cursor-not-allowed" : ""}`}
         >
           <input {...getInputProps()} disabled={isBusy} />
 
           {isCompressing ? (
-            <div className="flex flex-col items-center">
-              <Loader2 className="h-10 w-10 mb-4 animate-spin text-primary" />
-              <p className="mb-1 font-medium">Compressing image...</p>
-              <p className="text-sm text-muted-foreground">
-                Reducing file size to under {MAX_FILE_SIZE_MB}MB
+            <div
+              className={
+                compact
+                  ? "flex items-center justify-center gap-2"
+                  : "flex flex-col items-center"
+              }
+            >
+              <Loader2
+                className={
+                  compact
+                    ? "h-5 w-5 animate-spin text-primary"
+                    : "h-10 w-10 mb-4 animate-spin text-primary"
+                }
+              />
+              <p className={compact ? "font-medium" : "mb-1 font-medium"}>
+                Compressing image...
+              </p>
+              {!compact && (
+                <p className="text-sm text-muted-foreground">
+                  Reducing file size to under {MAX_FILE_SIZE_MB}MB
+                </p>
+              )}
+            </div>
+          ) : isLoading ? (
+            <div
+              className={
+                compact
+                  ? "flex items-center justify-center gap-2"
+                  : "flex flex-col items-center"
+              }
+            >
+              <Loader2
+                className={
+                  compact
+                    ? "h-5 w-5 animate-spin text-primary"
+                    : "h-12 w-12 mb-4 animate-spin text-primary"
+                }
+              />
+              <p className={compact ? undefined : "mb-1 font-medium"}>
+                {parsingLabel}
               </p>
             </div>
-          ) : previewUrl ? (
-            <div className="flex flex-col items-center">
-              {previewUrl === "pdf-placeholder" ? (
-                <FileText className="h-32 w-32 mb-4 text-muted-foreground" />
-              ) : (
-                <img
-                  src={previewUrl}
-                  alt="Receipt preview"
-                  className="max-h-64 max-w-full mb-4 rounded-md"
-                />
-              )}
-              {isLoading ? (
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  <p>{parsingLabel}</p>
-                </div>
-              ) : (
-                <p>Click or drag to add another receipt</p>
-              )}
+          ) : compact ? (
+            <div className="flex items-center justify-center gap-2">
+              <UploadCloud className="h-5 w-5 shrink-0 text-muted-foreground" />
+              <p>Click or drag to add another receipt</p>
             </div>
           ) : (
             <div className="flex flex-col items-center">
-              {isLoading ? (
-                <>
-                  <Loader2 className="h-12 w-12 mb-4 animate-spin text-primary" />
-                  <p className="mb-1 font-medium">{parsingLabel}</p>
-                </>
-              ) : (
-                <>
-                  <UploadCloud className="h-12 w-12 mb-4 text-muted-foreground" />
-                  <p className="mb-1 font-medium">Upload your receipts</p>
-                  <p className="text-sm text-muted-foreground">
-                    Drag and drop or click to select one or more files
-                  </p>
-                </>
-              )}
+              <UploadCloud className="h-12 w-12 mb-4 text-muted-foreground" />
+              <p className="mb-1 font-medium">Upload your receipts</p>
+              <p className="text-sm text-muted-foreground">
+                Drag and drop or click to select one or more files
+              </p>
             </div>
           )}
         </div>
