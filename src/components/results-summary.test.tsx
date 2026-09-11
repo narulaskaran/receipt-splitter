@@ -709,5 +709,31 @@ describe("ResultsSummary", () => {
         });
       }
     });
+
+    it("includes per-receipt amounts in a multi-receipt share URL", async () => {
+      render(
+        <ResultsSummary
+          people={[alice]}
+          receiptName="Coffee Shop, Lunch Place"
+          receiptDate="2024-01-01"
+          receiptBreakdown={twoReceiptBreakdown}
+        />
+      );
+
+      fireEvent.change(screen.getByPlaceholderText("e.g. 555-123-4567"), {
+        target: { value: "5551234567" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /share split/i }));
+
+      await waitFor(() => {
+        const clipboardContent = (navigator.clipboard.writeText as jest.Mock).mock.calls.at(-1)?.[0];
+        expect(clipboardContent).toContain("receipts=");
+        const receipts = JSON.parse(new URL(clipboardContent).searchParams.get("receipts")!);
+        expect(receipts).toEqual([
+          { label: "Coffee Shop · 2024-01-01", amounts: [2500] },
+          { label: "Lunch Place · 2024-01-01", amounts: [3500] },
+        ]);
+      });
+    });
   });
 });

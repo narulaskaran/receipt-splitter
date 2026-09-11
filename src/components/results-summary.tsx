@@ -15,6 +15,7 @@ import { formatCurrency, type ReceiptValidationResult } from "@/lib/receipt-util
 import {
   generateShareableUrl,
   validateSerializationInput,
+  type SharedReceiptBreakdown,
 } from "@/lib/split-sharing";
 
 import { useState } from "react";
@@ -181,7 +182,17 @@ export function ResultsSummary({
         note,
         cleanPhone,
         currencyCode,
-        receiptDate
+        receiptDate,
+        showBreakdown
+          ? receiptBreakdown?.map<SharedReceiptBreakdown>((receipt) => ({
+              label: receiptLabel(receipt),
+              amounts: people.map(
+                (person) =>
+                  receipt.people.find((receiptPerson) => receiptPerson.id === person.id)
+                    ?.finalTotal ?? 0
+              ),
+            }))
+          : undefined
       );
 
       // Copy to clipboard
