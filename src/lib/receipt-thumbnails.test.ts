@@ -1,7 +1,6 @@
 import {
   RECEIPT_THUMBNAILS_STORAGE_KEY,
   clearThumbnails,
-  getLatestThumbnailId,
   getThumbnails,
   migrateLegacyImage,
   pruneThumbnails,
@@ -29,17 +28,13 @@ describe("receipt-thumbnails", () => {
       // Simulate refresh: read back from localStorage only.
       const restored = getThumbnails();
       expect(restored).toEqual({ r1: THUMB_A, r2: THUMB_B });
-      expect(getLatestThumbnailId()).toBe("r2");
     });
 
-    it("keeps insertion order so the newest accepted receipt is last", () => {
+    it("replacing a thumbnail keeps other receipts", () => {
       setThumbnail("r1", THUMB_A);
       setThumbnail("r2", THUMB_B);
-      // Re-accepting r1 makes it the most recent.
       setThumbnail("r1", THUMB_B);
-      expect(getLatestThumbnailId()).toBe("r1");
-      // Both entries survive.
-      expect(Object.keys(getThumbnails()).sort()).toEqual(["r1", "r2"]);
+      expect(getThumbnails()).toEqual({ r1: THUMB_B, r2: THUMB_B });
     });
   });
 

@@ -7,9 +7,8 @@ import { RECEIPT_IMAGE_STORAGE_KEY, safeGetItem, safeRemoveItem, safeSetItem } f
  * Thumbnails are small (~a few KB each, capped by MAX_THUMBNAIL_* below), so
  * even a full session of MAX_RECEIPTS_PER_SESSION receipts costs tens of KB —
  * unlike the legacy singular `receiptSplitterImage` key, which held a
- * full-size ~5 MB data URL. Object key insertion order is preserved by
- * JSON round-trips, so the last inserted entry is the most recently accepted
- * receipt. Each thumbnail is shown in that receipt's details card.
+ * full-size ~5 MB data URL. Each thumbnail is shown in that receipt's
+ * details card.
  *
  * The in-memory snapshot is the live source for React via
  * `subscribeThumbnails` / `getThumbnails`. Mutators write localStorage then
@@ -101,14 +100,12 @@ export function getThumbnails(): ReceiptThumbnailMap {
 }
 
 /**
- * Store (or replace) the thumbnail for one receipt. Re-inserting an existing
- * id moves it to the end so it counts as the most recent.
+ * Store (or replace) the thumbnail for one receipt.
  * Returns true when the updated map was persisted.
  */
 export function setThumbnail(receiptId: string, dataUrl: string): boolean {
   if (!receiptId || !dataUrl.startsWith("data:image/")) return false;
   const thumbnails: ReceiptThumbnailMap = { ...getThumbnails() };
-  delete thumbnails[receiptId];
   thumbnails[receiptId] = dataUrl;
   return persistAndEmit(thumbnails);
 }
@@ -125,12 +122,6 @@ export function removeThumbnail(receiptId: string): void {
 /** Remove every thumbnail (used by New Split). */
 export function clearThumbnails(): void {
   persistAndEmit(EMPTY_THUMBNAILS);
-}
-
-/** Id of the most recently stored thumbnail, or null when the map is empty. */
-export function getLatestThumbnailId(): string | null {
-  const ids = Object.keys(getThumbnails());
-  return ids.length > 0 ? ids[ids.length - 1] : null;
 }
 
 /**
