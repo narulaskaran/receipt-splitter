@@ -702,8 +702,9 @@ describe("Home Page", () => {
       });
       const usdText = shareMock.mock.calls[0][0].text as string;
       expect(usdText).toContain("Currency: USD");
-      expect(usdText).toContain("Testaurant");
+      expect(usdText).toContain("Day total");
       expect(usdText).not.toContain("Paris Bistro");
+      expect(usdText).not.toContain("Receipt for");
 
       fireEvent.click(shareButtons[1]);
       await waitFor(() => {
@@ -711,8 +712,9 @@ describe("Home Page", () => {
       });
       const eurText = shareMock.mock.calls[1][0].text as string;
       expect(eurText).toContain("Currency: EUR");
-      expect(eurText).toContain("Paris Bistro");
+      expect(eurText).toContain("Day total");
       expect(eurText).not.toContain("Testaurant");
+      expect(eurText).not.toContain("Receipt for");
 
       Object.defineProperty(navigator, "share", {
         configurable: true,
