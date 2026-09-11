@@ -1,4 +1,4 @@
-import { Edit, Calculator, FileText } from "lucide-react";
+import { Edit, Calculator } from "lucide-react";
 import { useState } from "react";
 import Decimal from "decimal.js";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { type Receipt } from "@/types";
 import { formatCurrency, validateReceiptInvariants, AmountValidationError } from "@/lib/receipt-utils";
 import { getSupportedCurrencies } from "@/lib/currency";
+import { ReceiptThumbnail } from "@/components/receipt-thumbnail";
 
 function computedReceiptTotal(receipt: Pick<Receipt, "subtotal" | "tax" | "tip">): number {
   return new Decimal(receipt.subtotal || 0)
@@ -134,20 +135,11 @@ export function ReceiptDetails({
 
       <CardContent>
         <div className="flex flex-col sm:flex-row gap-4 sm:items-start">
-          {thumbnailUrl ? (
-            <img
-              src={thumbnailUrl}
-              alt={thumbnailAlt}
-              className="max-h-48 max-w-full w-auto rounded-md border object-contain shrink-0 mx-auto sm:mx-0"
-            />
-          ) : (
-            <div
-              className="flex h-40 w-28 items-center justify-center rounded-md border bg-muted/40 shrink-0 mx-auto sm:mx-0"
-              aria-hidden="true"
-            >
-              <FileText className="h-12 w-12 text-muted-foreground" />
-            </div>
-          )}
+          <ReceiptThumbnail
+            variant="details"
+            src={thumbnailUrl}
+            alt={thumbnailAlt}
+          />
           <div className="grid grid-cols-2 gap-4 flex-1 min-w-0">
             <div>
               <p className="text-sm text-muted-foreground">Restaurant</p>

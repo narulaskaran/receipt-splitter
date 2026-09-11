@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { ChevronDown, Trash2, FileText } from "lucide-react";
+import { ChevronDown, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ReceiptDetails } from "@/components/receipt-details";
+import { ReceiptThumbnail } from "@/components/receipt-thumbnail";
 import { formatCurrency } from "@/lib/receipt-utils";
 import { MAX_RECEIPTS_PER_SESSION } from "@/lib/constants";
 import { receiptDisplayName } from "@/lib/receipt-labels";
@@ -91,18 +92,11 @@ export function ParsedReceiptsList({
                   }
                   aria-expanded={isExpanded}
                 >
-                  {thumbnails[stored.id] ? (
-                    <img
-                      src={thumbnails[stored.id]}
-                      alt={`${label} receipt preview`}
-                      className="h-12 w-12 rounded object-cover border shrink-0"
-                    />
-                  ) : (
-                    <FileText
-                      aria-hidden="true"
-                      className="h-6 w-6 mt-0.5 shrink-0 text-muted-foreground"
-                    />
-                  )}
+                  <ReceiptThumbnail
+                    variant="row"
+                    src={thumbnails[stored.id]}
+                    alt={`${label} receipt preview`}
+                  />
                   <ChevronDown
                     className={`h-4 w-4 mt-1 shrink-0 transition-transform ${
                       isExpanded ? "rotate-0" : "-rotate-90"
