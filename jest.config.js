@@ -1,6 +1,5 @@
-import type { Config } from "jest";
-
-const config: Config = {
+/** @type {import('jest').Config} */
+const config = {
   testEnvironment: "jsdom",
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
@@ -16,4 +15,4 @@ const config: Config = {
   transformIgnorePatterns: ["/node_modules/(?!(^@testing-library|^next)/)"],
 };
 
-export default config;
+module.exports = config;

@@ -365,7 +365,7 @@ ANTHROPIC_API_KEY=your_api_key_here
 ## Technology Stack
 
 - **Framework**: Next.js 16.3.0 with App Router
-- **Language**: TypeScript with strict type checking
+- **Language**: TypeScript 7 (native compiler) with TypeScript 6 nested for ESLint
 - **Styling**: Tailwind CSS with custom CSS variables
 - **UI Components**: shadcn/ui component library
 - **AI Integration**: Anthropic Claude API for receipt parsing
@@ -384,6 +384,15 @@ The application is configured for automatic deployment on Vercel. Any code pushe
 - **Environment Variables**: Secure API key management
 - **Performance Monitoring**: Real-time performance insights
 - **Global CDN**: Fast loading worldwide
+
+## TypeScript 7
+
+TypeScript 7.0 is a native compiler and does not ship the JavaScript compiler API that `typescript-eslint` (via `eslint-config-next`) still needs. The install follows Microsoft's side-by-side layout:
+
+- `@typescript/native` → `typescript@^7` (`npx tsc` is TypeScript 7)
+- `typescript` → `@typescript/typescript6` (ESLint and other tools `require('typescript')` the 6.x API)
+
+Next.js 16 type-checks with the TypeScript package's CLI (`tsc6` in this layout). Use `npx tsc --noEmit` for a TypeScript 7 check. Jest config is `jest.config.js` so Jest does not need the compiler API to start. Collapse back to a single `typescript` package once `typescript-eslint` supports TypeScript 7.1's API ([tracking issue](https://github.com/typescript-eslint/typescript-eslint/issues/10940)).
 
 ## Continuous Integration
 
