@@ -9,7 +9,7 @@ import { RECEIPT_IMAGE_STORAGE_KEY, safeGetItem, safeRemoveItem, safeSetItem } f
  * unlike the legacy singular `receiptSplitterImage` key, which held a
  * full-size ~5 MB data URL. Object key insertion order is preserved by
  * JSON round-trips, so the last inserted entry is the most recently accepted
- * receipt (used to restore the dropzone preview).
+ * receipt. Each thumbnail is shown in that receipt's details card.
  */
 export const RECEIPT_THUMBNAILS_STORAGE_KEY = "receiptSplitterThumbnails";
 

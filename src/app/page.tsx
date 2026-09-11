@@ -695,6 +695,7 @@ export default function Home() {
             setIsLoading={setIsLoading}
             resetImageTrigger={resetImageTrigger}
             maxRemaining={MAX_RECEIPTS_PER_SESSION - state.receipts.length}
+            hasReceipts={hasReceipt}
           />
 
           <ParsedReceiptsList
