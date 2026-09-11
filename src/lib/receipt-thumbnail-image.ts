@@ -1,8 +1,8 @@
 import imageCompression from "browser-image-compression";
-import { safeSetItem } from "@/lib/storage";
 import {
-  RECEIPT_THUMBNAILS_STORAGE_KEY,
   setThumbnail,
+  getThumbnails,
+  removeThumbnail,
 } from "@/lib/receipt-thumbnails";
 
 /** Max thumbnail edge in px. Small enough to be a few KB as a JPEG. */
@@ -57,18 +57,11 @@ export function persistReceiptThumbnail(
   if (setThumbnail(receiptId, dataUrl)) return true;
   // Quota (or another write failure): drop older thumbnails to make room,
   // never the entry we are about to write.
-  try {
-    const raw = localStorage.getItem(RECEIPT_THUMBNAILS_STORAGE_KEY);
-    const parsed = raw ? (JSON.parse(raw) as Record<string, string>) : {};
-    for (const id of Object.keys(parsed)) {
-      if (id === receiptId) continue;
-      delete parsed[id];
-      if (safeSetItem(RECEIPT_THUMBNAILS_STORAGE_KEY, JSON.stringify({ ...parsed, [receiptId]: dataUrl }))) {
-        return true;
-      }
-    }
-  } catch {
-    // fall through
+  const existing = getThumbnails();
+  for (const id of Object.keys(existing)) {
+    if (id === receiptId) continue;
+    removeThumbnail(id);
+    if (setThumbnail(receiptId, dataUrl)) return true;
   }
   return false;
 }

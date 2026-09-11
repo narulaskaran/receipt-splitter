@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { ChevronDown, Trash2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +14,11 @@ import { ReceiptDetails } from "@/components/receipt-details";
 import { formatCurrency } from "@/lib/receipt-utils";
 import { MAX_RECEIPTS_PER_SESSION } from "@/lib/constants";
 import { receiptDisplayName } from "@/lib/receipt-labels";
-import { getThumbnails } from "@/lib/receipt-thumbnails";
+import {
+  EMPTY_THUMBNAILS,
+  getThumbnails,
+  subscribeThumbnails,
+} from "@/lib/receipt-thumbnails";
 import { type Receipt, type StoredReceipt } from "@/types";
 
 interface ParsedReceiptsListProps {
@@ -31,9 +35,11 @@ export function ParsedReceiptsList({
   const lastId = receipts[receipts.length - 1]?.id ?? null;
   const [expandedId, setExpandedId] = useState<string | null>(lastId);
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
-  // Read on render so the details-card image appears once persist finishes
-  // and the parent re-renders (isLoading goes false after the thumbnail write).
-  const thumbnails = getThumbnails();
+  const thumbnails = useSyncExternalStore(
+    subscribeThumbnails,
+    getThumbnails,
+    () => EMPTY_THUMBNAILS
+  );
 
   useEffect(() => {
     if (lastId) {
