@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ParsedReceiptsList } from "./parsed-receipts-list";
 import { createMockReceipt, createStoredReceipt } from "@/test/test-utils";
+import { setThumbnail } from "@/lib/receipt-thumbnails";
 
 describe("ParsedReceiptsList", () => {
   it("renders restaurant, date, item count, total, and currency", () => {
@@ -162,6 +163,38 @@ describe("ParsedReceiptsList", () => {
       "src",
       "data:image/jpeg;base64,thumbA"
     );
+    expect(screen.getByAltText("Cafe One receipt image")).toHaveAttribute(
+      "src",
+      "data:image/jpeg;base64,thumbA"
+    );
+  });
+
+  it("shows a thumbnail written after mount without a receipts prop change", async () => {
+    const stored = createStoredReceipt(
+      createMockReceipt({ restaurant: "Cafe One" }),
+      "r1"
+    );
+
+    render(
+      <ParsedReceiptsList
+        receipts={[stored]}
+        onReceiptUpdate={jest.fn()}
+        onRemoveReceipt={jest.fn()}
+      />
+    );
+
+    expect(
+      screen.queryByAltText("Cafe One receipt preview")
+    ).not.toBeInTheDocument();
+
+    setThumbnail("r1", "data:image/jpeg;base64,thumbA");
+
+    await waitFor(() => {
+      expect(screen.getByAltText("Cafe One receipt preview")).toHaveAttribute(
+        "src",
+        "data:image/jpeg;base64,thumbA"
+      );
+    });
     expect(screen.getByAltText("Cafe One receipt image")).toHaveAttribute(
       "src",
       "data:image/jpeg;base64,thumbA"

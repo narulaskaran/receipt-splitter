@@ -146,12 +146,15 @@ afterAll(() => {
 // Global Test Cleanup
 // =============================================================================
 
+import { resetThumbnailsStore } from "@/lib/receipt-thumbnails";
+
 beforeEach(() => {
   // Clear all mock call history between tests
   jest.clearAllMocks();
 
   // Reset localStorage between tests
   localStorageMock.clear();
+  resetThumbnailsStore();
 });
 
 // Note: Individual tests that modify navigator.share should restore it in their own afterEach

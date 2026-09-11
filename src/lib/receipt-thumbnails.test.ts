@@ -7,6 +7,7 @@ import {
   pruneThumbnails,
   removeThumbnail,
   setThumbnail,
+  subscribeThumbnails,
 } from "./receipt-thumbnails";
 import { RECEIPT_IMAGE_STORAGE_KEY } from "./storage";
 
@@ -129,6 +130,32 @@ describe("receipt-thumbnails", () => {
       expect(keys.filter((k) => k.startsWith("receiptSplitter"))).toEqual([
         RECEIPT_THUMBNAILS_STORAGE_KEY,
       ]);
+    });
+  });
+
+  describe("in-memory snapshot", () => {
+    it("returns the same object when storage has not changed", () => {
+      setThumbnail("r1", THUMB_A);
+      expect(getThumbnails()).toBe(getThumbnails());
+    });
+
+    it("notifies subscribers after a write so React can skip storage reads", () => {
+      const listener = jest.fn();
+      const unsubscribe = subscribeThumbnails(listener);
+      setThumbnail("r1", THUMB_A);
+      expect(listener).toHaveBeenCalledTimes(1);
+      removeThumbnail("r1");
+      expect(listener).toHaveBeenCalledTimes(2);
+      unsubscribe();
+      setThumbnail("r2", THUMB_B);
+      expect(listener).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not notify when a write is rejected", () => {
+      const listener = jest.fn();
+      subscribeThumbnails(listener);
+      expect(setThumbnail("r1", "pdf-placeholder")).toBe(false);
+      expect(listener).not.toHaveBeenCalled();
     });
   });
 });
