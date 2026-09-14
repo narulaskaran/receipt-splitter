@@ -285,6 +285,8 @@ export interface ReceiptValidationError {
   actual?: number;
   diff?: number;
   tolerance?: number;
+  /** ISO 4217 code of the receipt that produced this error. */
+  currency?: string;
 }
 
 /**
@@ -536,18 +538,53 @@ export function validateReceiptInvariants(
     });
   });
 
+  const currency = normalizeCurrencyCode(receipt.currency);
   return {
     isValid: errors.length === 0,
-    errors,
+    errors: errors.map((error) => ({ ...error, currency })),
   };
 }
 
+export function normalizeCurrencyCode(code: string): string {
+  return code.trim().toUpperCase();
+}
+
 /**
- * Session currency is the first receipt's currency. Mixed-currency splits
- * are not supported; later receipts must match this code.
+ * Session currency is the first receipt's currency, normalized to a trimmed
+ * uppercase ISO code. It remains the session pin for display and confirmation
+ * messaging; accepted overrides are grouped separately in
+ * calculateSessionPersonTotalsByCurrency.
  */
 export function sessionCurrency(receipts: StoredReceipt[]): string | undefined {
-  return receipts[0]?.receipt.currency;
+  const currency = receipts[0]?.receipt.currency;
+  if (currency === undefined || currency.trim() === "") {
+    return undefined;
+  }
+  return normalizeCurrencyCode(currency);
+}
+
+/** Distinct session currencies in first-seen order. */
+export function sessionCurrencies(receipts: StoredReceipt[]): string[] {
+  const seen = new Set<string>();
+  const codes: string[] = [];
+  for (const stored of receipts) {
+    const code = normalizeCurrencyCode(stored.receipt.currency);
+    if (code === "" || seen.has(code)) continue;
+    seen.add(code);
+    codes.push(code);
+  }
+  return codes;
+}
+
+/** Receipts whose currency matches `currency` (trimmed, case-insensitive). */
+export function receiptsInCurrency(
+  receipts: StoredReceipt[],
+  currency: string
+): StoredReceipt[] {
+  const normalized = normalizeCurrencyCode(currency);
+  return receipts.filter(
+    (stored) => normalizeCurrencyCode(stored.receipt.currency) === normalized
+  );
 }
 
 /**
@@ -561,12 +598,16 @@ export function validateReceiptCurrency(
   if (currency === undefined || currency.trim() === "") {
     return true;
   }
-  return receipt.currency.trim().toUpperCase() === currency.trim().toUpperCase();
+  return normalizeCurrencyCode(receipt.currency) === normalizeCurrencyCode(currency);
 }
 
 /**
  * Aggregates per-receipt person totals across a session.
  * Always delegates tax/tip math to calculatePersonTotals.
+ *
+ * Amounts are summed in receipt units with no FX conversion. The result is
+ * only meaningful when every receipt shares one currency; mixed sessions
+ * should display calculateSessionPersonTotalsByCurrency instead.
  */
 export function calculateSessionPersonTotals(
   receipts: StoredReceipt[],
@@ -610,6 +651,47 @@ export function calculateSessionPersonTotals(
     tax: person.tax.toNumber(),
     tip: person.tip.toNumber(),
     finalTotal: person.finalTotal.toNumber(),
+  }));
+}
+
+export interface SessionCurrencyTotals {
+  currency: string;
+  people: Person[];
+}
+
+/**
+ * Aggregates session totals independently for each currency. Currency groups
+ * preserve first-seen order and never combine amounts across exchange rates.
+ */
+export function calculateSessionPersonTotalsByCurrency(
+  receipts: StoredReceipt[],
+  people: Person[],
+  assignedItems: Map<string, ItemAssignments>
+): SessionCurrencyTotals[] {
+  const receiptGroups = new Map<string, StoredReceipt[]>();
+
+  for (const stored of receipts) {
+    const currency = normalizeCurrencyCode(stored.receipt.currency);
+    const group = receiptGroups.get(currency) ?? [];
+    group.push(stored);
+    receiptGroups.set(currency, group);
+  }
+
+  const groups = [...receiptGroups.entries()].map(([currency, groupedReceipts]) => ({
+    currency,
+    people: calculateSessionPersonTotals(groupedReceipts, people, assignedItems),
+  }));
+
+  // Single-currency sessions keep $0 rows so Venmo sharing still requires
+  // every participant to have a positive total. Mixed sessions only list
+  // people who actually have items in that currency.
+  if (groups.length <= 1) {
+    return groups;
+  }
+
+  return groups.map((group) => ({
+    ...group,
+    people: group.people.filter((person) => person.items.length > 0),
   }));
 }
 
@@ -718,7 +800,13 @@ export function validateSessionInvariants(
   const errors: ReceiptValidationError[] = [];
   for (const stored of receipts) {
     const inner = assignedItems.get(stored.id) ?? new Map();
-    const result = validateReceiptInvariants(stored.receipt, inner, people);
+    const receiptPeople = calculatePersonTotals(
+      stored.receipt,
+      people,
+      inner,
+      stored.id
+    );
+    const result = validateReceiptInvariants(stored.receipt, inner, receiptPeople);
     errors.push(...result.errors);
   }
 
