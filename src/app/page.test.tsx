@@ -401,6 +401,75 @@ describe("Home Page", () => {
       expect(screen.getByText(/1 receipt · USD/)).toBeInTheDocument();
     });
 
+    it("accepts a mismatched currency after explicit confirmation", async () => {
+      (window.confirm as jest.Mock).mockReturnValueOnce(true);
+      loadV2({ people: mockPeople });
+      render(<Home />);
+
+      await uploadParsedReceipt(
+        createMockReceipt({ restaurant: "Paris Bistro", currency: "EUR" })
+      );
+
+      await waitFor(() => {
+        expect(window.confirm).toHaveBeenCalledWith(
+          "This receipt is EUR but this split is USD — keep anyway?"
+        );
+        expect(screen.getAllByText("Paris Bistro").length).toBeGreaterThan(0);
+      });
+      expect(toast.error).not.toHaveBeenCalled();
+
+      goToPeopleTab();
+      expect(screen.getByText(/2 receipts · USD, EUR/)).toBeInTheDocument();
+    });
+
+    it("rejects a mismatched currency when confirmation is cancelled", async () => {
+      (window.confirm as jest.Mock).mockReturnValueOnce(false);
+      loadV2({ people: mockPeople });
+      render(<Home />);
+
+      await uploadParsedReceipt(
+        createMockReceipt({ restaurant: "Paris Bistro", currency: "EUR" })
+      );
+
+      await waitFor(() => {
+        expect(window.confirm).toHaveBeenCalledWith(
+          "This receipt is EUR but this split is USD — keep anyway?"
+        );
+        expect(toast.error).toHaveBeenCalledWith(
+          "This receipt is EUR, but this split is in USD."
+        );
+      });
+      expect(screen.queryByText("Paris Bistro")).not.toBeInTheDocument();
+    });
+
+    it("does not re-prompt for a currency already accepted in the session", async () => {
+      loadV2({
+        people: mockPeople,
+        receipts: [
+          { id: "r1", receipt: mockReceipt },
+          {
+            id: "r2",
+            receipt: createMockReceipt({ restaurant: "Paris Bistro", currency: "EUR" }),
+          },
+        ],
+        assignedItems: [
+          ["r1", []],
+          ["r2", []],
+        ],
+      });
+      render(<Home />);
+
+      await uploadParsedReceipt(
+        createMockReceipt({ restaurant: "Second Bistro", currency: "EUR" })
+      );
+
+      await waitFor(() => {
+        expect(screen.getAllByText("Second Bistro").length).toBeGreaterThan(0);
+      });
+      expect(window.confirm).not.toHaveBeenCalled();
+      expect(toast.error).not.toHaveBeenCalled();
+    });
+
     it("keeps people after removing a receipt", async () => {
       loadV2({
         people: mockPeople,
@@ -532,6 +601,37 @@ describe("Home Page", () => {
       expect(screen.queryByText(/· EUR$/)).not.toBeInTheDocument();
     });
 
+    it("accepts a currency edit after explicit confirmation", async () => {
+      (window.confirm as jest.Mock).mockReturnValueOnce(true);
+      loadV2({
+        receipts: [
+          { id: "r1", receipt: mockReceipt },
+          {
+            id: "r2",
+            receipt: createMockReceipt({ restaurant: "Second Cafe" }),
+          },
+        ],
+        assignedItems: [
+          ["r1", []],
+          ["r2", []],
+        ],
+      });
+      render(<Home />);
+
+      fireEvent.click(screen.getAllByRole("button", { name: /edit/i })[0]);
+      fireEvent.click(screen.getByRole("combobox", { name: /currency/i }));
+      fireEvent.click(screen.getByRole("option", { name: /EUR - Euro/i }));
+      fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+
+      await waitFor(() => {
+        expect(window.confirm).toHaveBeenCalledWith(
+          "This receipt is EUR but this split is USD — keep anyway?"
+        );
+        expect(screen.getByText(/EUR - Euro/)).toBeInTheDocument();
+      });
+      expect(toast.error).not.toHaveBeenCalled();
+    });
+
     it("allows changing currency when the session has a single receipt", async () => {
       loadV2();
       render(<Home />);
@@ -545,6 +645,96 @@ describe("Home Page", () => {
         expect(screen.getByText(/EUR - Euro/)).toBeInTheDocument();
       });
       expect(toast.error).not.toHaveBeenCalled();
+    });
+
+    describe("mixed-currency results", () => {
+    const euroReceipt = createMockReceipt({
+      restaurant: "Paris Bistro",
+      currency: "EUR",
+      subtotal: 10,
+      tax: 1,
+      tip: 0,
+      total: 11,
+      items: [{ name: "Croissant", price: 10, quantity: 1 }],
+    });
+
+    function loadMixedCurrency() {
+      loadV2({
+        people: mockPeople,
+        activeTab: "results",
+        receipts: [
+          { id: "r1", receipt: mockReceipt },
+          { id: "r2", receipt: euroReceipt },
+        ],
+        assignedItems: [
+          [
+            "r1",
+            [
+              [0, [{ personId: "a", sharePercentage: 100 }]],
+              [1, [{ personId: "b", sharePercentage: 100 }]],
+            ],
+          ],
+          ["r2", [[0, [{ personId: "a", sharePercentage: 100 }]]]],
+        ],
+      });
+    }
+
+    it("renders separate result cards and disables Venmo sharing for mixed currencies", () => {
+      loadMixedCurrency();
+      render(<Home />);
+
+      expect(screen.getByText("Results Summary · USD")).toBeInTheDocument();
+      expect(screen.getByText("Results Summary · EUR")).toBeInTheDocument();
+      expect(
+        screen.getAllByText("Venmo sharing is available only for single-currency splits.")
+      ).toHaveLength(2);
+      expect(screen.queryByPlaceholderText("e.g. 555-123-4567")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /share split/i })).not.toBeInTheDocument();
+      expect(screen.getByText("USD")).toBeInTheDocument();
+      expect(screen.getByText("EUR")).toBeInTheDocument();
+      expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
+      expect(screen.queryByText("€0.00")).not.toBeInTheDocument();
+    });
+
+    it("scopes share text to receipts in that currency", async () => {
+      const originalShare = navigator.share;
+      const shareMock = jest.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, "share", {
+        configurable: true,
+        writable: true,
+        value: shareMock,
+      });
+
+      loadMixedCurrency();
+      render(<Home />);
+
+      const shareButtons = screen.getAllByRole("button", { name: /share text/i });
+      fireEvent.click(shareButtons[0]);
+      await waitFor(() => {
+        expect(shareMock).toHaveBeenCalled();
+      });
+      const usdText = shareMock.mock.calls[0][0].text as string;
+      expect(usdText).toContain("Currency: USD");
+      expect(usdText).toContain("Day total");
+      expect(usdText).not.toContain("Paris Bistro");
+      expect(usdText).not.toContain("Receipt for");
+
+      fireEvent.click(shareButtons[1]);
+      await waitFor(() => {
+        expect(shareMock).toHaveBeenCalledTimes(2);
+      });
+      const eurText = shareMock.mock.calls[1][0].text as string;
+      expect(eurText).toContain("Currency: EUR");
+      expect(eurText).toContain("Day total");
+      expect(eurText).not.toContain("Testaurant");
+      expect(eurText).not.toContain("Receipt for");
+
+      Object.defineProperty(navigator, "share", {
+        configurable: true,
+        writable: true,
+        value: originalShare,
+      });
+    });
     });
   });
 

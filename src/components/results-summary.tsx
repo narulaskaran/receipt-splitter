@@ -11,7 +11,11 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { type Person } from "@/types";
-import { formatCurrency, type ReceiptValidationResult } from "@/lib/receipt-utils";
+import {
+  formatCurrency,
+  type ReceiptValidationResult,
+  type SessionCurrencyTotals,
+} from "@/lib/receipt-utils";
 import {
   generateShareableUrl,
   validateSerializationInput,
@@ -23,6 +27,7 @@ import { useState } from "react";
 export interface ReceiptBreakdown {
   name: string;
   date: string | null;
+  currency?: string;
   people: Person[];
 }
 
@@ -33,6 +38,8 @@ interface ResultsSummaryProps {
   currencyCode?: string;
   validationResult?: ReceiptValidationResult;
   receiptBreakdown?: ReceiptBreakdown[];
+  /** All currency groups in the session, used to gate Venmo sharing. */
+  currencyGroups?: SessionCurrencyTotals[];
 }
 
 function receiptLabel(receipt: ReceiptBreakdown): string {
@@ -46,6 +53,7 @@ export function ResultsSummary({
   currencyCode,
   validationResult,
   receiptBreakdown,
+  currencyGroups,
 }: ResultsSummaryProps) {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [shareStatus, setShareStatus] = useState<
@@ -54,19 +62,25 @@ export function ResultsSummary({
   // Sort people by final total (highest first)
   const sortedPeople = [...people].sort((a, b) => b.finalTotal - a.finalTotal);
   const showBreakdown = (receiptBreakdown?.length ?? 0) > 1;
+  const isSingleCurrency = (currencyGroups?.length ?? 1) === 1;
+  const showDayTotalHeading = showBreakdown || !isSingleCurrency;
 
   // Create a shareable text summary matching on-screen order:
   // Day total (people amounts), then By receipt (restaurant + date).
   const createShareText = (): string => {
     let text = "";
 
-    if (showBreakdown) {
+    if (!isSingleCurrency && currencyCode) {
+      text += `Currency: ${currencyCode}\n`;
+    }
+
+    if (showDayTotalHeading) {
       text += "Day total\n";
       sortedPeople.forEach((person) => {
         text += `${person.name}: ${formatCurrency(person.finalTotal, currencyCode)}\n`;
       });
 
-      if (receiptBreakdown) {
+      if (showBreakdown && receiptBreakdown) {
         text += "\nBy receipt\n";
         receiptBreakdown.forEach((receipt) => {
           text += `${receiptLabel(receipt)}:\n`;
@@ -213,6 +227,7 @@ export function ResultsSummary({
     people.length > 0 &&
     people.every((person) => person.finalTotal > 0) &&
     phoneNumber.replace(/\D/g, "").length >= 10 &&
+    isSingleCurrency &&
     (!validationResult || validationResult.isValid);
 
   if (people.length === 0) {
@@ -221,55 +236,60 @@ export function ResultsSummary({
 
   return (
     <div className="w-full flex flex-col gap-4">
-      <div className="flex flex-col gap-3">
-        <label
-          htmlFor="venmo-phone"
-          className="font-medium text-sm sm:text-base"
-        >
-          Your Phone Number (for Venmo):
-        </label>
-        <div className="flex gap-3">
-          <input
-            id="venmo-phone"
-            type="tel"
-            placeholder="e.g. 555-123-4567"
-            value={phoneNumber}
-            onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ""))}
-            className="flex-1 min-h-[44px] border rounded-lg px-4 py-2 text-base sm:text-sm transition-all duration-200 focus:ring-2 focus:ring-primary/20 focus:border-primary"
-          />
-          <Button
-            variant={shareStatus === "success" ? "default" : "outline"}
-            className="flex items-center justify-center gap-2 text-base sm:text-sm font-medium transition-all duration-200 hover:shadow-md active:scale-95 whitespace-nowrap"
-            onClick={shareSplit}
-            disabled={!canShareSplit || shareStatus === "copying"}
+      {isSingleCurrency ? (
+        <div className="flex flex-col gap-3">
+          <label
+            htmlFor="venmo-phone"
+            className="font-medium text-sm sm:text-base"
           >
-            {shareStatus === "copying" && (
-              <div className="h-5 w-5 sm:h-4 sm:w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-            )}
-            {shareStatus === "success" && (
-              <Check className="h-5 w-5 sm:h-4 sm:w-4" />
-            )}
-            {shareStatus === "idle" && (
-              <Link2 className="h-5 w-5 sm:h-4 sm:w-4" />
-            )}
-            {shareStatus === "error" && (
-              <Link2 className="h-5 w-5 sm:h-4 sm:w-4" />
-            )}
-            <span>
-              {shareStatus === "copying" && "Copying..."}
-              {shareStatus === "success" && "Copied!"}
-              {(shareStatus === "idle" || shareStatus === "error") &&
-                "Share Split"}
-            </span>
-          </Button>
+            Your Phone Number (for Venmo):
+          </label>
+          <div className="flex gap-3">
+            <input
+              id="venmo-phone"
+              type="tel"
+              placeholder="e.g. 555-123-4567"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ""))}
+              className="flex-1 min-h-[44px] border rounded-lg px-4 py-2 text-base sm:text-sm transition-all duration-200 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+            />
+            <Button
+              variant={shareStatus === "success" ? "default" : "outline"}
+              className="flex items-center justify-center gap-2 text-base sm:text-sm font-medium transition-all duration-200 hover:shadow-md active:scale-95 whitespace-nowrap"
+              onClick={shareSplit}
+              disabled={!canShareSplit || shareStatus === "copying"}
+            >
+              {shareStatus === "copying" && (
+                <div className="h-5 w-5 sm:h-4 sm:w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              )}
+              {shareStatus === "success" && (
+                <Check className="h-5 w-5 sm:h-4 sm:w-4" />
+              )}
+              {shareStatus === "idle" && (
+                <Link2 className="h-5 w-5 sm:h-4 sm:w-4" />
+              )}
+              {shareStatus === "error" && (
+                <Link2 className="h-5 w-5 sm:h-4 sm:w-4" />
+              )}
+              <span>
+                {shareStatus === "copying" && "Copying..."}
+                {shareStatus === "success" && "Copied!"}
+                {(shareStatus === "idle" || shareStatus === "error") &&
+                  "Share Split"}
+              </span>
+            </Button>
+          </div>
         </div>
-      </div>
-
-
+      ) : null}
 
       <Card className="w-full">
         <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <CardTitle className="text-xl sm:text-2xl">Results Summary</CardTitle>
+          <CardTitle className="text-xl sm:text-2xl">
+            Results Summary
+            {currencyGroups && currencyGroups.length > 1 && currencyCode
+              ? ` · ${currencyCode}`
+              : ""}
+          </CardTitle>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
             <Button
               variant="outline"
@@ -281,14 +301,21 @@ export function ResultsSummary({
             </Button>
           </div>
         </CardHeader>
+        {!isSingleCurrency ? (
+          <p className="px-6 text-sm text-muted-foreground">
+            Venmo sharing is available only for single-currency splits.
+          </p>
+        ) : null}
         <CardContent className="p-6">
           <div className="flex flex-col gap-6">
           <div
             data-testid={showBreakdown ? "day-total" : undefined}
             className="flex flex-col gap-2"
           >
-            {showBreakdown ? (
-              <h2 className="font-semibold text-base sm:text-lg">Day total</h2>
+            {showDayTotalHeading ? (
+              <h2 className="font-semibold text-base sm:text-lg">
+                Day total{!isSingleCurrency && currencyCode ? ` · ${currencyCode}` : ""}
+              </h2>
             ) : null}
 
           {/* Mobile-friendly responsive table */}
