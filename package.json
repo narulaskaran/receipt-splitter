@@ -44,8 +44,8 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
-    "@babel/core": "^8.0.0",
-    "@babel/preset-env": "^8.0.2",
+    "@babel/core": "^8.0.5",
+    "@babel/preset-env": "^8.0.5",
     "@babel/preset-react": "^8.0.1",
     "@babel/preset-typescript": "^8.0.1",
     "@ducanh2912/next-pwa": "^10.2.9",
