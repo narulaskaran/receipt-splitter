@@ -8,6 +8,10 @@ interface ValidationErrorsProps {
   className?: string;
 }
 
+function amountCurrency(error: ReceiptValidationError, fallback?: string) {
+  return error.currency ?? fallback;
+}
+
 export function ValidationErrors({ errors, currencyCode, className = "" }: ValidationErrorsProps) {
   if (errors.length === 0) {
     return null;
@@ -65,16 +69,16 @@ export function ValidationErrors({ errors, currencyCode, className = "" }: Valid
                   </div>
                   {error.diff !== undefined && error.tolerance !== undefined && (
                     <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                      Off by {formatCurrency(Math.abs(error.diff), currencyCode)}
+                      Off by {formatCurrency(Math.abs(error.diff), amountCurrency(error, currencyCode))}
                       {error.expected !== undefined && error.actual !== undefined && (
                         <>
-                          {" "}(expected: {formatCurrency(error.expected, currencyCode)},
-                          actual: {formatCurrency(error.actual, currencyCode)})
+                          {" "}(expected: {formatCurrency(error.expected, amountCurrency(error, currencyCode))},
+                          actual: {formatCurrency(error.actual, amountCurrency(error, currencyCode))})
                         </>
                       )}
                       <div className="flex items-center gap-1 mt-1 text-gray-500 dark:text-gray-400">
                         <Info className="h-3 w-3" />
-                        Allowed tolerance: ±{formatCurrency(error.tolerance, currencyCode)}
+                        Allowed tolerance: ±{formatCurrency(error.tolerance, amountCurrency(error, currencyCode))}
                       </div>
                     </div>
                   )}
@@ -101,7 +105,7 @@ export function ValidationErrors({ errors, currencyCode, className = "" }: Valid
                   </div>
                   {error.actual !== undefined && (
                     <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                      Current value: {formatCurrency(error.actual, currencyCode)}
+                      Current value: {formatCurrency(error.actual, amountCurrency(error, currencyCode))}
                     </div>
                   )}
                 </li>

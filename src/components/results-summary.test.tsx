@@ -729,11 +729,53 @@ describe("ResultsSummary", () => {
         const clipboardContent = (navigator.clipboard.writeText as jest.Mock).mock.calls.at(-1)?.[0];
         expect(clipboardContent).toContain("receipts=");
         const receipts = JSON.parse(new URL(clipboardContent).searchParams.get("receipts")!);
-        expect(receipts).toEqual([
+          expect(receipts).toEqual([
           { label: "Coffee Shop · 2024-01-01", amounts: [2500] },
           { label: "Lunch Place · 2024-01-01", amounts: [3500] },
         ]);
       });
+    });
+
+    it("uses Day total share text for a single-receipt mixed-currency group", async () => {
+      const originalShare = navigator.share;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (navigator as any).share;
+
+      try {
+        render(
+          <ResultsSummary
+            people={[alice]}
+            receiptName="Paris Bistro"
+            receiptDate="2024-01-02"
+            currencyCode="EUR"
+            receiptBreakdown={[
+              { name: "Paris Bistro", date: "2024-01-02", people: [alice] },
+            ]}
+            currencyGroups={[
+              { currency: "USD", people: [] },
+              { currency: "EUR", people: [alice] },
+            ]}
+          />
+        );
+
+        expect(screen.queryByPlaceholderText("e.g. 555-123-4567")).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /share split/i })).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: /share text/i }));
+
+        await waitFor(() => {
+          const clipboardContent = (navigator.clipboard.writeText as jest.Mock).mock.calls[0][0];
+          expect(clipboardContent).toContain("Currency: EUR");
+          expect(clipboardContent).toContain("Day total");
+          expect(clipboardContent).not.toContain("Receipt for Paris Bistro");
+          expect(clipboardContent).not.toContain("By receipt");
+        });
+      } finally {
+        Object.defineProperty(navigator, "share", {
+          value: originalShare,
+          writable: true,
+          configurable: true,
+        });
+      }
     });
   });
 });
