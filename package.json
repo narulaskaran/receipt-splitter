@@ -39,7 +39,7 @@
     "react-dom": "^19.3.0",
     "react-dropzone": "^14.3.8",
     "sonner": "^2.0.8",
-    "tailwind-merge": "^3.6.0",
+    "tailwind-merge": "^3.7.0",
     "uploadthing": "^7.7.4",
     "zod": "^4.5.4"
   },
