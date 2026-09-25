@@ -44,8 +44,8 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
-    "@babel/core": "^8.0.5",
-    "@babel/preset-env": "^8.0.5",
+    "@babel/core": "^8.0.6",
+    "@babel/preset-env": "^8.0.6",
     "@babel/preset-react": "^8.0.1",
     "@babel/preset-typescript": "^8.0.1",
     "@ducanh2912/next-pwa": "^10.2.9",
@@ -62,8 +62,8 @@
     "eslint": "^10",
     "eslint-config-next": "^16.3.5",
     "identity-obj-proxy": "^3.0.0",
-    "jest": "^30.5.1",
-    "jest-environment-jsdom": "^30.5.1",
+    "jest": "^30.5.2",
+    "jest-environment-jsdom": "^30.5.2",
     "sharp": "^0.35.4",
     "tailwindcss": "^4",
     "typescript": "npm:@typescript/typescript6@^6.0.2"
