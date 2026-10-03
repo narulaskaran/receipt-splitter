@@ -245,7 +245,7 @@ There is no default per-endpoint rate limit. Platform DDoS mitigation is always 
 
 Receipt Splitter supports 20 international currencies with automatic AI detection and manual override.
 
-**Important**: Each receipt/split uses a **single currency**. All items, calculations, and payments are in the same currency. Mixed-currency splits are not supported.
+Each receipt uses a **single currency**. Uploading or editing a receipt in a different currency requires explicit confirmation. Mixed-currency sessions keep per-currency totals separate and never convert or sum amounts across exchange rates. Venmo split sharing stays available only for single-currency sessions.
 
 ### Supported Currencies
 - **Americas**: USD, CAD, MXN, BRL
@@ -264,10 +264,12 @@ Receipt Splitter supports 20 international currencies with automatic AI detectio
 - **USD Only**: Venmo payment button only appears for USD receipts
 - **Currency Validation**: `generateVenmoLink()` rejects non-USD currencies
 - **User Clarity**: Non-USD amounts display as formatted text instead of payment button
+- **Mixed sessions**: Venmo split sharing is disabled when a session contains more than one currency
 
 ### Currency in Components
 - **Receipt Details**: Shows "CODE - Name (Symbol)" format (e.g., "JPY - Japanese Yen (¥)")
-- **Split Sharing**: Currency preserved in shareable URLs with proper minor unit conversion
+- **Results**: Mixed-currency sessions render a Results card per currency; people with no items in a currency are omitted from that card
+- **Split Sharing**: Currency preserved in shareable URLs with proper minor unit conversion; share text and notes are scoped to that currency's receipts
 - **Format Currency**: All `formatCurrency()` calls accept optional `currencyCode` parameter
 
 ### Testing

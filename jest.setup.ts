@@ -54,6 +54,7 @@ if (typeof window !== "undefined") {
 
     // Mock window.alert
     window.alert = jest.fn();
+    window.confirm = jest.fn(() => false);
 
     // =============================================================================
     // Navigator API Mocks

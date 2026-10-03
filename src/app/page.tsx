@@ -28,13 +28,16 @@ import {
   getUnassignedItems,
   getSessionUnassigned,
   calculateSessionPersonTotals,
+  calculateSessionPersonTotalsByCurrency,
   calculatePerReceiptPersonTotals,
   sessionShareNote,
   sessionShareDate,
   validateSessionAssignments,
   validateSessionInvariants,
   sessionCurrency,
-  validateReceiptCurrency,
+  sessionCurrencies,
+  receiptsInCurrency,
+  normalizeCurrencyCode,
   distributeEqualShares,
 } from "@/lib/receipt-utils";
 import { MAX_RECEIPTS_PER_SESSION } from "@/lib/constants";
@@ -72,14 +75,36 @@ type ParseResult =
   | { status: "capped"; next: ReceiptState }
   | { status: "mismatch"; next: ReceiptState; pinned: string };
 
-function addParsedReceipt(prev: ReceiptState, receipt: Receipt): ParseResult {
+function confirmCurrencyOverride(receiptCurrency: string, pinned: string): boolean {
+  return window.confirm(
+    `This receipt is ${receiptCurrency} but this split is ${pinned} — keep anyway?`
+  );
+}
+
+function receiptMatchesSessionCurrencies(
+  receipt: Receipt,
+  receipts: ReceiptState["receipts"]
+): boolean {
+  const existing = sessionCurrencies(receipts);
+  if (existing.length === 0) return true;
+  return existing.includes(normalizeCurrencyCode(receipt.currency));
+}
+
+function addParsedReceipt(
+  prev: ReceiptState,
+  receipt: Receipt,
+  allowCurrencyOverride = false
+): ParseResult {
   if (prev.receipts.length >= MAX_RECEIPTS_PER_SESSION) {
     return { status: "capped", next: prev };
   }
 
-  const pinned = sessionCurrency(prev.receipts);
-  if (!validateReceiptCurrency(receipt, pinned)) {
-    return { status: "mismatch", next: prev, pinned: pinned as string };
+  const existingCurrencies = sessionCurrencies(prev.receipts);
+  if (
+    !allowCurrencyOverride &&
+    !receiptMatchesSessionCurrencies(receipt, prev.receipts)
+  ) {
+    return { status: "mismatch", next: prev, pinned: existingCurrencies.join(", ") };
   }
 
   const id = crypto.randomUUID();
@@ -111,14 +136,19 @@ function currencyChangeConflict(
   updatedReceipt: Receipt
 ): string | undefined {
   const existing = receipts.find((stored) => stored.id === receiptId);
-  if (!existing || existing.receipt.currency === updatedReceipt.currency) {
+  if (!existing) return undefined;
+  if (
+    normalizeCurrencyCode(existing.receipt.currency) ===
+    normalizeCurrencyCode(updatedReceipt.currency)
+  ) {
     return undefined;
   }
-  const pinned = sessionCurrency(receipts.filter((stored) => stored.id !== receiptId));
-  if (pinned && !validateReceiptCurrency(updatedReceipt, pinned)) {
-    return pinned;
+  const others = receipts.filter((stored) => stored.id !== receiptId);
+  if (receiptMatchesSessionCurrencies(updatedReceipt, others)) {
+    return undefined;
   }
-  return undefined;
+  const pinned = sessionCurrencies(others);
+  return pinned.length > 0 ? pinned.join(", ") : undefined;
 }
 
 function removeReceiptFromState(
@@ -144,11 +174,15 @@ function updateReceiptInState(
   prev: ReceiptState,
   receiptId: string,
   updatedReceipt: Receipt,
-  remappedAssignments?: Map<number, PersonItemAssignment[]>
+  remappedAssignments?: Map<number, PersonItemAssignment[]>,
+  allowCurrencyOverride = false
 ): ReceiptState {
   const existing = prev.receipts.find((stored) => stored.id === receiptId);
   if (!existing) return prev;
-  if (currencyChangeConflict(prev.receipts, receiptId, updatedReceipt)) {
+  if (
+    !allowCurrencyOverride &&
+    currencyChangeConflict(prev.receipts, receiptId, updatedReceipt)
+  ) {
     return prev;
   }
 
@@ -205,8 +239,19 @@ export default function Home() {
       ).map(({ stored, people }) => ({
         name: stored.receipt.restaurant || UNTITLED_RECEIPT_NAME,
         date: stored.receipt.date,
+        currency: normalizeCurrencyCode(stored.receipt.currency),
         people,
       })),
+    [state.receipts, state.people, state.assignedItems]
+  );
+
+  const currencyTotals = useMemo(
+    () =>
+      calculateSessionPersonTotalsByCurrency(
+        state.receipts,
+        state.people,
+        state.assignedItems
+      ),
     [state.receipts, state.people, state.assignedItems]
   );
 
@@ -312,7 +357,7 @@ export default function Home() {
   // Handle receipt upload — append to the current outing (people/groups stay).
   // Returns the new receipt id so the uploader can key its thumbnail to it.
   const handleReceiptParsed = (receipt: Receipt): string | false => {
-    const result = addParsedReceipt(stateRef.current, receipt);
+    let result = addParsedReceipt(stateRef.current, receipt);
     if (result.status === "capped") {
       toast.error(
         `This split already has ${MAX_RECEIPTS_PER_SESSION} receipts. Remove one to add another.`
@@ -320,10 +365,14 @@ export default function Home() {
       return false;
     }
     if (result.status === "mismatch") {
-      toast.error(
-        `This receipt is ${receipt.currency}, but this split is in ${result.pinned}.`
-      );
-      return false;
+      const confirmed = confirmCurrencyOverride(receipt.currency, result.pinned);
+      if (!confirmed) {
+        toast.error(
+          `This receipt is ${receipt.currency}, but this split is in ${result.pinned}.`
+        );
+        return false;
+      }
+      result = addParsedReceipt(stateRef.current, receipt, true);
     }
     commitState(result.next);
     toast.success("Receipt successfully parsed!");
@@ -380,7 +429,7 @@ export default function Home() {
     commitState(next);
   };
 
-  // Handle receipt updates. Currency mismatches are rejected like uploads.
+  // Handle receipt updates. Currency changes require explicit confirmation.
   const handleReceiptUpdate = (
     receiptId: string,
     updatedReceipt: Receipt,
@@ -391,18 +440,23 @@ export default function Home() {
       receiptId,
       updatedReceipt
     );
+    let allowCurrencyOverride = false;
     if (pinned) {
-      toast.error(
-        `This receipt is ${updatedReceipt.currency}, but this split is in ${pinned}.`
-      );
-      return false;
+      allowCurrencyOverride = confirmCurrencyOverride(updatedReceipt.currency, pinned);
+      if (!allowCurrencyOverride) {
+        toast.error(
+          `This receipt is ${updatedReceipt.currency}, but this split is in ${pinned}.`
+        );
+        return false;
+      }
     }
     commitState(
       updateReceiptInState(
         stateRef.current,
         receiptId,
         updatedReceipt,
-        remappedAssignments
+        remappedAssignments,
+        allowCurrencyOverride
       )
     );
     return true;
@@ -710,7 +764,7 @@ export default function Home() {
             <p className="text-sm text-muted-foreground">
               {state.receipts.length}{" "}
               {state.receipts.length === 1 ? "receipt" : "receipts"} ·{" "}
-              {sessionCurrency(state.receipts) ?? "USD"}
+              {sessionCurrencies(state.receipts).join(", ") || "USD"}
             </p>
           )}
 
@@ -758,16 +812,35 @@ export default function Home() {
         <TabsContent value="results" className="space-y-6">
           <ValidationErrors errors={validationResult.errors} currencyCode={activeReceipt?.currency} />
 
-          <ResultsSummary
-            people={state.people}
-            receiptName={sessionShareNote(state.receipts)}
-            receiptDate={sessionShareDate(state.receipts)}
-            currencyCode={sessionCurrency(state.receipts)}
-            validationResult={validationResult}
-            receiptBreakdown={receiptBreakdown}
-          />
+          {currencyTotals.map((group) => {
+            const groupReceipts = receiptsInCurrency(state.receipts, group.currency);
+            const groupErrors = validationResult.errors.filter(
+              (error) => error.currency === group.currency
+            );
+            return (
+              <ResultsSummary
+                key={group.currency}
+                people={group.people}
+                receiptName={sessionShareNote(groupReceipts)}
+                receiptDate={sessionShareDate(groupReceipts)}
+                currencyCode={group.currency}
+                validationResult={{
+                  isValid: groupErrors.length === 0,
+                  errors: groupErrors,
+                }}
+                receiptBreakdown={receiptBreakdown.filter(
+                  (receipt) => receipt.currency === group.currency
+                )}
+                currencyGroups={currencyTotals}
+              />
+            );
+          })}
 
-          <PersonItems people={state.people} currencyCode={sessionCurrency(state.receipts)} />
+          <PersonItems
+            people={state.people}
+            currencyCode={sessionCurrency(state.receipts)}
+            currencyGroups={currencyTotals}
+          />
         </TabsContent>
       </Tabs>
 
