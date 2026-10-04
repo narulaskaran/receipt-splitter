@@ -15,12 +15,44 @@ describe("ItemAssignment", () => {
         onReceiptUpdate={() => {}}
       />
     );
-    // Use getAllByText since we now have both desktop and mobile views
-    expect(screen.getAllByText(/Burger/)).toHaveLength(2);
-    expect(screen.getAllByText(/Fries/)).toHaveLength(2);
-    // Alice and Bob appear in assignment summaries in both desktop and mobile views
-    expect(screen.getAllByText(/Alice/).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Bob/).length).toBeGreaterThan(0);
+    // One shared layout for all screen sizes
+    expect(screen.getAllByText(/Burger/)).toHaveLength(1);
+    expect(screen.getAllByText(/Fries/)).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Alice" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Bob" })).toBeInTheDocument();
+  });
+
+  it("assigns a person from the item's picker", async () => {
+    const onAssignItems = jest.fn();
+    render(
+      <ItemAssignment
+        receipt={mockReceipt}
+        people={mockPeople}
+        assignedItems={new Map()}
+        unassignedItems={[0, 1]}
+        onAssignItems={onAssignItems}
+        onReceiptUpdate={() => {}}
+      />
+    );
+    fireEvent.click(screen.getAllByRole("button", { name: "Unassigned" })[0]);
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Alice" }));
+    expect(onAssignItems).toHaveBeenCalledWith(0, [
+      { personId: "a", sharePercentage: 100 },
+    ]);
+  });
+
+  it("formats item prices in the receipt currency", () => {
+    render(
+      <ItemAssignment
+        receipt={{ ...mockReceipt, currency: "EUR" }}
+        people={mockPeople}
+        assignedItems={new Map()}
+        unassignedItems={[0, 1]}
+        onAssignItems={() => {}}
+        onReceiptUpdate={() => {}}
+      />
+    );
+    expect(screen.getAllByTitle(/click to edit/i)[0]).toHaveTextContent("€");
   });
 
   describe("Add Item", () => {
@@ -213,12 +245,9 @@ describe("ItemAssignment", () => {
   });
 
   describe("Edit Split dialog (custom percentages)", () => {
-    /** Find the "Edit Split" pencil button for a given item row.
-     *  The pencil button immediately precedes the "Delete item" button in each row. */
+    /** Find the "Custom split" pencil button for a given item row. */
     const getEditSplitButton = (itemIndex: number) => {
-      const deleteButtons = screen.getAllByTitle(/delete item/i);
-      const deleteBtn = deleteButtons[itemIndex];
-      return deleteBtn.parentElement!.querySelector("button")! as HTMLElement;
+      return screen.getAllByTitle(/custom split/i)[itemIndex];
     };
 
     const threePersonReceipt = {
@@ -358,9 +387,7 @@ describe("ItemAssignment", () => {
 
   describe("Edit Split dialog (dollar-amount mode)", () => {
     const getEditSplitButton = (itemIndex: number) => {
-      const deleteButtons = screen.getAllByTitle(/delete item/i);
-      const deleteBtn = deleteButtons[itemIndex];
-      return deleteBtn.parentElement!.querySelector("button")! as HTMLElement;
+      return screen.getAllByTitle(/custom split/i)[itemIndex];
     };
 
     // $30 item, two people each with 50%

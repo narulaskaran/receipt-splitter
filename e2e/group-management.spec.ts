@@ -1,5 +1,10 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { preloadSession, baseState, emptyPerson } from "./helpers";
+import {
+  preloadSession,
+  baseState,
+  emptyPerson,
+  assignItemRow,
+} from "./helpers";
 
 const DINNER_CREW = {
   id: "g1",
@@ -66,7 +71,7 @@ test.describe("group management", () => {
 
     await expect(page.getByText('Group "Dinner Crew" created!')).toBeVisible();
     await expect(
-      page.getByText("Members: Alice, Bob", { exact: true }),
+      page.getByText("Alice, Bob", { exact: true }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Change emoji for Dinner Crew" }),
@@ -130,7 +135,7 @@ test.describe("group management", () => {
     await dialog.getByRole("button", { name: "Update Group" }).click();
 
     await expect(
-      page.getByText("Members: Alice, Bob, Charlie", { exact: true }),
+      page.getByText("Alice, Bob, Charlie", { exact: true }),
     ).toBeVisible();
   });
 
@@ -146,10 +151,10 @@ test.describe("group management", () => {
     await dialog.getByRole("button", { name: "Update Group" }).click();
 
     await expect(
-      page.getByText("Members: Alice, Bob", { exact: true }),
+      page.getByText("Alice, Bob", { exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByText("Members: Alice, Bob, Charlie", { exact: true }),
+      page.getByText("Alice, Bob, Charlie", { exact: true }),
     ).toHaveCount(0);
   });
 
@@ -183,10 +188,11 @@ test.describe("group management", () => {
       page.getByRole("button", { name: "Edit Dinner Crew" }),
     ).toHaveCount(0);
 
-    await page.getByRole("tab", { name: /assign items/i }).click();
-    const burgerRow = page.getByRole("row").filter({ hasText: "Burger" });
+    await page.getByRole("tab", { name: /assign/i }).click();
+    const burgerRow = assignItemRow(page, "Burger");
     await expect(burgerRow).toBeVisible();
-    await expect(burgerRow).toContainText("Alice");
-    await expect(burgerRow).toContainText("Bob");
+    await expect(
+      burgerRow.getByRole("button", { name: "Alice, Bob", exact: true }),
+    ).toBeVisible();
   });
 });

@@ -6,6 +6,9 @@ import { toast } from "sonner";
 // Note: Browser API mocks (clipboard, alert, navigator.share) are configured
 // globally in jest.setup.ts. Tests can override specific behaviors as needed.
 
+/** Expandable per-person rows in the totals list. */
+const personRows = () => screen.getAllByRole("button", { expanded: false });
+
 describe("ResultsSummary", () => {
   describe("Rendering", () => {
     it("renders nothing when no people are provided", () => {
@@ -24,7 +27,7 @@ describe("ResultsSummary", () => {
         />
       );
 
-      expect(screen.getByText("Results Summary")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Totals" })).toBeInTheDocument();
       expect(screen.getByText("Alice")).toBeInTheDocument();
       expect(screen.getByText("Bob")).toBeInTheDocument();
     });
@@ -84,33 +87,45 @@ describe("ResultsSummary", () => {
         />
       );
 
-      const rows = screen.getAllByRole("row");
-      // Skip header row
-      expect(rows[1]).toHaveTextContent("Bob");
-      expect(rows[2]).toHaveTextContent("Alice");
-      expect(rows[3]).toHaveTextContent("Charlie");
+      const rows = personRows();
+      expect(rows[0]).toHaveTextContent("Bob");
+      expect(rows[1]).toHaveTextContent("Alice");
+      expect(rows[2]).toHaveTextContent("Charlie");
     });
   });
 
-  describe("Table Display", () => {
-    it("displays all table headers", () => {
+  describe("Person rows", () => {
+    it("expands a person to show their items, tax, and tip", () => {
+      const person = {
+        ...mockPeople[0],
+        items: [
+          { itemId: 0, itemName: "Burger", originalPrice: 25, quantity: 1, sharePercentage: 100, amount: 25 },
+        ],
+        totalBeforeTax: 25,
+        tax: 2.5,
+        tip: 3.75,
+        finalTotal: 31.25,
+      };
       render(
         <ResultsSummary
-          people={mockPeople}
+          people={[person]}
           receiptName="Test Restaurant"
           receiptDate="2024-01-01"
         />
       );
 
-      expect(screen.getByText("Person")).toBeInTheDocument();
-      expect(screen.getByText("Total")).toBeInTheDocument();
-      // Desktop-only headers
+      expect(screen.queryByText("Burger")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /Alice/ }));
+      expect(screen.getByRole("button", { name: /Alice/ })).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByText("Burger")).toBeInTheDocument();
       expect(screen.getByText("Subtotal")).toBeInTheDocument();
       expect(screen.getByText("Tax")).toBeInTheDocument();
       expect(screen.getByText("Tip")).toBeInTheDocument();
+      expect(screen.getByText("$2.50")).toBeInTheDocument();
+      expect(screen.getByText("$3.75")).toBeInTheDocument();
     });
 
-    it("displays person data in table rows", () => {
+    it("shows each person's subtotal plus tax and tip", () => {
       const peopleWithTotals = [
         {
           ...mockPeople[0],
@@ -130,10 +145,9 @@ describe("ResultsSummary", () => {
       );
 
       expect(screen.getByText("Alice")).toBeInTheDocument();
-      expect(screen.getByText("$25.00")).toBeInTheDocument();
-      expect(screen.getByText("$2.50")).toBeInTheDocument();
-      expect(screen.getByText("$3.75")).toBeInTheDocument();
-      expect(screen.getByText("$31.25")).toBeInTheDocument();
+      expect(screen.getByText("$25.00 + $6.25 tax & tip")).toBeInTheDocument();
+      // Person total and the overall total
+      expect(screen.getAllByText("$31.25")).toHaveLength(2);
     });
   });
 
@@ -577,8 +591,7 @@ describe("ResultsSummary", () => {
       );
 
       expect(screen.getByText("Alice")).toBeInTheDocument();
-      const rows = screen.getAllByRole("row");
-      expect(rows).toHaveLength(2); // Header + 1 person
+      expect(personRows()).toHaveLength(1);
     });
 
     it("handles many people", () => {
@@ -597,8 +610,7 @@ describe("ResultsSummary", () => {
         />
       );
 
-      const rows = screen.getAllByRole("row");
-      expect(rows).toHaveLength(11); // Header + 10 people
+      expect(personRows()).toHaveLength(10);
     });
   });
 
@@ -648,7 +660,7 @@ describe("ResultsSummary", () => {
       );
       expect(screen.getByText("$25.00")).toBeInTheDocument();
       expect(screen.getByText("$35.00")).toBeInTheDocument();
-      expect(screen.getByText("$60.00")).toBeInTheDocument();
+      expect(screen.getAllByText("$60.00").length).toBeGreaterThan(0);
     });
 
     it("does not show a per-receipt section for a single receipt", () => {

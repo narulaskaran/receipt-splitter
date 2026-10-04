@@ -37,24 +37,23 @@ describe("Home Page", () => {
   describe("empty state", () => {
     it("starts on the upload tab with all downstream tabs and nav disabled", () => {
       render(<Home />);
-      expect(screen.getByRole("tab", { name: /upload receipt/i })).toHaveAttribute("data-state", "active");
-      expect(screen.getByText(/upload receipts, add people, and split the day/i)).toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: /add people/i })).toBeDisabled();
-      expect(screen.getByRole("tab", { name: /assign items/i })).toBeDisabled();
-      expect(screen.getByRole("tab", { name: /results/i })).toBeDisabled();
-      expect(screen.getByRole("button", { name: /back/i })).toBeDisabled();
-      expect(screen.getByRole("button", { name: /next/i })).toBeDisabled();
-      expect(screen.getByRole("button", { name: /new split/i })).toBeDisabled();
+      expect(screen.getByRole("tab", { name: /receipts/i })).toHaveAttribute("data-state", "active");
+      expect(screen.getByRole("heading", { name: /split a receipt in seconds/i })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /people/i })).toBeDisabled();
+      expect(screen.getByRole("tab", { name: /assign/i })).toBeDisabled();
+      expect(screen.getByRole("tab", { name: /totals/i })).toBeDisabled();
+      // Nothing to navigate or clear yet
+      expect(screen.queryByRole("navigation", { name: /step navigation/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /new split/i })).not.toBeInTheDocument();
     });
 
     it("shows the receipt uploader", () => {
       render(<Home />);
-      expect(screen.getByText(/drag and drop or click to select/i)).toBeInTheDocument();
+      expect(screen.getByText(/drag and drop, or tap to take a photo/i)).toBeInTheDocument();
     });
 
-    it("hides the progress bar and Split evenly button", () => {
+    it("hides the Split evenly button", () => {
       render(<Home />);
-      expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /split evenly/i })).not.toBeInTheDocument();
     });
   });
@@ -63,16 +62,16 @@ describe("Home Page", () => {
     it("restores active tab and enables tabs when receipt is loaded", () => {
       loadSession({ people: mockPeople }, "people");
       render(<Home />);
-      expect(screen.getByRole("tab", { name: /add people/i })).toHaveAttribute("data-state", "active");
-      expect(screen.getByRole("tab", { name: /add people/i })).toBeEnabled();
-      expect(screen.getByRole("tab", { name: /assign items/i })).toBeEnabled();
-      expect(screen.getByRole("tab", { name: /results/i })).toBeDisabled();
+      expect(screen.getByRole("tab", { name: /people/i })).toHaveAttribute("data-state", "active");
+      expect(screen.getByRole("tab", { name: /people/i })).toBeEnabled();
+      expect(screen.getByRole("tab", { name: /assign/i })).toBeEnabled();
+      expect(screen.getByRole("tab", { name: /totals/i })).toBeDisabled();
     });
 
     it("falls back to empty state on corrupted localStorage", () => {
       localStorage.setItem("receiptSplitterSession", "invalid json {");
       render(<Home />);
-      expect(screen.getByRole("tab", { name: /upload receipt/i })).toHaveAttribute("data-state", "active");
+      expect(screen.getByRole("tab", { name: /receipts/i })).toHaveAttribute("data-state", "active");
     });
 
     it("does not overwrite a restored session with empty default state", async () => {
@@ -123,7 +122,7 @@ describe("Home Page", () => {
       await waitFor(() => {
         expect(localStorage.removeItem).toHaveBeenCalledWith(RECEIPT_IMAGE_STORAGE_KEY);
       });
-      expect(screen.getByRole("tab", { name: /add people/i })).toHaveAttribute("data-state", "active");
+      expect(screen.getByRole("tab", { name: /people/i })).toHaveAttribute("data-state", "active");
     });
 
     it("restores a v2 session with receipts[]", () => {
@@ -144,9 +143,9 @@ describe("Home Page", () => {
         })
       );
       render(<Home />);
-      expect(screen.getByRole("tab", { name: /add people/i })).toHaveAttribute("data-state", "active");
-      expect(screen.getByRole("tab", { name: /add people/i })).toBeEnabled();
-      expect(screen.getByRole("tab", { name: /results/i })).toBeDisabled();
+      expect(screen.getByRole("tab", { name: /people/i })).toHaveAttribute("data-state", "active");
+      expect(screen.getByRole("tab", { name: /people/i })).toBeEnabled();
+      expect(screen.getByRole("tab", { name: /totals/i })).toBeDisabled();
     });
 
     // Regression test for the PR #177 review finding: ReceiptUploader's mount
@@ -207,12 +206,17 @@ describe("Home Page", () => {
       expect(newSplitButton).toBeEnabled();
 
       fireEvent.click(newSplitButton);
+      // Asks before wiping the session
+      expect(localStorage.getItem("receiptSplitterSession")).not.toBeNull();
+      fireEvent.click(
+        within(screen.getByRole("dialog")).getByRole("button", { name: /start over/i })
+      );
 
       await waitFor(() => {
         expect(localStorage.getItem("receiptSplitterImage")).toBeNull();
       });
-      expect(newSplitButton).toBeDisabled();
-      expect(screen.getByRole("tab", { name: /upload receipt/i })).toHaveAttribute("data-state", "active");
+      expect(screen.queryByRole("button", { name: /new split/i })).not.toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /receipts/i })).toHaveAttribute("data-state", "active");
     });
   });
 
@@ -221,9 +225,9 @@ describe("Home Page", () => {
       loadSession({ people: mockPeople });
       render(<Home />);
 
-      fireEvent.click(screen.getByRole("button", { name: /next/i }));
+      fireEvent.click(screen.getByRole("button", { name: /add people/i }));
 
-      expect(screen.getByRole("tab", { name: /add people/i })).toHaveAttribute("data-state", "active");
+      expect(screen.getByRole("tab", { name: /people/i })).toHaveAttribute("data-state", "active");
     });
 
     it("Back returns to the previous tab", () => {
@@ -232,19 +236,19 @@ describe("Home Page", () => {
 
       fireEvent.click(screen.getByRole("button", { name: /back/i }));
 
-      expect(screen.getByRole("tab", { name: /upload receipt/i })).toHaveAttribute("data-state", "active");
+      expect(screen.getByRole("tab", { name: /receipts/i })).toHaveAttribute("data-state", "active");
     });
   });
 
-  describe("progress bar", () => {
-    it("shows 0% when receipt is loaded but no items assigned", () => {
-      loadSession();
+  describe("assignment progress", () => {
+    it("shows how many items are left on the assign step", () => {
+      loadSession({ people: mockPeople }, "assign");
       render(<Home />);
-      expect(screen.getByRole("progressbar")).toBeInTheDocument();
-      expect(screen.getByText("0%")).toBeInTheDocument();
+      expect(screen.getByText("2 of 2 items left")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /see totals/i })).toBeDisabled();
     });
 
-    it("shows 100% when all items are assigned", () => {
+    it("enables totals when all items are assigned", () => {
       loadSession({
         people: mockPeople,
         assignedItems: [
@@ -252,10 +256,11 @@ describe("Home Page", () => {
           [1, [{ personId: "b", sharePercentage: 100 }]],
         ],
         unassignedItems: [],
-      });
+      }, "assign");
       render(<Home />);
-      expect(screen.getByText("100%")).toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: /results/i })).toBeEnabled();
+      expect(screen.getByText("All items assigned")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /see totals/i })).toBeEnabled();
+      expect(screen.getByRole("tab", { name: /totals/i })).toBeEnabled();
     });
   });
 
@@ -276,8 +281,8 @@ describe("Home Page", () => {
         "Split remaining items on Testaurant."
       );
       expect(toast.info).not.toHaveBeenCalled();
-      expect(screen.getByText("100%")).toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: /results/i })).toBeEnabled();
+      expect(screen.getByText("All items assigned")).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /totals/i })).toBeEnabled();
     });
 
     it("uses Untitled receipt in the toast when the restaurant has no name", () => {
@@ -354,8 +359,8 @@ describe("Home Page", () => {
     }
 
     function goToPeopleTab() {
-      fireEvent.click(screen.getByRole("button", { name: /next/i }));
-      expect(screen.getByRole("tab", { name: /add people/i })).toHaveAttribute(
+      fireEvent.click(screen.getByRole("button", { name: /add people/i }));
+      expect(screen.getByRole("tab", { name: /people/i })).toHaveAttribute(
         "data-state",
         "active"
       );
@@ -376,7 +381,7 @@ describe("Home Page", () => {
       goToPeopleTab();
       expect(screen.getByText("Alice")).toBeInTheDocument();
       expect(screen.getByText("Bob")).toBeInTheDocument();
-      expect(screen.getByText(/2 receipts · USD/)).toBeInTheDocument();
+      expect(screen.getByText(/· 2 receipts$/)).toBeInTheDocument();
     });
 
     it("rejects a mismatched currency without adding it or dropping existing people", async () => {
@@ -398,7 +403,7 @@ describe("Home Page", () => {
       goToPeopleTab();
       expect(screen.getByText("Alice")).toBeInTheDocument();
       expect(screen.getByText("Bob")).toBeInTheDocument();
-      expect(screen.getByText(/1 receipt · USD/)).toBeInTheDocument();
+      expect(screen.getByText(/· 1 receipt$/)).toBeInTheDocument();
     });
 
     it("keeps people after removing a receipt", async () => {
@@ -466,11 +471,12 @@ describe("Home Page", () => {
       });
 
       goToPeopleTab();
-      expect(screen.getByText("Alice")).toBeInTheDocument();
-      expect(screen.getByText("Bob")).toBeInTheDocument();
+      const peopleSection = within(screen.getByRole("region", { name: "People" }));
+      expect(peopleSection.getByText("Alice")).toBeInTheDocument();
+      expect(peopleSection.getByText("Bob")).toBeInTheDocument();
       expect(screen.getByText("Team A")).toBeInTheDocument();
       expect(screen.getByText("Team B")).toBeInTheDocument();
-      expect(screen.getByText(/1 receipt · USD/)).toBeInTheDocument();
+      expect(screen.getByText(/· 1 receipt$/)).toBeInTheDocument();
     });
 
     it("caps the session at 10 receipts", async () => {
@@ -528,8 +534,8 @@ describe("Home Page", () => {
       expect(screen.getByRole("dialog")).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: /cancel/i }));
 
-      expect(screen.getAllByText(/· USD$/).length).toBeGreaterThanOrEqual(2);
-      expect(screen.queryByText(/· EUR$/)).not.toBeInTheDocument();
+      expect(screen.getByText("USD - US Dollar ($)")).toBeInTheDocument();
+      expect(screen.queryByText(/EUR - Euro/)).not.toBeInTheDocument();
     });
 
     it("allows changing currency when the session has a single receipt", async () => {
@@ -625,7 +631,7 @@ describe("Home Page", () => {
       expect(
         within(cardFor("Beta Cafe")).getByRole("button", { name: /split evenly/i })
       ).toBeEnabled();
-      expect(screen.getByText("50%")).toBeInTheDocument();
+      expect(screen.getByText("1 of 2 items left")).toBeInTheDocument();
     });
 
     it("progress reflects items across both receipts", () => {
@@ -634,7 +640,7 @@ describe("Home Page", () => {
         ["r2", []],
       ]);
       render(<Home />);
-      expect(screen.getByText("50%")).toBeInTheDocument();
+      expect(screen.getByText("1 of 2 items left")).toBeInTheDocument();
     });
 
     it("always shows the date and numbers #n among duplicate titles only", () => {
@@ -815,7 +821,7 @@ describe("Home Page", () => {
 
       render(<Home />);
 
-      expect(screen.getByRole("tab", { name: /results/i })).toHaveAttribute(
+      expect(screen.getByRole("tab", { name: /totals/i })).toHaveAttribute(
         "data-state",
         "active"
       );
@@ -830,7 +836,7 @@ describe("Home Page", () => {
       expect(screen.getByText("Lunch Place")).toBeInTheDocument();
       expect(screen.getByText("$20.00")).toBeInTheDocument();
       expect(screen.getByText("$30.00")).toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: /results/i })).toBeEnabled();
+      expect(screen.getByRole("tab", { name: /totals/i })).toBeEnabled();
     });
 
     it("disables Results until every receipt is assigned", () => {
@@ -844,8 +850,8 @@ describe("Home Page", () => {
 
       render(<Home />);
 
-      expect(screen.getByRole("tab", { name: /results/i })).toBeDisabled();
-      expect(screen.getByRole("button", { name: /next/i })).toBeDisabled();
+      expect(screen.getByRole("tab", { name: /totals/i })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /see totals/i })).toBeDisabled();
     });
 
     it("keeps Results disabled and leaves Assign when restored with unassigned items", async () => {
@@ -857,12 +863,12 @@ describe("Home Page", () => {
       render(<Home />);
 
       await waitFor(() => {
-        expect(screen.getByRole("tab", { name: /assign items/i })).toHaveAttribute(
+        expect(screen.getByRole("tab", { name: /assign/i })).toHaveAttribute(
           "data-state",
           "active"
         );
       });
-      expect(screen.getByRole("tab", { name: /results/i })).toBeDisabled();
+      expect(screen.getByRole("tab", { name: /totals/i })).toBeDisabled();
       expect(screen.queryByRole("button", { name: /share text/i })).not.toBeInTheDocument();
       expect(
         screen.queryByTestId("incomplete-assignment-banner")
@@ -903,9 +909,9 @@ describe("Home Page", () => {
 
       render(<Home />);
 
-      expect(screen.getByText("100%")).toBeInTheDocument();
-      expect(screen.getByRole("tab", { name: /results/i })).toBeEnabled();
-      expect(screen.getByRole("button", { name: /next/i })).toBeEnabled();
+      expect(screen.getByText("All items assigned")).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: /totals/i })).toBeEnabled();
+      expect(screen.getByRole("button", { name: /see totals/i })).toBeEnabled();
     });
   });
 });

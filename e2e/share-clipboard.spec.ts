@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { preloadSession, fullyAssignedState } from "./helpers";
+import { preloadSession, fullyAssignedState, resultsPersonRow } from "./helpers";
 
 declare global {
   interface Window {
@@ -56,7 +56,7 @@ async function stubClipboardMissing(page: Page) {
 async function openShareReadyResults(page: Page) {
   await preloadSession(page, fullyAssignedState(), "results");
   await page.goto("/");
-  await expect(page.getByRole("cell", { name: "Alice" })).toBeVisible({
+  await expect(resultsPersonRow(page, "Alice")).toBeVisible({
     timeout: 10000,
   });
   await page.locator("#venmo-phone").fill("5551234567");
@@ -98,7 +98,7 @@ test.describe("Share Split clipboard", () => {
     await expect(
       page.getByRole("button", { name: "Share Split" }),
     ).toBeVisible();
-    await expect(page.getByRole("cell", { name: "Alice" })).toBeVisible();
+    await expect(resultsPersonRow(page, "Alice")).toBeVisible();
   });
 
   test("shows the same fallback when the Clipboard API is missing", async ({

@@ -4,10 +4,12 @@ import {
   fullyAssignedState,
   parseMoney,
   receiptCardToggle,
+  assignItemRow,
+  resultsPersonRow,
 } from "./helpers";
 
 async function openItemPriceEditor(page: import("@playwright/test").Page, itemName: string) {
-  const row = page.getByRole("row").filter({ hasText: itemName });
+  const row = assignItemRow(page, itemName);
   await row.getByTitle(/edit price and quantity/i).click();
   await expect(page.getByRole("dialog")).toBeVisible();
 }
@@ -22,7 +24,7 @@ async function saveItemPrice(page: import("@playwright/test").Page, price: strin
 async function gotoAssignTab(page: import("@playwright/test").Page) {
   await preloadSession(page, fullyAssignedState(), "assign");
   await page.goto("/");
-  await expect(page.getByRole("row").filter({ hasText: "Burger" })).toBeVisible({
+  await expect(assignItemRow(page, "Burger")).toBeVisible({
     timeout: 10000,
   });
 }
@@ -36,15 +38,15 @@ test.describe("edit receipt", () => {
     await openItemPriceEditor(page, "Burger");
     await saveItemPrice(page, "15");
 
-    const burgerRow = page.getByRole("row").filter({ hasText: "Burger" });
+    const burgerRow = assignItemRow(page, "Burger");
     await expect(burgerRow.getByTitle(/edit price and quantity/i)).toContainText(
       "$15.00",
     );
 
-    await page.getByRole("tab", { name: /results/i }).click();
-    const aliceRow = page.getByRole("row").filter({ hasText: "Alice" });
+    await page.getByRole("tab", { name: /totals/i }).click();
+    const aliceRow = resultsPersonRow(page, "Alice");
     await expect(aliceRow).toContainText("$15.00");
-    const bobRow = page.getByRole("row").filter({ hasText: "Bob" });
+    const bobRow = resultsPersonRow(page, "Bob");
     await expect(bobRow).toContainText("$10.00");
   });
 
@@ -60,7 +62,7 @@ test.describe("edit receipt", () => {
     await dialog.getByLabel("Price").fill("6");
     await dialog.getByRole("button", { name: /^Add Item$/i }).click();
 
-    const milkshakeRow = page.getByRole("row").filter({ hasText: "Milkshake" });
+    const milkshakeRow = assignItemRow(page, "Milkshake");
     await expect(milkshakeRow).toBeVisible();
     await expect(
       milkshakeRow.getByTitle(/edit price and quantity/i),
@@ -72,19 +74,19 @@ test.describe("edit receipt", () => {
   }) => {
     await gotoAssignTab(page);
 
-    const friesRow = page.getByRole("row").filter({ hasText: "Fries" });
+    const friesRow = assignItemRow(page, "Fries");
     await friesRow.getByRole("button", { name: /delete fries/i }).click();
 
-    await expect(page.getByRole("row").filter({ hasText: "Fries" })).toHaveCount(
+    await expect(assignItemRow(page, "Fries")).toHaveCount(
       0,
     );
-    await expect(page.getByRole("row").filter({ hasText: "Burger" })).toBeVisible();
+    await expect(assignItemRow(page, "Burger")).toBeVisible();
 
-    await page.getByRole("tab", { name: /results/i }).click();
-    await expect(page.getByRole("row").filter({ hasText: "Alice" })).toContainText(
+    await page.getByRole("tab", { name: /totals/i }).click();
+    await expect(resultsPersonRow(page, "Alice")).toContainText(
       "$10.00",
     );
-    await expect(page.getByRole("row").filter({ hasText: "Bob" })).toContainText(
+    await expect(resultsPersonRow(page, "Bob")).toContainText(
       "$0.00",
     );
   });
@@ -101,31 +103,25 @@ test.describe("edit receipt", () => {
     await saveItemPrice(page, "8");
 
     await expect(
-      page.getByRole("row").filter({ hasText: "Burger" }).getByTitle(
+      assignItemRow(page, "Burger").getByTitle(
         /edit price and quantity/i,
       ),
     ).toContainText("$20.00");
     await expect(
-      page.getByRole("row").filter({ hasText: "Fries" }).getByTitle(
+      assignItemRow(page, "Fries").getByTitle(
         /edit price and quantity/i,
       ),
     ).toContainText("$8.00");
 
-    await page.getByRole("tab", { name: /results/i }).click();
+    await page.getByRole("tab", { name: /totals/i }).click();
     const aliceTotal = parseMoney(
-      await page
-        .getByRole("row")
-        .filter({ hasText: "Alice" })
-        .getByRole("cell")
-        .last()
+      await resultsPersonRow(page, "Alice")
+        .getByTestId("person-total")
         .textContent(),
     );
     const bobTotal = parseMoney(
-      await page
-        .getByRole("row")
-        .filter({ hasText: "Bob" })
-        .getByRole("cell")
-        .last()
+      await resultsPersonRow(page, "Bob")
+        .getByTestId("person-total")
         .textContent(),
     );
     expect(aliceTotal).toBeCloseTo(20, 2);
@@ -141,7 +137,7 @@ test.describe("edit receipt", () => {
     await expect(receiptCardToggle(page, "Test Diner")).toBeVisible({
       timeout: 10000,
     });
-    await page.getByRole("button", { name: /^Edit$/ }).click();
+    await page.getByRole("button", { name: /^Edit details$/ }).click();
     await expect(page.getByText("Edit Receipt Details")).toBeVisible();
 
     await page.getByLabel("Currency").click();
@@ -152,9 +148,9 @@ test.describe("edit receipt", () => {
 
     await expect(page.getByText(/EUR - Euro/)).toBeVisible();
 
-    await page.getByRole("tab", { name: /results/i }).click();
-    const aliceRow = page.getByRole("row").filter({ hasText: "Alice" });
+    await page.getByRole("tab", { name: /totals/i }).click();
+    const aliceRow = resultsPersonRow(page, "Alice");
     await expect(aliceRow).toBeVisible();
-    await expect(aliceRow.getByRole("cell").last()).toHaveText(/€|EUR/);
+    await expect(aliceRow.getByTestId("person-total")).toHaveText(/€|EUR/);
   });
 });

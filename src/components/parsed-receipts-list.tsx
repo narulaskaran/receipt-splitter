@@ -1,7 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { ChevronDown, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -59,13 +59,14 @@ export function ParsedReceiptsList({
       : lastId;
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="text-xl">
-          Receipts ({receipts.length}/{MAX_RECEIPTS_PER_SESSION})
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
+    <Card className="gap-0 overflow-hidden py-0">
+      <div className="flex items-center justify-between px-4 py-3 text-sm">
+        <h3 className="font-medium">Receipts</h3>
+        <span className="text-muted-foreground tabular-nums">
+          {receipts.length} of {MAX_RECEIPTS_PER_SESSION}
+        </span>
+      </div>
+      <ul className="divide-y border-t">
         {receipts.map((stored) => {
           const { receipt } = stored;
           const itemCount = receipt.items.length;
@@ -75,18 +76,14 @@ export function ParsedReceiptsList({
             receipt.date || null,
             `${itemCount} ${itemCount === 1 ? "item" : "items"}`,
             formatCurrency(receipt.total, receipt.currency),
-            receipt.currency,
           ].filter(Boolean);
 
           return (
-            <div
-              key={stored.id}
-              className="rounded-lg border"
-            >
-              <div className="flex items-start gap-2 p-3">
+            <li key={stored.id}>
+              <div className="flex items-center gap-2 py-2 pr-2 pl-4">
                 <button
                   type="button"
-                  className="flex flex-1 items-start gap-2 text-left min-w-0"
+                  className="flex min-w-0 flex-1 items-center gap-3 rounded-md py-1 text-left"
                   onClick={() =>
                     setExpandedId(isExpanded ? null : stored.id)
                   }
@@ -97,31 +94,33 @@ export function ParsedReceiptsList({
                     src={thumbnails[stored.id]}
                     alt={`${label} receipt preview`}
                   />
-                  <ChevronDown
-                    className={`h-4 w-4 mt-1 shrink-0 transition-transform ${
-                      isExpanded ? "rotate-0" : "-rotate-90"
-                    }`}
-                  />
-                  <span className="min-w-0">
-                    <span className="font-medium block truncate">{label}</span>
-                    <span className="text-sm text-muted-foreground block">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{label}</span>
+                    <span className="block truncate text-sm text-muted-foreground">
                       {metaParts.join(" · ")}
                     </span>
                   </span>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className={`size-4 shrink-0 text-muted-foreground transition-transform ${
+                      isExpanded ? "rotate-180" : ""
+                    }`}
+                  />
                 </button>
                 <Button
                   type="button"
-                  variant="outline"
-                  size="sm"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-muted-foreground hover:text-destructive"
                   onClick={() => setPendingRemoveId(stored.id)}
                   aria-label={`Remove ${label}`}
+                  title="Remove receipt"
                 >
-                  <Trash2 className="h-4 w-4" />
-                  Remove
+                  <Trash2 />
                 </Button>
               </div>
               {isExpanded && (
-                <div className="border-t p-3">
+                <div className="border-t bg-muted/40 px-4 py-4">
                   <ReceiptDetails
                     receipt={receipt}
                     thumbnailUrl={thumbnails[stored.id]}
@@ -132,10 +131,10 @@ export function ParsedReceiptsList({
                   />
                 </div>
               )}
-            </div>
+            </li>
           );
         })}
-      </CardContent>
+      </ul>
 
       <Dialog
         open={pendingRemoveId !== null}

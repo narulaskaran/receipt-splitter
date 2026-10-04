@@ -32,7 +32,7 @@ test.describe("screenshot harness fixtures on Results", () => {
     await expect(page.getByText("Alice").first()).toBeVisible({
       timeout: 10000,
     });
-    await expect(page.getByText("Split Validation Issues")).toHaveCount(0);
+    await expect(page.getByText("These totals don't add up yet")).toHaveCount(0);
     await expect(
       page.getByText("Sum of item prices does not match subtotal"),
     ).toHaveCount(0);
@@ -50,10 +50,10 @@ test.describe("screenshot harness fixtures on Results", () => {
     await expect(page.getByRole("heading", { name: "By receipt" })).toBeVisible();
     await expect(page.getByText("Lunch").first()).toBeVisible();
     await expect(page.getByText("Coffee").first()).toBeVisible();
-    await expect(page.getByText("Split Validation Issues")).toHaveCount(0);
+    await expect(page.getByText("These totals don't add up yet")).toHaveCount(0);
     await expect(
       page.getByText("Sum of item prices does not match subtotal"),
     ).toHaveCount(0);
-    await expect(page.getByText("Off by $2.00")).toHaveCount(0);
+    await expect(page.getByText("off by $2.00")).toHaveCount(0);
   });
 });

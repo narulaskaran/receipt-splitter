@@ -164,3 +164,27 @@ export function fullyAssignedState(overrides: Record<string, unknown> = {}) {
     ...overrides,
   });
 }
+
+/** Primary "continue" button in the sticky step footer (label varies by step). */
+export function nextStepButton(page: Page) {
+  return page
+    .getByRole("navigation", { name: "Step navigation" })
+    .getByRole("button")
+    .last();
+}
+
+/** One item row on the Assign step. */
+export function assignItemRow(page: Page, itemName: string) {
+  return page
+    .getByRole("listitem")
+    .filter({ has: page.getByText(itemName, { exact: true }) });
+}
+
+/** A person's expandable row on the Totals step. */
+export function resultsPersonRow(page: Page, name: string) {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return page.getByRole("button", {
+    name: new RegExp(`^${escaped}\\b`),
+    expanded: false,
+  });
+}

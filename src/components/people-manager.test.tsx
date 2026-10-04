@@ -14,7 +14,7 @@ describe("PeopleManager", () => {
   it("adds a person when input is filled and button is clicked", () => {
     const handleChange = jest.fn();
     render(<PeopleManager people={[]} onPeopleChange={handleChange} />);
-    fireEvent.change(screen.getByPlaceholderText(/add a person/i), {
+    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
       target: { value: "Alice" },
     });
     fireEvent.click(screen.getByRole("button", { name: /add person/i }));
@@ -41,7 +41,7 @@ describe("PeopleManager", () => {
         onPeopleChange={handleChange}
       />
     );
-    fireEvent.change(screen.getByPlaceholderText(/add a person/i), {
+    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
       target: { value: "Alice" },
     });
     fireEvent.click(screen.getByRole("button", { name: /add person/i }));
@@ -57,9 +57,29 @@ describe("PeopleManager", () => {
     expect(handleChange).toHaveBeenCalledWith([]);
   });
 
+  it("adds several comma-separated names at once and skips duplicates", () => {
+    const handleChange = jest.fn();
+    render(
+      <PeopleManager people={[mockPeople[0]]} onPeopleChange={handleChange} />
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: /name/i }), {
+      target: { value: `Dana, ${mockPeople[0].name}, Eli,` },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /add person/i }));
+    const next = handleChange.mock.calls[0][0];
+    expect(next.map((p: { name: string }) => p.name)).toEqual([
+      mockPeople[0].name,
+      "Dana",
+      "Eli",
+    ]);
+    expect(toast.error).toHaveBeenCalledWith(
+      "A person with that name already exists"
+    );
+  });
+
   it("shows error when trying to add empty name", () => {
     render(<PeopleManager people={[]} onPeopleChange={() => {}} />);
-    const input = screen.getByPlaceholderText(/add a person/i);
+    const input = screen.getByRole("textbox", { name: /name/i });
     fireEvent.change(input, { target: { value: "   " } });
     fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
     expect(toast.error).toHaveBeenCalledWith("Please enter a name");

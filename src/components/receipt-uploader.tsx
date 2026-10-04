@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { UploadCloud, Loader2 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Camera, Loader2, Plus, UploadCloud } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { type Receipt } from "@/types";
 import {
@@ -247,77 +248,69 @@ export function ReceiptUploader({
       : "Parsing receipt...";
 
   return (
-    <Card className={`w-full ${compact ? "py-3" : ""}`}>
-      <CardContent className={compact ? "px-4" : "p-6"}>
-        <div
-          {...getRootProps()}
-          className={`border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors ${
-            compact ? "px-4 py-3" : "p-8"
-          } ${
-            isDragActive ? "border-primary bg-primary/5" : "border-input"
-          } ${isBusy ? "opacity-60 cursor-not-allowed" : ""}`}
-        >
-          <input {...getInputProps()} disabled={isBusy} />
+    <div
+      {...getRootProps()}
+      className={cn(
+        "w-full cursor-pointer rounded-xl border-2 border-dashed bg-card text-center transition-colors hover:border-primary/60 hover:bg-accent/40",
+        compact ? "px-4 py-3" : "px-6 py-10 sm:py-14",
+        isDragActive ? "border-primary bg-accent/60" : "border-input",
+        isBusy && "cursor-not-allowed opacity-60"
+      )}
+    >
+      <input {...getInputProps()} disabled={isBusy} />
 
-          {isCompressing ? (
-            <div
-              className={
-                compact
-                  ? "flex items-center justify-center gap-2"
-                  : "flex flex-col items-center"
-              }
-            >
-              <Loader2
-                className={
-                  compact
-                    ? "h-5 w-5 animate-spin text-primary"
-                    : "h-10 w-10 mb-4 animate-spin text-primary"
-                }
-              />
-              <p className={compact ? "font-medium" : "mb-1 font-medium"}>
-                Compressing image...
-              </p>
-              {!compact && (
-                <p className="text-sm text-muted-foreground">
-                  Reducing file size to under {MAX_FILE_SIZE_MB}MB
-                </p>
-              )}
-            </div>
-          ) : isLoading ? (
-            <div
-              className={
-                compact
-                  ? "flex items-center justify-center gap-2"
-                  : "flex flex-col items-center"
-              }
-            >
-              <Loader2
-                className={
-                  compact
-                    ? "h-5 w-5 animate-spin text-primary"
-                    : "h-12 w-12 mb-4 animate-spin text-primary"
-                }
-              />
-              <p className={compact ? undefined : "mb-1 font-medium"}>
-                {parsingLabel}
-              </p>
-            </div>
-          ) : compact ? (
-            <div className="flex items-center justify-center gap-2">
-              <UploadCloud className="h-5 w-5 shrink-0 text-muted-foreground" />
-              <p>Click or drag to add another receipt</p>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center">
-              <UploadCloud className="h-12 w-12 mb-4 text-muted-foreground" />
-              <p className="mb-1 font-medium">Upload your receipts</p>
+      {isBusy ? (
+        <div
+          className={
+            compact
+              ? "flex items-center justify-center gap-2"
+              : "flex flex-col items-center gap-3"
+          }
+        >
+          <Loader2
+            className={cn(
+              "animate-spin text-primary",
+              compact ? "size-5" : "size-10"
+            )}
+          />
+          <div>
+            <p className="font-medium">
+              {isCompressing ? "Compressing image..." : parsingLabel}
+            </p>
+            {!compact && (
               <p className="text-sm text-muted-foreground">
-                Drag and drop or click to select one or more files
+                {isCompressing
+                  ? `Reducing file size to under ${MAX_FILE_SIZE_MB}MB`
+                  : "This usually takes a few seconds"}
               </p>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </CardContent>
-    </Card>
+      ) : compact ? (
+        <div className="flex items-center justify-center gap-2 text-sm font-medium">
+          <Plus className="size-4 shrink-0 text-primary" />
+          <p>Add another receipt</p>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center gap-4">
+          <span className="flex size-14 items-center justify-center rounded-full bg-accent text-primary">
+            <Camera className="size-6" />
+          </span>
+          <div className="flex flex-col gap-1">
+            <p className="text-lg font-semibold">Upload a receipt</p>
+            <p className="text-sm text-muted-foreground">
+              Drag and drop, or tap to take a photo or choose files
+            </p>
+          </div>
+          <span className={buttonVariants()}>
+            <UploadCloud />
+            Choose files
+          </span>
+          <p className="text-xs text-muted-foreground">
+            JPG, PNG, HEIC, or PDF · up to {MAX_RECEIPTS_PER_SESSION} receipts
+          </p>
+        </div>
+      )}
+    </div>
   );
 }

@@ -243,9 +243,7 @@ describe("GroupManager", () => {
         />
       );
 
-      const allButtons = screen.getAllByRole("button");
-      const editButtons = allButtons.filter(b => b.querySelector('svg.lucide-pencil'));
-      fireEvent.click(editButtons[0]);
+      fireEvent.click(screen.getByRole("button", { name: "Edit Couples" }));
 
       const dialog = screen.getByRole("dialog");
       const buttons = within(dialog).getAllByRole("button");
@@ -271,9 +269,7 @@ describe("GroupManager", () => {
         />
       );
 
-      const allButtons = screen.getAllByRole("button");
-      const deleteButtons = allButtons.filter(b => b.querySelector('svg.lucide-x'));
-      fireEvent.click(deleteButtons[0]);
+      fireEvent.click(screen.getByRole("button", { name: "Delete Couples" }));
 
       expect(handleDelete).toHaveBeenCalledWith("group-1");
       expect(toast.success).toHaveBeenCalled();
@@ -294,9 +290,9 @@ describe("GroupManager", () => {
         />
       );
 
-      const allButtons = screen.getAllByRole("button");
-      const regenButtons = allButtons.filter(b => b.querySelector('svg.lucide-refresh-cw'));
-      fireEvent.click(regenButtons[0]);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Change emoji for Couples" })
+      );
 
       expect(handleRegenerate).toHaveBeenCalledWith("group-1");
     });

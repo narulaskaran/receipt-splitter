@@ -1,8 +1,7 @@
-import { Edit, Calculator } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { useState } from "react";
 import Decimal from "decimal.js";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -120,72 +119,50 @@ export function ReceiptDetails({
     toast.success("Receipt details updated");
   };
 
+  const currencyInfo = getSupportedCurrencies().find(
+    (c) => c.code === (receipt.currency || "USD")
+  );
+  const amounts = [
+    { label: "Subtotal", value: receipt.subtotal },
+    { label: "Tax", value: receipt.tax },
+    { label: "Tip", value: receipt.tip || 0 },
+    { label: "Total", value: receipt.total },
+  ];
+
   return (
-    <Card className="w-full">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-xl flex items-center gap-2">
-          <Calculator className="h-5 w-5" />
-          Receipt Details
-        </CardTitle>
-        <Button variant="outline" size="sm" onClick={openEditDialog}>
-          <Edit className="h-4 w-4 mr-1" />
-          Edit
-        </Button>
-      </CardHeader>
-
-      <CardContent>
-        <div className="flex flex-col sm:flex-row gap-4 sm:items-start">
-          <ReceiptThumbnail
-            variant="details"
-            src={thumbnailUrl}
-            alt={thumbnailAlt}
-          />
-          <div className="grid grid-cols-2 gap-4 flex-1 min-w-0">
-            <div>
-              <p className="text-sm text-muted-foreground">Restaurant</p>
-              <p className="font-medium">{receipt.restaurant || "Unknown"}</p>
+    <div className="flex gap-4">
+      <ReceiptThumbnail
+        variant="details"
+        src={thumbnailUrl}
+        alt={thumbnailAlt}
+      />
+      <div className="flex min-w-0 flex-1 flex-col gap-3">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+          {amounts.map(({ label, value }) => (
+            <div key={label}>
+              <dt className="text-xs text-muted-foreground">{label}</dt>
+              <dd
+                className={`tabular-nums ${
+                  label === "Total" ? "font-semibold" : "font-medium"
+                }`}
+              >
+                {formatCurrency(value, receipt.currency)}
+              </dd>
             </div>
-
-            <div>
-              <p className="text-sm text-muted-foreground">Date</p>
-              <p className="font-medium">{receipt.date || "Unknown"}</p>
-            </div>
-
-            <div>
-              <p className="text-sm text-muted-foreground">Subtotal</p>
-              <p className="font-medium">{formatCurrency(receipt.subtotal, receipt.currency)}</p>
-            </div>
-
-            <div>
-              <p className="text-sm text-muted-foreground">Tax</p>
-              <p className="font-medium">{formatCurrency(receipt.tax, receipt.currency)}</p>
-            </div>
-
-            <div>
-              <p className="text-sm text-muted-foreground">Tip</p>
-              <p className="font-medium">{formatCurrency(receipt.tip || 0, receipt.currency)}</p>
-            </div>
-
-            <div>
-              <p className="text-sm text-muted-foreground">Total</p>
-              <p className="font-bold">{formatCurrency(receipt.total, receipt.currency)}</p>
-            </div>
-
-            <div className="col-span-2">
-              <p className="text-sm text-muted-foreground">Currency</p>
-              <p className="font-medium">
-                {(() => {
-                  const currencies = getSupportedCurrencies();
-                  const currency = currencies.find(c => c.code === (receipt.currency || 'USD'));
-                  return currency
-                    ? `${currency.code} - ${currency.name} (${currency.symbol})`
-                    : receipt.currency || 'USD';
-                })()}
-              </p>
-            </div>
-          </div>
+          ))}
+        </dl>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">
+            {currencyInfo
+              ? `${currencyInfo.code} - ${currencyInfo.name} (${currencyInfo.symbol})`
+              : receipt.currency || "USD"}
+          </p>
+          <Button variant="outline" size="sm" onClick={openEditDialog}>
+            <Pencil />
+            Edit details
+          </Button>
         </div>
-      </CardContent>
+      </div>
 
       <Dialog open={isEditing} onOpenChange={setIsEditing}>
         <DialogContent>
@@ -347,6 +324,6 @@ export function ReceiptDetails({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Card>
+    </div>
   );
 }

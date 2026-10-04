@@ -34,7 +34,7 @@ describe("ReceiptUploader", () => {
 
   it("renders upload prompt", () => {
     renderUploader();
-    expect(screen.getByText(/upload your receipts/i)).toBeInTheDocument();
+    expect(screen.getByText(/upload a receipt/i)).toBeInTheDocument();
   });
 
   it("accepts PDF files", async () => {
@@ -70,9 +70,9 @@ describe("ReceiptUploader", () => {
       />
     );
     expect(
-      screen.getByText("Click or drag to add another receipt")
+      screen.getByText("Add another receipt")
     ).toBeInTheDocument();
-    expect(screen.queryByText(/upload your receipts/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/upload a receipt/i)).not.toBeInTheDocument();
     expect(screen.queryByAltText("Receipt preview")).not.toBeInTheDocument();
   });
 
@@ -196,7 +196,7 @@ describe("ReceiptUploader", () => {
       expect(mockOnReceiptParsed).toHaveBeenCalledTimes(1);
     });
     expect(screen.queryByAltText("Receipt preview")).not.toBeInTheDocument();
-    expect(screen.getByText(/upload your receipts/i)).toBeInTheDocument();
+    expect(screen.getByText(/upload a receipt/i)).toBeInTheDocument();
   });
 
   it("dropping two files calls onReceiptParsed twice", async () => {

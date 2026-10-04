@@ -1,5 +1,8 @@
 import { test, expect } from "@playwright/test";
-import { receiptCardToggle } from "./helpers";
+import {
+  receiptCardToggle,
+  nextStepButton,
+} from "./helpers";
 
 // ---- Mock data --------------------------------------------------------------
 // Validated happy-path receipt: all math correct, all items fully assigned.
@@ -176,9 +179,8 @@ test.describe("core flow", () => {
     await expect(page.getByText("$43.00")).toBeVisible();
     await expect(page.getByText("$55.90").first()).toBeVisible();
 
-    // "Next" should be enabled (receipt is loaded).
-    // Use { exact: true } — the Next.js Dev Tools button also contains "Next".
-    const nextBtn = page.getByRole("button", { name: "Next", exact: true });
+    // The step footer's continue button should be enabled (receipt is loaded).
+    const nextBtn = nextStepButton(page);
     await expect(nextBtn).toBeEnabled();
 
     // ---- Tab 2: People ------------------------------------------------------
@@ -199,9 +201,8 @@ test.describe("core flow", () => {
     await expect(page.getByText("Soda").first()).toBeVisible();
     await expect(page.getByText("Salad").first()).toBeVisible();
 
-    // Progress bar should show 100 % (all items assigned).
-    // The exact width depends on the UI, but we can assert the "100%" text.
-    await expect(page.getByText("100%")).toBeVisible();
+    // The step footer reports that every item is assigned.
+    await expect(page.getByText("All items assigned")).toBeVisible();
 
     // ---- Tab 4: Results -----------------------------------------------------
     await nextBtn.click();

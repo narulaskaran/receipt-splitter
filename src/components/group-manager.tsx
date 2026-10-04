@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { PlusCircle, X, Users, Pencil, RefreshCw } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
@@ -165,198 +164,142 @@ export function GroupManager({
     return null; // Don't show groups section if no people
   }
 
-  return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="text-xl flex items-center gap-2">
-          <Users className="h-5 w-5" />
-          Groups
-        </CardTitle>
-      </CardHeader>
+  const dialogOpen = createDialogOpen || editDialogOpen;
+  const memberIdPrefix = editDialogOpen ? "edit" : "create";
 
-      <CardContent>
-        <div className="space-y-3 mb-4">
-          {!groups || groups.length === 0 ? (
+  return (
+    <section aria-labelledby="groups-heading" className="flex flex-col gap-3 p-4 sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-0.5">
+          <h3 id="groups-heading" className="text-sm font-medium">
+            Groups <span className="font-normal text-muted-foreground">(optional)</span>
+          </h3>
+          {groups.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              Create groups to quickly assign items to multiple people
+              Create groups to quickly assign items to multiple people, like a couple sharing a dish.
             </p>
-          ) : (
-            groups.map((group) => (
-              <div
-                key={group.id}
-                className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">{group.emoji || "👥"}</span>
-                    <span className="font-medium">{group.name}</span>
-                  </div>
-                  <div className="text-sm text-muted-foreground mt-1">
-                    Members:{" "}
-                    {group.memberIds.map((id) => getPersonName(id)).join(", ")}
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onGroupEmojiRegenerate(group.id)}
-                    title="Change emoji"
-                  >
-                    <RefreshCw className="h-3 w-3" />
-                    <span className="sr-only">
-                      Change emoji for {group.name}
-                    </span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openEditDialog(group)}
-                  >
-                    <Pencil className="h-3 w-3" />
-                    <span className="sr-only">Edit {group.name}</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDelete(group)}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <X className="h-3 w-3" />
-                    <span className="sr-only">Delete {group.name}</span>
-                  </Button>
-                </div>
-              </div>
-            ))
           )}
         </div>
-
         <Button
           type="button"
           variant="outline"
+          size="sm"
           onClick={openCreateDialog}
-          className="w-full"
+          className="shrink-0"
+          aria-label="Create group"
         >
-          <PlusCircle className="h-4 w-4 mr-2" />
-          Create Group
+          <Plus />
+          <span className="hidden sm:inline">Create group</span>
         </Button>
+      </div>
 
-        {/* Create Group Dialog */}
-        <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Create New Group</DialogTitle>
-            </DialogHeader>
-
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="group-name">Group Name</Label>
-                <Input
-                  id="group-name"
-                  value={groupName}
-                  onChange={(e) => setGroupName(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="e.g., Couples, Friends"
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <Label>Select Members</Label>
-                <div className="grid gap-2 max-h-48 overflow-y-auto">
-                  {people.map((person) => (
-                    <div
-                      key={person.id}
-                      className="flex items-center space-x-2"
-                    >
-                      <Checkbox
-                        id={`create-${person.id}`}
-                        checked={selectedMembers.has(person.id)}
-                        onCheckedChange={() => toggleMember(person.id)}
-                      />
-                      <Label
-                        htmlFor={`create-${person.id}`}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                      >
-                        {person.name}
-                      </Label>
-                    </div>
-                  ))}
+      {groups.length > 0 && (
+        <ul className="flex flex-col gap-2">
+          {groups.map((group) => (
+            <li
+              key={group.id}
+              className="flex items-center gap-2 rounded-lg border bg-muted/40 py-1 pr-1 pl-1"
+            >
+              <button
+                type="button"
+                onClick={() => onGroupEmojiRegenerate(group.id)}
+                title="Change emoji"
+                aria-label={`Change emoji for ${group.name}`}
+                className="flex size-10 shrink-0 items-center justify-center rounded-md text-xl hover:bg-accent"
+              >
+                <span aria-hidden="true">{group.emoji || "👥"}</span>
+              </button>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">{group.name}</div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {group.memberIds.map((id) => getPersonName(id)).join(", ")}
                 </div>
               </div>
-            </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={closeDialogs}>
-                Cancel
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => openEditDialog(group)}
+                aria-label={`Edit ${group.name}`}
+              >
+                <Pencil />
               </Button>
               <Button
-                onClick={handleCreate}
-                disabled={!groupName.trim() || selectedMembers.size < 2}
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => handleDelete(group)}
+                className="text-muted-foreground hover:text-destructive"
+                aria-label={`Delete ${group.name}`}
               >
-                Create Group
+                <Trash2 />
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </li>
+          ))}
+        </ul>
+      )}
 
-        {/* Edit Group Dialog */}
-        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Edit Group</DialogTitle>
-            </DialogHeader>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          if (!open) closeDialogs();
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editDialogOpen ? "Edit Group" : "Create New Group"}
+            </DialogTitle>
+          </DialogHeader>
 
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="edit-group-name">Group Name</Label>
-                <Input
-                  id="edit-group-name"
-                  value={groupName}
-                  onChange={(e) => setGroupName(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="e.g., Couples, Friends"
-                />
-              </div>
+          <div className="grid gap-4 py-2">
+            <div className="grid gap-2">
+              <Label htmlFor={`${memberIdPrefix}-group-name`}>Group name</Label>
+              <Input
+                id={`${memberIdPrefix}-group-name`}
+                value={groupName}
+                onChange={(e) => setGroupName(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="e.g., Couples, Friends"
+              />
+            </div>
 
-              <div className="grid gap-2">
-                <Label>Select Members</Label>
-                <div className="grid gap-2 max-h-48 overflow-y-auto">
-                  {people.map((person) => (
-                    <div
-                      key={person.id}
-                      className="flex items-center space-x-2"
+            <div className="grid gap-2">
+              <Label>Members (at least 2)</Label>
+              <div className="grid max-h-56 gap-1 overflow-y-auto">
+                {people.map((person) => (
+                  <div
+                    key={person.id}
+                    className="flex min-h-[44px] items-center gap-3 rounded-md px-2 hover:bg-muted"
+                  >
+                    <Checkbox
+                      id={`${memberIdPrefix}-${person.id}`}
+                      checked={selectedMembers.has(person.id)}
+                      onCheckedChange={() => toggleMember(person.id)}
+                    />
+                    <Label
+                      htmlFor={`${memberIdPrefix}-${person.id}`}
+                      className="flex-1 cursor-pointer self-stretch"
                     >
-                      <Checkbox
-                        id={`edit-${person.id}`}
-                        checked={selectedMembers.has(person.id)}
-                        onCheckedChange={() => toggleMember(person.id)}
-                      />
-                      <Label
-                        htmlFor={`edit-${person.id}`}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                      >
-                        {person.name}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
+                      {person.name}
+                    </Label>
+                  </div>
+                ))}
               </div>
             </div>
+          </div>
 
-            <DialogFooter>
-              <Button variant="outline" onClick={closeDialogs}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleUpdate}
-                disabled={!groupName.trim() || selectedMembers.size < 2}
-              >
-                Update Group
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </CardContent>
-    </Card>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDialogs}>
+              Cancel
+            </Button>
+            <Button
+              onClick={editDialogOpen ? handleUpdate : handleCreate}
+              disabled={!groupName.trim() || selectedMembers.size < 2}
+            >
+              {editDialogOpen ? "Update Group" : "Create Group"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </section>
   );
 }

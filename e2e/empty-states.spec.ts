@@ -5,6 +5,8 @@ import {
   emptyPerson,
   usdReceipt,
   fullyAssignedState,
+  nextStepButton,
+  resultsPersonRow,
 } from "./helpers";
 
 test.describe("empty states", () => {
@@ -24,18 +26,15 @@ test.describe("empty states", () => {
     await page.goto("/");
 
     await expect(
-      page.getByText("Add people who shared this receipt"),
+      page.getByText("No one yet. Add yourself too if you're paying a share."),
     ).toBeVisible({ timeout: 10000 });
     await expect(page.getByText("Groups")).toHaveCount(0);
-    await expect(
-      page.getByRole("button", { name: "Next", exact: true }),
-    ).toBeDisabled();
-    await expect(
-      page.getByRole("tab", { name: /assign items/i }),
-    ).toBeDisabled();
+    await expect(page.getByText("Add at least one person")).toBeVisible();
+    await expect(nextStepButton(page)).toBeDisabled();
+    await expect(page.getByRole("tab", { name: /assign/i })).toBeDisabled();
   });
 
-  test("Assign tab with no items shows an empty list and 100% progress", async ({
+  test("Assign tab with no items shows an empty list and counts as done", async ({
     page,
   }) => {
     await preloadSession(
@@ -56,12 +55,10 @@ test.describe("empty states", () => {
     await expect(page.getByRole("button", { name: /add item/i })).toBeVisible({
       timeout: 10000,
     });
-    await expect(page.getByRole("row")).toHaveCount(1);
-    await expect(page.getByText("100%")).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Next", exact: true }),
-    ).toBeEnabled();
-    await expect(page.getByRole("tab", { name: /results/i })).toBeEnabled();
+    await expect(page.getByTitle(/click to edit price/i)).toHaveCount(0);
+    await expect(page.getByText("All items assigned")).toBeVisible();
+    await expect(nextStepButton(page)).toBeEnabled();
+    await expect(page.getByRole("tab", { name: /totals/i })).toBeEnabled();
   });
 
   test("Next stays disabled until all items are assigned", async ({ page }) => {
@@ -94,10 +91,10 @@ test.describe("empty states", () => {
 
     await page.goto("/");
 
-    await expect(page.getByText("50%")).toBeVisible({ timeout: 10000 });
-    await expect(
-      page.getByRole("button", { name: "Next", exact: true }),
-    ).toBeDisabled();
+    await expect(page.getByText("1 of 2 items left")).toBeVisible({
+      timeout: 10000,
+    });
+    await expect(nextStepButton(page)).toBeDisabled();
   });
 
   test("Next enables once every item is assigned", async ({ page }) => {
@@ -105,15 +102,17 @@ test.describe("empty states", () => {
 
     await page.goto("/");
 
-    await expect(page.getByText("100%")).toBeVisible({ timeout: 10000 });
-    const nextBtn = page.getByRole("button", { name: "Next", exact: true });
+    await expect(page.getByText("All items assigned")).toBeVisible({
+      timeout: 10000,
+    });
+    const nextBtn = nextStepButton(page);
     await expect(nextBtn).toBeEnabled();
     await nextBtn.click();
-    await expect(page.getByRole("tab", { name: /results/i })).toHaveAttribute(
+    await expect(page.getByRole("tab", { name: /totals/i })).toHaveAttribute(
       "data-state",
       "active",
     );
-    await expect(page.getByRole("cell", { name: "Alice" })).toBeVisible();
+    await expect(resultsPersonRow(page, "Alice")).toBeVisible();
   });
 
   test("Groups card shows empty prompt when people exist but no groups", async ({
@@ -123,7 +122,9 @@ test.describe("empty states", () => {
 
     await page.goto("/");
 
-    await expect(page.getByText("Alice")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("Alice", { exact: true })).toBeVisible({
+      timeout: 10000,
+    });
     await expect(
       page.getByText("Create groups to quickly assign items to multiple people"),
     ).toBeVisible();

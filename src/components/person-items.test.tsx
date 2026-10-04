@@ -1,5 +1,5 @@
-import { render, screen, fireEvent } from "@testing-library/react";
-import { PersonItems } from "./person-items";
+import { render, screen } from "@testing-library/react";
+import { PersonItemBreakdown } from "./person-items";
 import { mockPeople } from "@/test/test-utils";
 import { type Person, type PersonItem } from "@/types";
 
@@ -15,11 +15,23 @@ function personWithItems(items: PersonItem[], overrides: Partial<Person> = {}): 
   };
 }
 
-describe("PersonItems", () => {
-  it("renders person names", () => {
-    render(<PersonItems people={mockPeople} />);
-    expect(screen.getByText(/Alice/)).toBeInTheDocument();
-    expect(screen.getByText(/Bob/)).toBeInTheDocument();
+describe("PersonItemBreakdown", () => {
+  it("shows a placeholder when the person has no items", () => {
+    render(<PersonItemBreakdown person={personWithItems([])} />);
+    expect(screen.getByText("No items assigned")).toBeInTheDocument();
+  });
+
+  it("shows the share only for partially shared items", () => {
+    render(
+      <PersonItemBreakdown
+        person={personWithItems([
+          { itemId: 0, itemName: "Fries", originalPrice: 6, quantity: 1, sharePercentage: 50, amount: 3 },
+          { itemId: 1, itemName: "Soda", originalPrice: 2, quantity: 1, sharePercentage: 100, amount: 2 },
+        ])}
+      />
+    );
+    expect(screen.getByText("50%")).toBeInTheDocument();
+    expect(screen.queryByText("100%")).not.toBeInTheDocument();
   });
 
   it("groups expanded items by receipt", () => {
@@ -48,8 +60,7 @@ describe("PersonItems", () => {
       ]),
     ];
 
-    render(<PersonItems people={people} />);
-    fireEvent.click(screen.getByText("Alice"));
+    render(<PersonItemBreakdown person={people[0]} />);
 
     const headings = screen.getAllByTestId("receipt-group-heading");
     expect(headings.map((el) => el.textContent)).toEqual([
@@ -77,8 +88,7 @@ describe("PersonItems", () => {
       ]),
     ];
 
-    render(<PersonItems people={people} />);
-    fireEvent.click(screen.getByText("Alice"));
+    render(<PersonItemBreakdown person={people[0]} />);
 
     expect(screen.getByText("Burger")).toBeInTheDocument();
     expect(screen.queryByTestId("receipt-group-heading")).not.toBeInTheDocument();

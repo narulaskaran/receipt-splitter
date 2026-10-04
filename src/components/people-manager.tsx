@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { PlusCircle, X, User } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { type Person } from '@/types';
 import { toast } from 'sonner';
 
@@ -15,29 +14,47 @@ export function PeopleManager({ people, onPeopleChange }: PeopleManagerProps) {
   const [newPersonName, setNewPersonName] = useState('');
 
   const addPerson = () => {
-    const trimmedName = newPersonName.trim();
-    
-    if (!trimmedName) {
+    // Accept a comma-separated list so a whole table can be added at once.
+    const names = newPersonName
+      .split(',')
+      .map(name => name.trim())
+      .filter(Boolean);
+
+    if (names.length === 0) {
       toast.error('Please enter a name');
       return;
     }
-    
-    if (people.some(p => p.name.toLowerCase() === trimmedName.toLowerCase())) {
-      toast.error('A person with that name already exists');
-      return;
+
+    const taken = new Set(people.map(p => p.name.toLowerCase()));
+    const added: Person[] = [];
+    const duplicates: string[] = [];
+    for (const name of names) {
+      if (taken.has(name.toLowerCase())) {
+        duplicates.push(name);
+        continue;
+      }
+      taken.add(name.toLowerCase());
+      added.push({
+        id: crypto.randomUUID(),
+        name,
+        items: [],
+        totalBeforeTax: 0,
+        tax: 0,
+        tip: 0,
+        finalTotal: 0,
+      });
     }
-    
-    const newPerson: Person = {
-      id: crypto.randomUUID(),
-      name: trimmedName,
-      items: [],
-      totalBeforeTax: 0,
-      tax: 0,
-      tip: 0,
-      finalTotal: 0,
-    };
-    
-    onPeopleChange([...people, newPerson]);
+
+    if (duplicates.length > 0) {
+      toast.error(
+        duplicates.length === 1
+          ? 'A person with that name already exists'
+          : `Already added: ${duplicates.join(', ')}`
+      );
+    }
+    if (added.length === 0) return;
+
+    onPeopleChange([...people, ...added]);
     setNewPersonName('');
   };
 
@@ -53,59 +70,56 @@ export function PeopleManager({ people, onPeopleChange }: PeopleManagerProps) {
   };
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="text-xl flex items-center gap-2">
-          <User className="h-5 w-5" />
-          People in Receipt
-        </CardTitle>
-      </CardHeader>
-      
-      <CardContent>
-        <div className="flex flex-wrap gap-2 mb-4">
-          {people.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Add people who shared this receipt</p>
-          ) : (
-            people.map(person => (
-              <div 
-                key={person.id}
-                className="flex items-center gap-1 bg-secondary text-secondary-foreground px-3 py-1 rounded-full"
+    <section aria-labelledby="people-heading" className="flex flex-col gap-3 p-4 sm:p-5">
+      <h3 id="people-heading" className="text-sm font-medium">
+        People
+      </h3>
+      <div className="flex gap-2">
+        <Input
+          type="text"
+          placeholder="Add names, e.g. Ana, Ben"
+          aria-label="Name"
+          value={newPersonName}
+          onChange={e => setNewPersonName(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className="min-h-[44px] flex-grow"
+          autoComplete="off"
+        />
+        <Button
+          type="button"
+          onClick={addPerson}
+          disabled={!newPersonName.trim()}
+          aria-label="Add person"
+        >
+          <Plus />
+          <span className="hidden sm:inline">Add</span>
+        </Button>
+      </div>
+
+      {people.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No one yet. Add yourself too if you&apos;re paying a share.
+        </p>
+      ) : (
+        <ul className="flex flex-wrap gap-2">
+          {people.map(person => (
+            <li
+              key={person.id}
+              className="flex items-center gap-1 rounded-full bg-secondary py-1 pr-1 pl-3 text-secondary-foreground"
+            >
+              <span className="text-sm font-medium">{person.name}</span>
+              <button
+                type="button"
+                onClick={() => removePerson(person.id)}
+                className="flex size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                aria-label={`Remove ${person.name}`}
               >
-                <span>{person.name}</span>
-                <button
-                  type="button"
-                  onClick={() => removePerson(person.id)}
-                  className="rounded-full p-2 hover:bg-destructive/10 text-muted-foreground hover:text-destructive min-w-[32px] min-h-[32px] flex items-center justify-center"
-                  aria-label={`Remove ${person.name}`}
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ))
-          )}
-        </div>
-        
-        <div className="flex gap-2">
-          <Input
-            type="text"
-            placeholder="Add a person"
-            value={newPersonName}
-            onChange={e => setNewPersonName(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="flex-grow"
-          />
-          <Button 
-            type="button" 
-            variant="secondary"
-            size="icon"
-            onClick={addPerson}
-            disabled={!newPersonName.trim()}
-          >
-            <PlusCircle className="h-4 w-4" />
-            <span className="sr-only">Add person</span>
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+                <X className="size-4" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

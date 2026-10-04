@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { resultsPersonRow } from "./helpers";
 
 // =============================================================================
 // Helper: preload session via localStorage
@@ -200,18 +201,18 @@ test.describe("Split All Evenly flow", () => {
       await expect(page.getByText("Split remaining items on Even Diner.").first()).toBeVisible({ timeout: 5000 });
     });
 
-    await test.step("progress shows 100% after split", async () => {
-      await expect(page.getByText("100%")).toBeVisible({ timeout: 5000 });
+    await test.step("progress shows all items assigned after split", async () => {
+      await expect(page.getByText("All items assigned")).toBeVisible({ timeout: 5000 });
     });
 
     await test.step("navigate to Results tab — both people show $5.00 total", async () => {
       // Click the Results tab trigger
-      const resultsTab = page.getByRole("tab", { name: /results/i });
+      const resultsTab = page.getByRole("tab", { name: /totals/i });
       await resultsTab.click();
 
       // Verify the total on each person's result row.
-      const aliceRow = page.getByRole("row").filter({ hasText: "Alice" });
-      const bobRow = page.getByRole("row").filter({ hasText: "Bob" });
+      const aliceRow = resultsPersonRow(page, "Alice");
+      const bobRow = resultsPersonRow(page, "Bob");
       await expect(aliceRow).toContainText("$5.00");
       await expect(bobRow).toContainText("$5.00");
     });
@@ -243,16 +244,16 @@ test.describe("Split All Evenly flow", () => {
       await expect(page.getByText("Split remaining items on Trio Cafe.").first()).toBeVisible({ timeout: 5000 });
     });
 
-    await test.step("progress shows 100%", async () => {
-      await expect(page.getByText("100%")).toBeVisible({ timeout: 5000 });
+    await test.step("progress shows all items assigned", async () => {
+      await expect(page.getByText("All items assigned")).toBeVisible({ timeout: 5000 });
     });
 
     await test.step("Results tab — all three people show $4.00 total", async () => {
-      await page.getByRole("tab", { name: /results/i }).click();
+      await page.getByRole("tab", { name: /totals/i }).click();
 
-      const aliceRow = page.getByRole("row").filter({ hasText: "Alice" });
-      const bobRow = page.getByRole("row").filter({ hasText: "Bob" });
-      const charlieRow = page.getByRole("row").filter({ hasText: "Charlie" });
+      const aliceRow = resultsPersonRow(page, "Alice");
+      const bobRow = resultsPersonRow(page, "Bob");
+      const charlieRow = resultsPersonRow(page, "Charlie");
       await expect(aliceRow).toContainText("$4.00");
       await expect(bobRow).toContainText("$4.00");
       await expect(charlieRow).toContainText("$4.00");
@@ -286,8 +287,8 @@ test.describe("Split All Evenly flow", () => {
       await expect(splitBtn).toBeDisabled();
     });
 
-    await test.step("progress stays at 100% (empty receipt rounds to 100%)", async () => {
-      await expect(page.getByText("100%")).toBeVisible({ timeout: 5000 });
+    await test.step("progress shows all items assigned (empty receipt)", async () => {
+      await expect(page.getByText("All items assigned")).toBeVisible({ timeout: 5000 });
     });
   });
 
@@ -318,8 +319,8 @@ test.describe("Split All Evenly flow", () => {
       await expect(splitBtn).toBeEnabled();
     });
 
-    await test.step("verify progress shows 50% (1 of 2 items assigned)", async () => {
-      await expect(page.getByText("50%")).toBeVisible({ timeout: 5000 });
+    await test.step("verify progress shows 1 of 2 items left", async () => {
+      await expect(page.getByText("1 of 2 items left")).toBeVisible({ timeout: 5000 });
     });
 
     await test.step("click Split All Evenly", async () => {
@@ -327,17 +328,17 @@ test.describe("Split All Evenly flow", () => {
       await expect(page.getByText("Split remaining items on PreSplit Grill.").first()).toBeVisible({ timeout: 5000 });
     });
 
-    await test.step("progress shows 100% after split", async () => {
-      await expect(page.getByText("100%")).toBeVisible({ timeout: 5000 });
+    await test.step("progress shows all items assigned after split", async () => {
+      await expect(page.getByText("All items assigned")).toBeVisible({ timeout: 5000 });
     });
 
     await test.step("Results tab — Alice $7.50, Bob $2.50", async () => {
-      await page.getByRole("tab", { name: /results/i }).click();
+      await page.getByRole("tab", { name: /totals/i }).click();
 
       // Alice: $5.00 (item 0) + $2.50 (half of item 1) = $7.50
-      await expect(page.getByRole("row").filter({ hasText: "Alice" })).toContainText("$7.50");
+      await expect(resultsPersonRow(page, "Alice")).toContainText("$7.50");
       // Bob: $2.50 (half of item 1)
-      await expect(page.getByRole("row").filter({ hasText: "Bob" })).toContainText("$2.50");
+      await expect(resultsPersonRow(page, "Bob")).toContainText("$2.50");
     });
   });
 });

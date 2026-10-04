@@ -1,11 +1,19 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, UploadCloud, Users, ListChecks, DollarSign } from "lucide-react";
+import { ArrowLeft, ArrowRight, ReceiptText, RotateCcw } from "lucide-react";
 
 import { ReceiptUploader } from "@/components/receipt-uploader";
 import { ParsedReceiptsList } from "@/components/parsed-receipts-list";
@@ -13,9 +21,9 @@ import { PeopleManager } from "@/components/people-manager";
 import { GroupManager } from "@/components/group-manager";
 import { ItemAssignment } from "@/components/item-assignment";
 import { ResultsSummary } from "@/components/results-summary";
-import { PersonItems } from "@/components/person-items";
 import { KofiButton } from "@/components/kofi-button";
 import { ValidationErrors } from "@/components/validation-errors";
+import { StepHeader, StepTrigger } from "@/components/step-nav";
 
 import {
   type Receipt,
@@ -179,6 +187,7 @@ export default function Home() {
   const [hasSession, setHasSession] = useState(false);
   const isFirstLoad = useRef(true);
   const [resetImageTrigger, setResetImageTrigger] = useState(0);
+  const [confirmNewSplit, setConfirmNewSplit] = useState(false);
   const stateRef = useRef(state);
 
   const commitState = (next: ReceiptState) => {
@@ -277,6 +286,7 @@ export default function Home() {
     setActiveTab("upload");
     setHasSession(false);
     setResetImageTrigger((v) => v + 1);
+    setConfirmNewSplit(false);
   };
 
   // Check if all items are assigned
@@ -296,17 +306,16 @@ export default function Home() {
     }
   }, [activeTab, allItemsAssigned, state.people.length, state.receipts.length]);
 
-  const progress = useMemo(() => {
-    if (state.receipts.length === 0) return 0;
-
-    const totalItems = state.receipts.reduce(
+  const itemProgress = useMemo(() => {
+    const total = state.receipts.reduce(
       (n, r) => n + r.receipt.items.length,
       0
     );
-    const unassigned = getSessionUnassigned(state.receipts, state.assignedItems);
-    return totalItems === 0
-      ? 100
-      : ((totalItems - unassigned.length) / totalItems) * 100;
+    const unassigned = getSessionUnassigned(
+      state.receipts,
+      state.assignedItems
+    ).length;
+    return { total, unassigned };
   }, [state.receipts, state.assignedItems]);
 
   // Handle receipt upload — append to the current outing (people/groups stay).
@@ -589,191 +598,263 @@ export default function Home() {
   const hasReceipt = state.receipts.length > 0;
   const canViewResults =
     hasReceipt && state.people.length > 0 && allItemsAssigned;
+  const currencyCode = sessionCurrency(state.receipts);
+  const receiptCountLabel = `${state.receipts.length} ${
+    state.receipts.length === 1 ? "receipt" : "receipts"
+  }`;
+  const peopleCountLabel = `${state.people.length} ${
+    state.people.length === 1 ? "person" : "people"
+  }`;
+
+  const footer: Record<string, { hint: string; next?: string }> = {
+    upload: {
+      hint: hasReceipt
+        ? `${receiptCountLabel} · ${currencyCode ?? "USD"}`
+        : "Add a receipt to continue",
+      next: "Add people",
+    },
+    people: {
+      hint:
+        state.people.length === 0
+          ? "Add at least one person"
+          : `${peopleCountLabel} · ${receiptCountLabel}`,
+      next: "Assign items",
+    },
+    assign: {
+      hint:
+        itemProgress.unassigned > 0
+          ? `${itemProgress.unassigned} of ${itemProgress.total} ${
+              itemProgress.total === 1 ? "item" : "items"
+            } left`
+          : "All items assigned",
+      next: "See totals",
+    },
+    results: {
+      hint: "Ready to share",
+    },
+  };
+  const currentFooter = footer[activeTab] ?? footer.upload;
+  const showFooter = activeTab !== "upload" || hasReceipt;
 
   return (
-    <main className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div className="w-full sm:w-auto">
-          <h1 className="text-3xl font-bold mb-2">Receipt Splitter</h1>
-          <p className="text-muted-foreground">
-            Upload receipts, add people, and split the day
-          </p>
+    <div className="flex min-h-dvh flex-col">
+      <header className="sticky top-0 z-30 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+        <div className="mx-auto flex h-14 w-full max-w-3xl items-center justify-between gap-3 px-4">
+          <div className="flex items-center gap-2">
+            <span
+              className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"
+              aria-hidden="true"
+            >
+              <ReceiptText className="size-4" />
+            </span>
+            <h1 className="text-base font-semibold tracking-tight">
+              Receipt Splitter
+            </h1>
+          </div>
+          {hasSession && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setConfirmNewSplit(true)}
+              className="text-muted-foreground"
+            >
+              <RotateCcw />
+              New split
+            </Button>
+          )}
         </div>
+      </header>
 
-        <div className="flex gap-2 w-full sm:w-auto justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleNewSplit}
-            disabled={!hasSession}
-            className="flex items-center gap-1"
-            title={
-              hasSession
-                ? "Start a new split (clear session)"
-                : "No session to clear"
-            }
-          >
-            New Split
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={goToPreviousTab}
-            disabled={activeTab === "upload"}
-            className="flex items-center gap-1"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </Button>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={goToNextTab}
-            disabled={!canGoToNextTab()}
-            className="flex items-center gap-1"
-          >
-            Next
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
-
-      <Tabs
-        value={activeTab}
-        onValueChange={setActiveTab}
-        className="space-y-6"
+      <main
+        className={`mx-auto w-full max-w-3xl flex-1 px-4 pt-4 ${
+          showFooter ? "pb-28" : "pb-10"
+        }`}
       >
-        <div className="flex flex-col gap-4 mb-2">
-          <TabsList className="w-full overflow-x-auto scrollbar-hide">
-            <TabsTrigger value="upload" className="gap-1.5 sm:gap-2">
-              <UploadCloud className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden xs:inline sm:hidden">Upload</span>
-              <span className="hidden sm:inline">Upload Receipts</span>
-            </TabsTrigger>
-            <TabsTrigger value="people" disabled={!hasReceipt} className="gap-1.5 sm:gap-2">
-              <Users className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden xs:inline sm:hidden">People</span>
-              <span className="hidden sm:inline">Add People</span>
-            </TabsTrigger>
-            <TabsTrigger
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-6">
+          <TabsList
+            aria-label="Steps"
+            className="grid h-auto w-full grid-cols-4 gap-1 rounded-xl bg-muted/70 p-1"
+          >
+            <StepTrigger value="upload" step={1} label="Receipts" complete={hasReceipt} />
+            <StepTrigger
+              value="people"
+              step={2}
+              label="People"
+              disabled={!hasReceipt}
+              complete={state.people.length > 0}
+            />
+            <StepTrigger
               value="assign"
+              step={3}
+              label="Assign"
               disabled={!hasReceipt || state.people.length === 0}
-              className="gap-1.5 sm:gap-2"
-            >
-              <ListChecks className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden xs:inline sm:hidden">Items</span>
-              <span className="hidden sm:inline">Assign Items</span>
-            </TabsTrigger>
-            <TabsTrigger
+              complete={hasReceipt && allItemsAssigned}
+            />
+            <StepTrigger
               value="results"
+              step={4}
+              label="Totals"
               disabled={!canViewResults}
-              className="gap-1.5 sm:gap-2"
-            >
-              <DollarSign className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden xs:inline sm:hidden">Results</span>
-              <span className="hidden sm:inline">Results</span>
-            </TabsTrigger>
+            />
           </TabsList>
 
-          {hasReceipt && (
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Progress
-                value={progress}
-                className="w-full sm:w-48"
-              />
-              <span className="text-sm whitespace-nowrap w-12">
-                {Math.round(progress)}%
-              </span>
-            </div>
-          )}
-        </div>
+          <TabsContent value="upload" className="flex flex-col gap-4">
+            <StepHeader
+              title={hasReceipt ? "Your receipts" : "Split a receipt in seconds"}
+              description={
+                hasReceipt
+                  ? "Add more from the same outing, or check the details below."
+                  : "Upload a photo or PDF. We'll read the items, tax, and tip for you."
+              }
+            />
+            <ReceiptUploader
+              onReceiptParsed={handleReceiptParsed}
+              isLoading={state.isLoading}
+              setIsLoading={setIsLoading}
+              resetImageTrigger={resetImageTrigger}
+              maxRemaining={MAX_RECEIPTS_PER_SESSION - state.receipts.length}
+              hasReceipts={hasReceipt}
+            />
 
-        <TabsContent value="upload" className="space-y-6">
-          <ReceiptUploader
-            onReceiptParsed={handleReceiptParsed}
-            isLoading={state.isLoading}
-            setIsLoading={setIsLoading}
-            resetImageTrigger={resetImageTrigger}
-            maxRemaining={MAX_RECEIPTS_PER_SESSION - state.receipts.length}
-            hasReceipts={hasReceipt}
-          />
+            <ParsedReceiptsList
+              receipts={state.receipts}
+              onReceiptUpdate={(id, receipt) => handleReceiptUpdate(id, receipt)}
+              onRemoveReceipt={handleRemoveReceipt}
+            />
+          </TabsContent>
 
-          <ParsedReceiptsList
-            receipts={state.receipts}
-            onReceiptUpdate={(id, receipt) => handleReceiptUpdate(id, receipt)}
-            onRemoveReceipt={handleRemoveReceipt}
-          />
-        </TabsContent>
+          <TabsContent value="people" className="flex flex-col gap-4">
+            <StepHeader
+              title="Who's splitting?"
+              description="Add everyone who shared the bill."
+            />
+            <Card className="gap-0 py-0">
+              <CardContent className="flex flex-col divide-y p-0">
+                <PeopleManager
+                  people={state.people}
+                  onPeopleChange={handlePeopleChange}
+                />
+                <GroupManager
+                  people={state.people}
+                  groups={state.groups}
+                  onGroupCreate={handleGroupCreate}
+                  onGroupUpdate={handleGroupUpdate}
+                  onGroupDelete={handleGroupDelete}
+                  onGroupEmojiRegenerate={handleGroupEmojiRegenerate}
+                />
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <TabsContent value="people" className="space-y-6">
-          {state.receipts.length > 0 && (
-            <p className="text-sm text-muted-foreground">
-              {state.receipts.length}{" "}
-              {state.receipts.length === 1 ? "receipt" : "receipts"} ·{" "}
-              {sessionCurrency(state.receipts) ?? "USD"}
+          <TabsContent value="assign" className="flex flex-col gap-4">
+            <StepHeader
+              title="Who had what?"
+              description="Pick who had each item. Shared items split evenly."
+            />
+            {state.receipts.map((stored) => {
+              const inner = state.assignedItems.get(stored.id) ?? new Map();
+              const unassigned = getUnassignedItems(stored.receipt, inner);
+              return (
+                <ItemAssignment
+                  key={stored.id}
+                  receipt={stored.receipt}
+                  title={receiptRestaurantName(stored)}
+                  subtitle={receiptSubtitle(stored, state.receipts)}
+                  people={state.people}
+                  groups={state.groups}
+                  assignedItems={inner}
+                  unassignedItems={unassigned}
+                  onAssignItems={(itemIndex, assignments) =>
+                    handleAssignItems(stored.id, itemIndex, assignments)
+                  }
+                  onReceiptUpdate={(receipt, remapped) =>
+                    handleReceiptUpdate(stored.id, receipt, remapped)
+                  }
+                  onSplitEvenly={() => splitItemsEvenlyForReceipt(stored.id)}
+                />
+              );
+            })}
+          </TabsContent>
+
+          <TabsContent value="results" className="flex flex-col gap-4">
+            <StepHeader
+              title="Who owes what"
+              description="Tax and tip are split in proportion to what each person ordered."
+            />
+            <ValidationErrors
+              errors={validationResult.errors}
+              currencyCode={activeReceipt?.currency}
+            />
+
+            <ResultsSummary
+              people={state.people}
+              receiptName={sessionShareNote(state.receipts)}
+              receiptDate={sessionShareDate(state.receipts)}
+              currencyCode={currencyCode}
+              validationResult={validationResult}
+              receiptBreakdown={receiptBreakdown}
+            />
+          </TabsContent>
+        </Tabs>
+
+        <KofiButton className="mt-10 flex justify-center" />
+      </main>
+
+      {showFooter && (
+        <nav
+          aria-label="Step navigation"
+          className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/90 pb-[env(safe-area-inset-bottom)] backdrop-blur supports-[backdrop-filter]:bg-background/75"
+        >
+          <div className="mx-auto flex w-full max-w-3xl items-center gap-3 px-4 py-3">
+            {activeTab !== "upload" && (
+              <Button
+                variant="outline"
+                onClick={goToPreviousTab}
+                aria-label="Back"
+                className="shrink-0"
+              >
+                <ArrowLeft />
+                <span className="hidden sm:inline">Back</span>
+              </Button>
+            )}
+            <p
+              className="line-clamp-2 min-w-0 flex-1 text-sm leading-tight text-muted-foreground"
+              aria-live="polite"
+            >
+              {currentFooter.hint}
             </p>
-          )}
+            {currentFooter.next && (
+              <Button
+                onClick={goToNextTab}
+                disabled={!canGoToNextTab()}
+                className="shrink-0"
+              >
+                {currentFooter.next}
+                <ArrowRight />
+              </Button>
+            )}
+          </div>
+        </nav>
+      )}
 
-          <PeopleManager
-            people={state.people}
-            onPeopleChange={handlePeopleChange}
-          />
-
-          <GroupManager
-            people={state.people}
-            groups={state.groups}
-            onGroupCreate={handleGroupCreate}
-            onGroupUpdate={handleGroupUpdate}
-            onGroupDelete={handleGroupDelete}
-            onGroupEmojiRegenerate={handleGroupEmojiRegenerate}
-          />
-        </TabsContent>
-
-        <TabsContent value="assign" className="space-y-6">
-          {state.receipts.map((stored) => {
-            const inner = state.assignedItems.get(stored.id) ?? new Map();
-            const unassigned = getUnassignedItems(stored.receipt, inner);
-            return (
-              <ItemAssignment
-                key={stored.id}
-                receipt={stored.receipt}
-                title={receiptRestaurantName(stored)}
-                subtitle={receiptSubtitle(stored, state.receipts)}
-                people={state.people}
-                groups={state.groups}
-                assignedItems={inner}
-                unassignedItems={unassigned}
-                onAssignItems={(itemIndex, assignments) =>
-                  handleAssignItems(stored.id, itemIndex, assignments)
-                }
-                onReceiptUpdate={(receipt, remapped) =>
-                  handleReceiptUpdate(stored.id, receipt, remapped)
-                }
-                onSplitEvenly={() => splitItemsEvenlyForReceipt(stored.id)}
-              />
-            );
-          })}
-        </TabsContent>
-
-        <TabsContent value="results" className="space-y-6">
-          <ValidationErrors errors={validationResult.errors} currencyCode={activeReceipt?.currency} />
-
-          <ResultsSummary
-            people={state.people}
-            receiptName={sessionShareNote(state.receipts)}
-            receiptDate={sessionShareDate(state.receipts)}
-            currencyCode={sessionCurrency(state.receipts)}
-            validationResult={validationResult}
-            receiptBreakdown={receiptBreakdown}
-          />
-
-          <PersonItems people={state.people} currencyCode={sessionCurrency(state.receipts)} />
-        </TabsContent>
-      </Tabs>
-
-      <div className="flex justify-between items-center w-full mt-4">
-        <KofiButton />
-      </div>
-    </main>
+      <Dialog open={confirmNewSplit} onOpenChange={setConfirmNewSplit}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Start a new split?</DialogTitle>
+            <DialogDescription>
+              This clears all receipts, people, and assignments.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmNewSplit(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleNewSplit}>
+              Start over
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

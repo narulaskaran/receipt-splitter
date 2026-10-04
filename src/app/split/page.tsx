@@ -3,7 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, ArrowLeft, Loader2 } from "lucide-react";
+import { AlertCircle, ArrowLeft, Loader2, ReceiptText } from "lucide-react";
 import {
   deserializeSplitData,
   validateSplitDataDetailed,
@@ -140,13 +140,25 @@ function SplitPageContent() {
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6 sm:py-10">
-        <Button variant="ghost" size="sm" asChild className="-ml-3 self-start">
-          <Link href="/">
-            <ArrowLeft data-icon="inline-start" />
-            Back
-          </Link>
-        </Button>
+        <Link
+          href="/"
+          className="flex items-center gap-2 self-start rounded-md text-sm font-semibold"
+        >
+          <span
+            className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground"
+            aria-hidden="true"
+          >
+            <ReceiptText className="size-4" />
+          </span>
+          Receipt Splitter
+        </Link>
         <SplitSummary splitData={splitData} phoneNumber={splitData.phone} />
+        <p className="text-center text-sm text-muted-foreground">
+          Got your own receipt to split?{" "}
+          <Link href="/" className="font-medium text-primary hover:underline">
+            Try it free
+          </Link>
+        </p>
       </div>
     </div>
   );

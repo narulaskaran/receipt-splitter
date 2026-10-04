@@ -3,6 +3,7 @@ import {
   seedSessionViaReload,
   uploadTinyReceipt,
   baseState,
+  nextStepButton,
 } from "./helpers";
 
 test.describe("error states", () => {
@@ -18,7 +19,7 @@ test.describe("error states", () => {
     );
 
     await page.goto("/");
-    await expect(page.getByText("Upload your receipt")).toBeVisible({
+    await expect(page.getByText("Upload a receipt")).toBeVisible({
       timeout: 10000,
     });
 
@@ -40,7 +41,7 @@ test.describe("error states", () => {
     );
 
     await page.goto("/");
-    await expect(page.getByText("Upload your receipt")).toBeVisible({
+    await expect(page.getByText("Upload a receipt")).toBeVisible({
       timeout: 10000,
     });
 
@@ -62,17 +63,16 @@ test.describe("error states", () => {
 
     await page.goto("/");
 
-    await expect(page.getByText("Upload your receipt")).toBeVisible({
+    await expect(page.getByText("Upload a receipt")).toBeVisible({
       timeout: 10000,
     });
-    await expect(page.getByRole("tab", { name: /add people/i })).toBeDisabled();
+    await expect(page.getByRole("tab", { name: /people/i })).toBeDisabled();
+    await expect(page.getByRole("tab", { name: /assign/i })).toBeDisabled();
+    await expect(page.getByRole("tab", { name: /totals/i })).toBeDisabled();
+    // No step footer until a receipt exists
     await expect(
-      page.getByRole("tab", { name: /assign items/i }),
-    ).toBeDisabled();
-    await expect(page.getByRole("tab", { name: /results/i })).toBeDisabled();
-    await expect(
-      page.getByRole("button", { name: "Next", exact: true }),
-    ).toBeDisabled();
+      page.getByRole("navigation", { name: "Step navigation" }),
+    ).toHaveCount(0);
   });
 
   test("offline assignment is preserved after reconnecting", async ({
@@ -84,7 +84,7 @@ test.describe("error states", () => {
     await expect(
       page.getByRole("button", { name: /split evenly/i }),
     ).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText("0%")).toBeVisible();
+    await expect(page.getByText("2 of 2 items left")).toBeVisible();
 
     await context.setOffline(true);
 
@@ -94,14 +94,12 @@ test.describe("error states", () => {
     await expect(
       page.getByText("Split remaining items on Test Diner.").first(),
     ).toBeVisible();
-    await expect(page.getByText("100%")).toBeVisible();
+    await expect(page.getByText("All items assigned")).toBeVisible();
 
     await context.setOffline(false);
     await page.reload();
 
-    await expect(page.getByText("100%")).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Next", exact: true }),
-    ).toBeEnabled();
+    await expect(page.getByText("All items assigned")).toBeVisible();
+    await expect(nextStepButton(page)).toBeEnabled();
   });
 });

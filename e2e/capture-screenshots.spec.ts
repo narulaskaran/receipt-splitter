@@ -99,8 +99,8 @@ async function seedResultsSession(page: Page) {
 }
 
 async function expectGatedMultiReceiptResults(page: Page) {
-  // On narrow viewports the Results tab label is icon-only, so assert on the
-  // copy that only renders after a fully assigned multi-receipt restore.
+  // Assert on copy that only renders after a fully assigned multi-receipt
+  // restore, so the gate is checked rather than just the tab label.
   await expect(page.getByRole("heading", { name: "Day total" })).toBeVisible({
     timeout: 10000,
   });
@@ -118,9 +118,8 @@ test("Capture validation screenshots", async ({ page }) => {
   await page.screenshot({ path: "screenshots/full-results-desktop.png", fullPage: true });
 
   const shareSection = page
-    .locator("text=Your Phone Number")
-    .locator("..")
-    .locator("..");
+    .locator('[data-slot="card"]')
+    .filter({ has: page.getByLabel("Your phone number on Venmo") });
   // Share Split stays disabled until a 10-digit Venmo phone is entered.
   const shareButton = page.getByRole("button", { name: "Share Split" });
   await expect(shareButton).toBeDisabled();

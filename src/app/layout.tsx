@@ -58,7 +58,8 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           {children}
-          <Toaster />
+          {/* Top so toasts never cover the sticky step footer */}
+          <Toaster position="top-center" />
         </ThemeProvider>
         <Analytics />
         <SpeedInsights />

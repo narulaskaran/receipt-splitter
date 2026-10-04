@@ -1,5 +1,5 @@
 import React from "react";
-import Image from "next/image";
+import { Coffee } from "lucide-react";
 
 interface KofiButtonProps {
   className?: string;
@@ -12,15 +12,10 @@ export const KofiButton: React.FC<KofiButtonProps> = ({ className }) => {
         href="https://ko-fi.com/Y8Y21CC8IA"
         target="_blank"
         rel="noopener noreferrer"
-        className="transform scale-75 transition-all hover:scale-[.755] hover:brightness-110"
+        className="inline-flex items-center gap-1.5 rounded-full px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       >
-        <Image
-          height={40}
-          width={160}
-          style={{ border: 0 }}
-          src="https://storage.ko-fi.com/cdn/kofi3.png?v=6"
-          alt="Buy Me a Coffee at ko-fi.com"
-        />
+        <Coffee className="size-4" aria-hidden="true" />
+        Enjoying it? Buy me a coffee
       </a>
     </div>
   );

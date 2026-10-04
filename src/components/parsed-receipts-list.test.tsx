@@ -4,7 +4,7 @@ import { createMockReceipt, createStoredReceipt } from "@/test/test-utils";
 import { setThumbnail } from "@/lib/receipt-thumbnails";
 
 describe("ParsedReceiptsList", () => {
-  it("renders restaurant, date, item count, total, and currency", () => {
+  it("renders restaurant, date, item count, and total", () => {
     const stored = createStoredReceipt(
       createMockReceipt({
         restaurant: "Cafe",
@@ -27,8 +27,8 @@ describe("ParsedReceiptsList", () => {
     );
 
     expect(screen.getAllByText("Cafe").length).toBeGreaterThan(0);
-    expect(screen.getByText(/2024-03-15 · 2 items · \$42\.00 · USD/)).toBeInTheDocument();
-    expect(screen.getByText("Receipts (1/10)")).toBeInTheDocument();
+    expect(screen.getByText(/2024-03-15 · 2 items · \$42\.00$/)).toBeInTheDocument();
+    expect(screen.getByText("1 of 10")).toBeInTheDocument();
   });
 
   it("calls onRemoveReceipt after confirmation", async () => {

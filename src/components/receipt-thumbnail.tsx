@@ -13,15 +13,17 @@ export function ReceiptThumbnail({ src, alt, variant }: ReceiptThumbnailProps) {
         <img
           src={src}
           alt={alt}
-          className="h-12 w-12 rounded object-cover border shrink-0"
+          className="size-10 rounded-md object-cover border shrink-0"
         />
       );
     }
     return (
-      <FileText
+      <span
         aria-hidden="true"
-        className="h-6 w-6 mt-0.5 shrink-0 text-muted-foreground"
-      />
+        className="flex size-10 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground"
+      >
+        <FileText className="size-5" />
+      </span>
     );
   }
 
@@ -30,17 +32,17 @@ export function ReceiptThumbnail({ src, alt, variant }: ReceiptThumbnailProps) {
       <img
         src={src}
         alt={alt}
-        className="max-h-48 max-w-full w-auto rounded-md border object-contain shrink-0 mx-auto sm:mx-0"
+        className="max-h-40 max-w-full w-auto rounded-md border object-contain shrink-0 mx-auto sm:mx-0"
       />
     );
   }
 
   return (
     <div
-      className="flex h-40 w-28 items-center justify-center rounded-md border bg-muted/40 shrink-0 mx-auto sm:mx-0"
+      className="hidden h-28 w-20 items-center justify-center rounded-md border bg-card shrink-0 sm:flex"
       aria-hidden="true"
     >
-      <FileText className="h-12 w-12 text-muted-foreground" />
+      <FileText className="size-8 text-muted-foreground" />
     </div>
   );
 }

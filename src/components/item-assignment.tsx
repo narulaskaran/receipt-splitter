@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Check, AlertCircle, Pencil, Trash2, Plus } from "lucide-react";
+import { Check, AlertCircle, ChevronDown, Pencil, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -8,14 +8,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from "@/components/ui/table";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -303,6 +295,70 @@ export function ItemAssignment({
     toast.success(`Added "${name.trim()}"`);
   };
 
+  // People + groups checklist shown in each item's popover
+  const renderPicker = (index: number) => (
+    <div className="flex max-h-64 flex-col gap-2 overflow-y-auto p-2">
+      <div className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        Individuals
+      </div>
+      {people.map((person) => (
+        <div key={person.id} className="flex items-center gap-2">
+          <Checkbox
+            id={`person-${person.id}-item-${index}`}
+            checked={(selectedPeople.get(index) || new Set()).has(person.id)}
+            onCheckedChange={() => togglePersonSelection(index, person.id)}
+          />
+          <label
+            htmlFor={`person-${person.id}-item-${index}`}
+            className="cursor-pointer text-sm leading-none font-medium"
+          >
+            {person.name}
+          </label>
+        </div>
+      ))}
+
+      {groups.length > 0 && (
+        <div className="mt-2 border-t pt-2">
+          <div className="mb-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            Groups
+          </div>
+          {groups.map((group) => (
+            <div key={group.id} className="flex items-center gap-2">
+              <Checkbox
+                id={`group-${group.id}-item-${index}`}
+                checked={isGroupFullySelected(index, group)}
+                onCheckedChange={() => toggleGroupSelection(index, group)}
+                className={
+                  isGroupPartiallySelected(index, group) &&
+                  !isGroupFullySelected(index, group)
+                    ? "data-[state=unchecked]:border-primary data-[state=unchecked]:bg-primary/20"
+                    : ""
+                }
+              />
+              <label
+                htmlFor={`group-${group.id}-item-${index}`}
+                className="flex flex-1 cursor-pointer items-center gap-2"
+              >
+                <span className="flex h-4 w-4 items-center justify-center">
+                  {group.emoji || "👥"}
+                </span>
+                <span className="flex-1">
+                  <span className="block text-sm font-medium">{group.name}</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {group.memberIds
+                      .map((id) => people.find((p) => p.id === id)?.name)
+                      .filter(Boolean)
+                      .join(", ")}
+                  </span>
+                </span>
+              </label>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <Card className="w-full">
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
@@ -334,376 +390,92 @@ export function ItemAssignment({
             Add people first to assign items
           </p>
         ) : (
-          <>
-            {/* Desktop Table View */}
-            <div className="hidden md:block">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Item</TableHead>
-                    <TableHead className="text-right">Price</TableHead>
-                    <TableHead className="text-right">Assigned To</TableHead>
-                    <TableHead className="text-right">Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {receipt.items.map((item, index) => (
-                    <TableRow
-                      key={index}
-                      className={
-                        unassignedItems.includes(index) ? "bg-destructive/5" : ""
-                      }
-                    >
-                      <TableCell>
-                        <div className="font-medium">{item.name}</div>
-                        {item.quantity > 1 && (
-                          <div className="text-sm text-muted-foreground">
-                            Qty: {item.quantity}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="min-w-[90px] justify-between"
-                          onClick={() => handleEditItem(index)}
-                          title="Click to edit price and quantity"
-                        >
-                          {formatCurrency(item.price * (item.quantity || 1))}
-                        </Button>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {isItemFullyAssigned(index) ? (
-                            <Check className="h-4 w-4 text-green-500" />
-                          ) : (
-                            <AlertCircle className="h-4 w-4 text-destructive" />
-                          )}
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="min-w-[120px] justify-between"
-                              >
-                                <span
-                                  className={
-                                    unassignedItems.includes(index)
-                                      ? "text-destructive"
-                                      : ""
-                                  }
-                                >
-                                  {getAssignmentSummary(index)}
-                                </span>
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="p-0" align="end">
-                              <div className="p-2 flex flex-col gap-2 max-h-64 overflow-y-auto">
-                                {/* Individual People */}
-                                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                                  Individuals
-                                </div>
-                                {people.map((person) => (
-                                  <div
-                                    key={person.id}
-                                    className="flex items-center gap-2"
-                                  >
-                                    <Checkbox
-                                      id={`person-${person.id}-item-${index}`}
-                                      checked={(
-                                        selectedPeople.get(index) || new Set()
-                                      ).has(person.id)}
-                                      onCheckedChange={() =>
-                                        togglePersonSelection(index, person.id)
-                                      }
-                                    />
-                                    <label
-                                      htmlFor={`person-${person.id}-item-${index}`}
-                                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                                    >
-                                      {person.name}
-                                    </label>
-                                  </div>
-                                ))}
-
-                                {/* Groups */}
-                                {groups && groups.length > 0 && (
-                                  <>
-                                    <div className="border-t pt-2 mt-2">
-                                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                                        Groups
-                                      </div>
-                                      {groups.map((group) => (
-                                        <div
-                                          key={group.id}
-                                          className="flex items-center gap-2"
-                                        >
-                                          <Checkbox
-                                            id={`group-${group.id}-item-${index}`}
-                                            checked={isGroupFullySelected(
-                                              index,
-                                              group
-                                            )}
-                                            onCheckedChange={() =>
-                                              toggleGroupSelection(index, group)
-                                            }
-                                            className={
-                                              isGroupPartiallySelected(
-                                                index,
-                                                group
-                                              ) &&
-                                              !isGroupFullySelected(index, group)
-                                                ? "data-[state=unchecked]:border-primary data-[state=unchecked]:bg-primary/20"
-                                                : ""
-                                            }
-                                          />
-                                          <label
-                                            htmlFor={`group-${group.id}-item-${index}`}
-                                            className="flex-1 cursor-pointer"
-                                          >
-                                            <div className="flex items-center gap-2">
-                                              <div className="w-4 h-4 flex items-center justify-center">
-                                                {group.emoji || "👥"}
-                                              </div>
-                                              <div className="flex-1">
-                                                <div className="text-sm font-medium">
-                                                  {group.name}
-                                                </div>
-                                                <div className="text-xs text-muted-foreground">
-                                                  {group.memberIds
-                                                    .map(
-                                                      (id) =>
-                                                        people.find(
-                                                          (p) => p.id === id
-                                                        )?.name
-                                                    )
-                                                    .filter(Boolean)
-                                                    .join(", ")}
-                                                </div>
-                                              </div>
-                                            </div>
-                                          </label>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setCurrentItemIndex(index);
-                              setOpen(true);
-                            }}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteItem(index)}
-                            title="Delete item"
-                            aria-label={`Delete ${item.name}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-              ))}
-                </TableBody>
-              </Table>
-            </div>
-
-            {/* Mobile Card View */}
-            <div className="md:hidden space-y-4">
-              {receipt.items.map((item, index) => (
-                <Card
+          <ul className="divide-y rounded-md border">
+            {receipt.items.map((item, index) => {
+              const isUnassigned = unassignedItems.includes(index);
+              return (
+                <li
                   key={index}
-                  className={`${
-                    unassignedItems.includes(index) ? "border-destructive/50 bg-destructive/5" : ""
+                  className={`flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:gap-3 ${
+                    isUnassigned ? "bg-destructive/5" : ""
                   }`}
                 >
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
-                      {/* Item Name and Quantity */}
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm truncate">{item.name}</div>
-                          {item.quantity > 1 && (
-                            <div className="text-xs text-muted-foreground">
-                              Qty: {item.quantity}
-                            </div>
-                          )}
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    {isItemFullyAssigned(index) ? (
+                      <Check className="h-4 w-4 shrink-0 text-green-500" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium">{item.name}</div>
+                      {item.quantity > 1 && (
+                        <div className="text-xs text-muted-foreground">
+                          Qty: {item.quantity}
                         </div>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0 tabular-nums"
+                      onClick={() => handleEditItem(index)}
+                      title="Click to edit price and quantity"
+                    >
+                      {formatCurrency(
+                        item.price * (item.quantity || 1),
+                        receipt.currency
+                      )}
+                    </Button>
+                  </div>
+
+                  <div className="flex items-center gap-2 sm:w-auto">
+                    <Popover>
+                      <PopoverTrigger asChild>
                         <Button
                           variant="outline"
                           size="sm"
-                          className="ml-2 text-xs px-2"
-                          onClick={() => handleEditItem(index)}
-                          title="Edit price and quantity"
+                          className="min-w-0 flex-1 justify-between sm:w-48 sm:flex-none"
                         >
-                          {formatCurrency(item.price * (item.quantity || 1))}
+                          <span
+                            className={`truncate ${
+                              isUnassigned ? "text-destructive" : ""
+                            }`}
+                          >
+                            {getAssignmentSummary(index)}
+                          </span>
+                          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
                         </Button>
-                      </div>
-
-                      {/* Assignment Status and Actions */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          {isItemFullyAssigned(index) ? (
-                            <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
-                          ) : (
-                            <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0" />
-                          )}
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="flex-1 justify-between text-xs px-2 min-w-0"
-                              >
-                                <span
-                                  className={`truncate ${
-                                    unassignedItems.includes(index)
-                                      ? "text-destructive"
-                                      : ""
-                                  }`}
-                                >
-                                  {getAssignmentSummary(index)}
-                                </span>
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="p-0 w-80" align="end">
-                              <div className="p-2 flex flex-col gap-2 max-h-64 overflow-y-auto">
-                                {/* Individual People */}
-                                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                                  Individuals
-                                </div>
-                                {people.map((person) => (
-                                  <div
-                                    key={person.id}
-                                    className="flex items-center gap-2"
-                                  >
-                                    <Checkbox
-                                      id={`person-${person.id}-item-${index}-mobile`}
-                                      checked={(
-                                        selectedPeople.get(index) || new Set()
-                                      ).has(person.id)}
-                                      onCheckedChange={() =>
-                                        togglePersonSelection(index, person.id)
-                                      }
-                                    />
-                                    <label
-                                      htmlFor={`person-${person.id}-item-${index}-mobile`}
-                                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                                    >
-                                      {person.name}
-                                    </label>
-                                  </div>
-                                ))}
-
-                                {/* Groups */}
-                                {groups && groups.length > 0 && (
-                                  <>
-                                    <div className="border-t pt-2 mt-2">
-                                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                                        Groups
-                                      </div>
-                                      {groups.map((group) => (
-                                        <div
-                                          key={group.id}
-                                          className="flex items-center gap-2"
-                                        >
-                                          <Checkbox
-                                            id={`group-${group.id}-item-${index}-mobile`}
-                                            checked={isGroupFullySelected(
-                                              index,
-                                              group
-                                            )}
-                                            onCheckedChange={() =>
-                                              toggleGroupSelection(index, group)
-                                            }
-                                            className={
-                                              isGroupPartiallySelected(
-                                                index,
-                                                group
-                                              ) &&
-                                              !isGroupFullySelected(index, group)
-                                                ? "data-[state=unchecked]:border-primary data-[state=unchecked]:bg-primary/20"
-                                                : ""
-                                            }
-                                          />
-                                          <label
-                                            htmlFor={`group-${group.id}-item-${index}-mobile`}
-                                            className="flex-1 cursor-pointer"
-                                          >
-                                            <div className="flex items-center gap-2">
-                                              <div className="w-4 h-4 flex items-center justify-center">
-                                                {group.emoji || "👥"}
-                                              </div>
-                                              <div className="flex-1">
-                                                <div className="text-sm font-medium">
-                                                  {group.name}
-                                                </div>
-                                                <div className="text-xs text-muted-foreground">
-                                                  {group.memberIds
-                                                    .map(
-                                                      (id) =>
-                                                        people.find(
-                                                          (p) => p.id === id
-                                                        )?.name
-                                                    )
-                                                    .filter(Boolean)
-                                                    .join(", ")}
-                                                </div>
-                                              </div>
-                                            </div>
-                                          </label>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                        <div className="flex gap-2 flex-shrink-0">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setCurrentItemIndex(index);
-                              setOpen(true);
-                            }}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteItem(index)}
-                            title="Delete item"
-                            aria-label={`Delete ${item.name}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-72 p-0" align="end">
+                        {renderPicker(index)}
+                      </PopoverContent>
+                    </Popover>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => {
+                        setCurrentItemIndex(index);
+                        setOpen(true);
+                      }}
+                      title="Custom split"
+                      aria-label={`Custom split for ${item.name}`}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => handleDeleteItem(index)}
+                      title="Delete item"
+                      aria-label={`Delete ${item.name}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         )}
 
         <EditSplitDialog

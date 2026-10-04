@@ -1,15 +1,18 @@
-import { Share, Link2, Check } from "lucide-react";
+import { Share, Link2, Check, ChevronDown, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import Decimal from "decimal.js";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from "@/components/ui/table";
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { PersonAvatar } from "@/components/person-avatar";
+import { PersonItemBreakdown } from "@/components/person-items";
 import { type Person } from "@/types";
 import { formatCurrency, type ReceiptValidationResult } from "@/lib/receipt-utils";
 import {
@@ -48,6 +51,7 @@ export function ResultsSummary({
   receiptBreakdown,
 }: ResultsSummaryProps) {
   const [phoneNumber, setPhoneNumber] = useState("");
+  const [expandedPersonId, setExpandedPersonId] = useState<string | null>(null);
   const [shareStatus, setShareStatus] = useState<
     "idle" | "copying" | "success" | "error"
   >("idle");
@@ -219,186 +223,193 @@ export function ResultsSummary({
     return null;
   }
 
+  const dayTotal = people
+    .reduce((sum, person) => sum.add(person.finalTotal), new Decimal(0))
+    .toNumber();
+  const cleanPhoneLength = phoneNumber.replace(/\D/g, "").length;
+  const supportsVenmo = (currencyCode ?? "USD") === "USD";
+
   return (
-    <div className="w-full flex flex-col gap-4">
-      <div className="flex flex-col gap-3">
-        <label
-          htmlFor="venmo-phone"
-          className="font-medium text-sm sm:text-base"
+    <div className="flex w-full flex-col gap-4">
+      <Card className="gap-0 overflow-hidden py-0">
+        <section
+          data-testid={showBreakdown ? "day-total" : undefined}
+          aria-labelledby="day-total-heading"
         >
-          Your Phone Number (for Venmo):
-        </label>
-        <div className="flex gap-3">
-          <input
-            id="venmo-phone"
-            type="tel"
-            placeholder="e.g. 555-123-4567"
-            value={phoneNumber}
-            onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ""))}
-            className="flex-1 min-h-[44px] border rounded-lg px-4 py-2 text-base sm:text-sm transition-all duration-200 focus:ring-2 focus:ring-primary/20 focus:border-primary"
-          />
-          <Button
-            variant={shareStatus === "success" ? "default" : "outline"}
-            className="flex items-center justify-center gap-2 text-base sm:text-sm font-medium transition-all duration-200 hover:shadow-md active:scale-95 whitespace-nowrap"
-            onClick={shareSplit}
-            disabled={!canShareSplit || shareStatus === "copying"}
+          <h3
+            id="day-total-heading"
+            className={
+              showBreakdown
+                ? "border-b px-4 py-3 text-sm font-medium"
+                : "sr-only"
+            }
           >
-            {shareStatus === "copying" && (
-              <div className="h-5 w-5 sm:h-4 sm:w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-            )}
-            {shareStatus === "success" && (
-              <Check className="h-5 w-5 sm:h-4 sm:w-4" />
-            )}
-            {shareStatus === "idle" && (
-              <Link2 className="h-5 w-5 sm:h-4 sm:w-4" />
-            )}
-            {shareStatus === "error" && (
-              <Link2 className="h-5 w-5 sm:h-4 sm:w-4" />
-            )}
-            <span>
-              {shareStatus === "copying" && "Copying..."}
-              {shareStatus === "success" && "Copied!"}
-              {(shareStatus === "idle" || shareStatus === "error") &&
-                "Share Split"}
-            </span>
-          </Button>
-        </div>
-      </div>
-
-
-
-      <Card className="w-full">
-        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <CardTitle className="text-xl sm:text-2xl">Results Summary</CardTitle>
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
-            <Button
-              variant="outline"
-              className="flex items-center justify-center gap-2 text-base sm:text-sm font-medium transition-all duration-200 hover:bg-muted active:scale-95"
-              onClick={shareResults}
-            >
-              <Share className="h-5 w-5 sm:h-4 sm:w-4" />
-              <span>Share Text</span>
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="p-6">
-          <div className="flex flex-col gap-6">
-          <div
-            data-testid={showBreakdown ? "day-total" : undefined}
-            className="flex flex-col gap-2"
-          >
-            {showBreakdown ? (
-              <h2 className="font-semibold text-base sm:text-lg">Day total</h2>
-            ) : null}
-
-          {/* Mobile-friendly responsive table */}
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-[100px]">Person</TableHead>
-                  <TableHead className="text-right min-w-[80px] hidden sm:table-cell">
-                    Subtotal
-                  </TableHead>
-                  <TableHead className="text-right min-w-[60px] hidden sm:table-cell">
-                    Tax
-                  </TableHead>
-                  <TableHead className="text-right min-w-[60px] hidden sm:table-cell">
-                    Tip
-                  </TableHead>
-                  <TableHead className="text-right min-w-[80px] font-semibold">
-                    Total
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedPeople.map((person) => (
-                  <TableRow
-                    key={person.id}
-                    className="group hover:bg-muted/50 transition-colors"
+            {showBreakdown ? "Day total" : "Totals"}
+          </h3>
+          <ul className="divide-y">
+            {sortedPeople.map((person) => {
+              const isExpanded = expandedPersonId === person.id;
+              return (
+                <li key={person.id}>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50"
+                    onClick={() =>
+                      setExpandedPersonId(isExpanded ? null : person.id)
+                    }
+                    aria-expanded={isExpanded}
                   >
-                    <TableCell className="font-medium py-4">
-                      <div className="flex flex-col">
-                        <span className="font-semibold">{person.name}</span>
-                        {/* Mobile-only breakdown */}
-                        <div className="text-xs text-muted-foreground mt-1 sm:hidden">
-                          Subtotal: {formatCurrency(person.totalBeforeTax, currencyCode)} •
-                          Tax: {formatCurrency(person.tax, currencyCode)} • Tip:{" "}
-                          {formatCurrency(person.tip, currencyCode)}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right py-4 hidden sm:table-cell">
-                      {formatCurrency(person.totalBeforeTax, currencyCode)}
-                    </TableCell>
-                    <TableCell className="text-right py-4 hidden sm:table-cell">
-                      {formatCurrency(person.tax, currencyCode)}
-                    </TableCell>
-                    <TableCell className="text-right py-4 hidden sm:table-cell">
-                      {formatCurrency(person.tip, currencyCode)}
-                    </TableCell>
-                    <TableCell className="text-right py-4">
-                      <span className="font-bold text-lg text-primary">
-                        {formatCurrency(person.finalTotal, currencyCode)}
+                    <PersonAvatar name={person.name} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium">
+                        {person.name}
                       </span>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                      <span className="block text-xs text-muted-foreground">
+                        {formatCurrency(person.totalBeforeTax, currencyCode)}
+                        {" + "}
+                        {formatCurrency(
+                          new Decimal(person.tax).add(person.tip).toNumber(),
+                          currencyCode
+                        )}{" "}
+                        tax & tip
+                      </span>
+                    </span>
+                    <span
+                      data-testid="person-total"
+                      className="shrink-0 text-lg font-semibold tabular-nums"
+                    >
+                      {formatCurrency(person.finalTotal, currencyCode)}
+                    </span>
+                    <ChevronDown
+                      aria-hidden="true"
+                      className={`size-4 shrink-0 text-muted-foreground transition-transform ${
+                        isExpanded ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                  {isExpanded && (
+                    <div className="bg-muted/40 px-4 py-3 sm:pl-16">
+                      <PersonItemBreakdown
+                        person={person}
+                        currencyCode={currencyCode}
+                      />
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          <div className="flex items-center justify-between border-t bg-muted/30 px-4 py-3 text-sm">
+            <span className="text-muted-foreground">Total</span>
+            <span className="font-semibold tabular-nums">
+              {formatCurrency(dayTotal, currencyCode)}
+            </span>
           </div>
-          </div>
+        </section>
+      </Card>
 
-          {showBreakdown && receiptBreakdown ? (
-            <div
-              data-testid="receipt-breakdown"
-              className="flex flex-col gap-4"
-            >
-              <h2 className="font-semibold text-base sm:text-lg">By receipt</h2>
+      {showBreakdown && receiptBreakdown ? (
+        <Card className="gap-0 py-0">
+          <section data-testid="receipt-breakdown" aria-labelledby="by-receipt-heading">
+            <h3 id="by-receipt-heading" className="border-b px-4 py-3 text-sm font-medium">
+              By receipt
+            </h3>
+            <div className="grid divide-y sm:grid-cols-2 sm:divide-y-0">
               {receiptBreakdown.map((receipt, index) => {
                 const sortedReceiptPeople = [...receipt.people].sort(
                   (a, b) => b.finalTotal - a.finalTotal
                 );
                 return (
-                  <div key={`${receipt.name}-${receipt.date ?? "no-date"}-${index}`} className="flex flex-col gap-2">
-                    <div className="font-medium text-sm sm:text-base">
-                      <span>{receipt.name}</span>
+                  <div
+                    key={`${receipt.name}-${receipt.date ?? "no-date"}-${index}`}
+                    className="flex flex-col gap-1.5 px-4 py-3"
+                  >
+                    <p className="text-sm font-medium">
+                      {receipt.name}
                       {receipt.date ? (
-                        <span className="text-muted-foreground font-normal">
+                        <span className="font-normal text-muted-foreground">
                           {` · ${receipt.date}`}
                         </span>
                       ) : null}
-                    </div>
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="min-w-[100px]">Person</TableHead>
-                            <TableHead className="text-right min-w-[80px] font-semibold">
-                              Total
-                            </TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {sortedReceiptPeople.map((person) => (
-                            <TableRow key={person.id}>
-                              <TableCell className="font-medium py-2">
-                                {person.name}
-                              </TableCell>
-                              <TableCell className="text-right py-2">
-                                {formatCurrency(person.finalTotal, currencyCode)}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
+                    </p>
+                    <ul className="flex flex-col gap-1 text-sm">
+                      {sortedReceiptPeople.map((person) => (
+                        <li key={person.id} className="flex justify-between gap-2">
+                          <span className="truncate text-muted-foreground">
+                            {person.name}
+                          </span>
+                          <span className="tabular-nums">
+                            {formatCurrency(person.finalTotal, currencyCode)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 );
               })}
             </div>
-          ) : null}
+          </section>
+        </Card>
+      ) : null}
+
+      <Card className="gap-4 py-5">
+        <CardHeader className="gap-1 px-4 sm:px-5">
+          <CardTitle className="text-base">Send it to the group</CardTitle>
+          <CardDescription>
+            {supportsVenmo
+              ? "Copy a link where everyone sees what they owe and can pay you on Venmo."
+              : "Copy a link where everyone sees what they owe."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 px-4 sm:px-5">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="venmo-phone">Your phone number on Venmo</Label>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                id="venmo-phone"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder="e.g. 555-123-4567"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ""))}
+                className="min-h-[44px] flex-1 text-base sm:text-sm"
+                aria-describedby="venmo-phone-hint"
+              />
+              <Button
+                className="shrink-0"
+                onClick={shareSplit}
+                disabled={!canShareSplit || shareStatus === "copying"}
+              >
+                {shareStatus === "copying" ? (
+                  <Loader2 className="animate-spin" />
+                ) : shareStatus === "success" ? (
+                  <Check />
+                ) : (
+                  <Link2 />
+                )}
+                {shareStatus === "copying"
+                  ? "Copying..."
+                  : shareStatus === "success"
+                    ? "Copied!"
+                    : "Share Split"}
+              </Button>
+            </div>
+            <p id="venmo-phone-hint" className="text-xs text-muted-foreground">
+              {cleanPhoneLength > 0 && cleanPhoneLength < 10
+                ? "Enter all 10 digits."
+                : "Used only in the link so friends can pay you."}
+            </p>
           </div>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <span className="h-px flex-1 bg-border" />
+            or
+            <span className="h-px flex-1 bg-border" />
+          </div>
+          <Button variant="outline" onClick={shareResults}>
+            <Share />
+            Share Text
+          </Button>
         </CardContent>
       </Card>
     </div>

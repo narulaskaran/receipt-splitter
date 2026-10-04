@@ -23,12 +23,6 @@ describe("ReceiptDetails", () => {
   };
 
   describe("Display Mode", () => {
-    it("renders receipt name and formatted date", () => {
-      render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
-      expect(screen.getByText(/Testaurant/)).toBeInTheDocument();
-      expect(screen.getByText("2024-01-01")).toBeInTheDocument();
-    });
-
     it("renders all receipt financial details", () => {
       render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
 
@@ -42,21 +36,6 @@ describe("ReceiptDetails", () => {
       expect(screen.getByText("$125.00")).toBeInTheDocument();
     });
 
-    it("displays 'Unknown' for missing restaurant name", () => {
-      const receiptWithoutName = { ...mockReceipt, restaurant: null };
-      render(<ReceiptDetails receipt={receiptWithoutName} onReceiptUpdate={mockOnReceiptUpdate} />);
-
-      expect(screen.getByText("Unknown")).toBeInTheDocument();
-    });
-
-    it("displays 'Unknown' for missing date", () => {
-      const receiptWithoutDate = { ...mockReceipt, date: null };
-      render(<ReceiptDetails receipt={receiptWithoutDate} onReceiptUpdate={mockOnReceiptUpdate} />);
-
-      const unknownTexts = screen.getAllByText("Unknown");
-      expect(unknownTexts.length).toBeGreaterThan(0);
-    });
-
     it("handles null tip by displaying $0.00", () => {
       const receiptWithNullTip = { ...mockReceipt, tip: null };
       render(<ReceiptDetails receipt={receiptWithNullTip} onReceiptUpdate={mockOnReceiptUpdate} />);
@@ -64,11 +43,10 @@ describe("ReceiptDetails", () => {
       expect(screen.getByText("$0.00")).toBeInTheDocument();
     });
 
-    it("renders Calculator icon", () => {
+    it("shows the receipt currency", () => {
       render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
 
-      // Check for Receipt Details title
-      expect(screen.getByText("Receipt Details")).toBeInTheDocument();
+      expect(screen.getByText("USD - US Dollar ($)")).toBeInTheDocument();
     });
 
     it("renders a placeholder when no thumbnail is provided", () => {

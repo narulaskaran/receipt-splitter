@@ -30,20 +30,20 @@ test.describe("upload another receipt affordance", () => {
     );
 
     await page.goto("/");
-    await expect(page.getByText("Upload your receipts")).toBeVisible({
+    await expect(page.getByText("Upload a receipt", { exact: true })).toBeVisible({
       timeout: 10000,
     });
     await expect(
-      page.getByText("Click or drag to add another receipt"),
+      page.getByText("Add another receipt", { exact: true }),
     ).toHaveCount(0);
 
     await page.locator('input[type="file"]').setInputFiles(SAMPLE_RECEIPT);
 
     await expect(
-      page.getByText("Click or drag to add another receipt"),
+      page.getByText("Add another receipt", { exact: true }),
     ).toBeVisible({ timeout: 15000 });
-    await expect(page.getByText("Upload your receipts")).toHaveCount(0);
-    await expect(page.getByText("Receipts (1/10)")).toBeVisible();
+    await expect(page.getByText("Upload a receipt", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("1 of 10", { exact: true })).toBeVisible();
     await expect(page.getByText("Cafe Mocha").first()).toBeVisible();
 
     // The large preview lives in the details card, not the dropzone.
