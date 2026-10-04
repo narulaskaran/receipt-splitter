@@ -390,7 +390,7 @@ export function ItemAssignment({
                                 <span
                                   className={
                                     unassignedItems.includes(index)
-                                      ? "text-destructive"
+                                      ? "text-muted-foreground"
                                       : ""
                                   }
                                 >
