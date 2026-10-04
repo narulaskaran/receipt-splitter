@@ -221,52 +221,6 @@ export function ResultsSummary({
 
   return (
     <div className="w-full flex flex-col gap-4">
-      <div className="flex flex-col gap-3">
-        <label
-          htmlFor="venmo-phone"
-          className="font-medium text-sm sm:text-base"
-        >
-          Your Phone Number (for Venmo):
-        </label>
-        <div className="flex gap-3">
-          <input
-            id="venmo-phone"
-            type="tel"
-            placeholder="e.g. 555-123-4567"
-            value={phoneNumber}
-            onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ""))}
-            className="flex-1 min-h-[44px] border rounded-lg px-4 py-2 text-base sm:text-sm transition-all duration-200 focus:ring-2 focus:ring-primary/20 focus:border-primary"
-          />
-          <Button
-            variant={shareStatus === "success" ? "default" : "outline"}
-            className="flex items-center justify-center gap-2 text-base sm:text-sm font-medium transition-all duration-200 hover:shadow-md active:scale-95 whitespace-nowrap"
-            onClick={shareSplit}
-            disabled={!canShareSplit || shareStatus === "copying"}
-          >
-            {shareStatus === "copying" && (
-              <div className="h-5 w-5 sm:h-4 sm:w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-            )}
-            {shareStatus === "success" && (
-              <Check className="h-5 w-5 sm:h-4 sm:w-4" />
-            )}
-            {shareStatus === "idle" && (
-              <Link2 className="h-5 w-5 sm:h-4 sm:w-4" />
-            )}
-            {shareStatus === "error" && (
-              <Link2 className="h-5 w-5 sm:h-4 sm:w-4" />
-            )}
-            <span>
-              {shareStatus === "copying" && "Copying..."}
-              {shareStatus === "success" && "Copied!"}
-              {(shareStatus === "idle" || shareStatus === "error") &&
-                "Share Split"}
-            </span>
-          </Button>
-        </div>
-      </div>
-
-
-
       <Card className="w-full">
         <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <CardTitle className="text-xl sm:text-2xl">Results Summary</CardTitle>
@@ -338,7 +292,7 @@ export function ResultsSummary({
                       {formatCurrency(person.tip, currencyCode)}
                     </TableCell>
                     <TableCell className="text-right py-4">
-                      <span className="font-bold text-lg text-primary">
+                      <span className="font-bold text-lg text-primary tabular-nums">
                         {formatCurrency(person.finalTotal, currencyCode)}
                       </span>
                     </TableCell>
@@ -385,7 +339,7 @@ export function ResultsSummary({
                               <TableCell className="font-medium py-2">
                                 {person.name}
                               </TableCell>
-                              <TableCell className="text-right py-2">
+                              <TableCell className="text-right py-2 tabular-nums">
                                 {formatCurrency(person.finalTotal, currencyCode)}
                               </TableCell>
                             </TableRow>
@@ -399,6 +353,52 @@ export function ResultsSummary({
             </div>
           ) : null}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="w-full">
+        <CardContent className="flex flex-col gap-3">
+        <label
+          htmlFor="venmo-phone"
+          className="font-medium text-sm sm:text-base"
+        >
+          Your phone number (for Venmo requests)
+        </label>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <input
+            id="venmo-phone"
+            type="tel"
+            placeholder="e.g. 555-123-4567"
+            value={phoneNumber}
+            onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ""))}
+            className="flex-1 min-h-[44px] border rounded-lg px-4 py-2 text-base sm:text-sm transition-all duration-200 focus:ring-2 focus:ring-primary/20 focus:border-primary"
+          />
+          <Button
+            variant={shareStatus === "success" ? "default" : "outline"}
+            className="flex items-center justify-center gap-2 text-base sm:text-sm font-medium transition-all duration-200 hover:shadow-md active:scale-95 whitespace-nowrap"
+            onClick={shareSplit}
+            disabled={!canShareSplit || shareStatus === "copying"}
+          >
+            {shareStatus === "copying" && (
+              <div className="h-5 w-5 sm:h-4 sm:w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            )}
+            {shareStatus === "success" && (
+              <Check className="h-5 w-5 sm:h-4 sm:w-4" />
+            )}
+            {shareStatus === "idle" && (
+              <Link2 className="h-5 w-5 sm:h-4 sm:w-4" />
+            )}
+            {shareStatus === "error" && (
+              <Link2 className="h-5 w-5 sm:h-4 sm:w-4" />
+            )}
+            <span>
+              {shareStatus === "copying" && "Copying..."}
+              {shareStatus === "success" && "Copied!"}
+              {(shareStatus === "idle" || shareStatus === "error") &&
+                "Share Split"}
+            </span>
+          </Button>
+        </div>
         </CardContent>
       </Card>
     </div>

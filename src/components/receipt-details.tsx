@@ -121,10 +121,10 @@ export function ReceiptDetails({
   };
 
   return (
-    <Card className="w-full">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="text-xl flex items-center gap-2">
-          <Calculator className="h-5 w-5" />
+    <Card className="w-full gap-4 border-0 bg-transparent py-1 shadow-none">
+      <CardHeader className="flex flex-row items-center justify-between px-1">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Calculator className="h-4 w-4 text-muted-foreground" />
           Receipt Details
         </CardTitle>
         <Button variant="outline" size="sm" onClick={openEditDialog}>
@@ -133,7 +133,7 @@ export function ReceiptDetails({
         </Button>
       </CardHeader>
 
-      <CardContent>
+      <CardContent className="px-1">
         <div className="flex flex-col sm:flex-row gap-4 sm:items-start">
           <ReceiptThumbnail
             variant="details"

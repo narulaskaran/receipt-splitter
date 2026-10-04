@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Check, AlertCircle, Pencil, Trash2, Plus } from "lucide-react";
+import { Check, AlertCircle, Pencil, Trash2, Plus, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -376,9 +376,9 @@ export function ItemAssignment({
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
                           {isItemFullyAssigned(index) ? (
-                            <Check className="h-4 w-4 text-green-500" />
+                            <Check className="h-4 w-4 text-muted-foreground" />
                           ) : (
-                            <AlertCircle className="h-4 w-4 text-destructive" />
+                            <AlertCircle className="h-4 w-4 text-amber-500" />
                           )}
                           <Popover>
                             <PopoverTrigger asChild>
@@ -524,20 +524,14 @@ export function ItemAssignment({
             </div>
 
             {/* Mobile Card View */}
-            <div className="md:hidden space-y-4">
+            <div className="md:hidden -mx-6 divide-y border-y">
               {receipt.items.map((item, index) => (
-                <Card
-                  key={index}
-                  className={`${
-                    unassignedItems.includes(index) ? "border-destructive/50 bg-destructive/5" : ""
-                  }`}
-                >
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
+                <div key={index} className="px-6 py-3">
+                    <div className="space-y-2">
                       {/* Item Name and Quantity */}
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm truncate">{item.name}</div>
+                          <div className="font-medium truncate">{item.name}</div>
                           {item.quantity > 1 && (
                             <div className="text-xs text-muted-foreground">
                               Qty: {item.quantity}
@@ -545,9 +539,9 @@ export function ItemAssignment({
                           )}
                         </div>
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
-                          className="ml-2 text-xs px-2"
+                          className="-mr-2 ml-2 px-2 text-sm tabular-nums"
                           onClick={() => handleEditItem(index)}
                           title="Edit price and quantity"
                         >
@@ -559,9 +553,9 @@ export function ItemAssignment({
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           {isItemFullyAssigned(index) ? (
-                            <Check className="h-4 w-4 text-green-500 flex-shrink-0" />
+                            <Check className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                           ) : (
-                            <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0" />
+                            <AlertCircle className="h-4 w-4 text-amber-500 flex-shrink-0" />
                           )}
                           <Popover>
                             <PopoverTrigger asChild>
@@ -573,12 +567,13 @@ export function ItemAssignment({
                                 <span
                                   className={`truncate ${
                                     unassignedItems.includes(index)
-                                      ? "text-destructive"
+                                      ? "text-muted-foreground"
                                       : ""
                                   }`}
                                 >
                                   {getAssignmentSummary(index)}
                                 </span>
+                                <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="p-0 w-80" align="end">
@@ -699,8 +694,7 @@ export function ItemAssignment({
                         </div>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                </div>
               ))}
             </div>
           </>
