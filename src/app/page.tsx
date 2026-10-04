@@ -592,10 +592,10 @@ export default function Home() {
 
   return (
     <main className="container mx-auto px-4 py-8 max-w-4xl">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
         <div className="w-full sm:w-auto">
-          <h1 className="text-3xl font-bold mb-2">Receipt Splitter</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl font-semibold tracking-tight">Receipt Splitter</h1>
+          <p className="text-sm text-muted-foreground">
             Upload receipts, add people, and split the day
           </p>
         </div>
@@ -679,9 +679,9 @@ export default function Home() {
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <Progress
                 value={progress}
-                className="w-full sm:w-48"
+                className="h-1 w-full sm:w-48"
               />
-              <span className="text-sm whitespace-nowrap w-12">
+              <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap w-10 text-right">
                 {Math.round(progress)}%
               </span>
             </div>

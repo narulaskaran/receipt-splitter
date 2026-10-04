@@ -129,7 +129,7 @@ const MOCK_GROUPS = [
     id: "group-1",
     name: "Friends",
     memberIds: ["person-1", "person-2"],
-    emoji: "1f3c8",
+    emoji: "🏈",
   },
 ];
 
