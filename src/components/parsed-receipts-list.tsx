@@ -56,7 +56,7 @@ export function ParsedReceiptsList({
   const visibleExpandedId =
     expandedId && receipts.some((r) => r.id === expandedId)
       ? expandedId
-      : lastId;
+      : null;
 
   return (
     <Card className="gap-0 overflow-hidden py-0">

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Check, AlertCircle, ChevronDown, Pencil, Trash2, Plus } from "lucide-react";
+import { Check, Circle, ChevronDown, Pencil, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -302,7 +302,7 @@ export function ItemAssignment({
         Individuals
       </div>
       {people.map((person) => (
-        <div key={person.id} className="flex items-center gap-2">
+        <div key={person.id} className="flex min-h-11 items-center gap-3 rounded-md px-2 hover:bg-accent">
           <Checkbox
             id={`person-${person.id}-item-${index}`}
             checked={(selectedPeople.get(index) || new Set()).has(person.id)}
@@ -310,7 +310,7 @@ export function ItemAssignment({
           />
           <label
             htmlFor={`person-${person.id}-item-${index}`}
-            className="cursor-pointer text-sm leading-none font-medium"
+            className="flex min-h-11 flex-1 cursor-pointer items-center text-sm font-medium"
           >
             {person.name}
           </label>
@@ -323,7 +323,7 @@ export function ItemAssignment({
             Groups
           </div>
           {groups.map((group) => (
-            <div key={group.id} className="flex items-center gap-2">
+            <div key={group.id} className="flex min-h-11 items-center gap-3 rounded-md px-2 hover:bg-accent">
               <Checkbox
                 id={`group-${group.id}-item-${index}`}
                 checked={isGroupFullySelected(index, group)}
@@ -337,7 +337,7 @@ export function ItemAssignment({
               />
               <label
                 htmlFor={`group-${group.id}-item-${index}`}
-                className="flex flex-1 cursor-pointer items-center gap-2"
+                className="flex min-h-11 flex-1 cursor-pointer items-center gap-2"
               >
                 <span className="flex h-4 w-4 items-center justify-center">
                   {group.emoji || "👥"}
@@ -360,10 +360,10 @@ export function ItemAssignment({
   );
 
   return (
-    <Card className="w-full">
-      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
+    <Card className="w-full gap-0 overflow-hidden py-0">
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-3 border-b bg-muted/30 px-4 py-4 sm:px-5">
         <div className="min-w-0 space-y-1">
-          <CardTitle className="text-xl">{title}</CardTitle>
+          <CardTitle className="text-base">{title}</CardTitle>
           {subtitle ? <CardDescription>{subtitle}</CardDescription> : null}
         </div>
         <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-2">
@@ -384,27 +384,27 @@ export function ItemAssignment({
         </div>
       </CardHeader>
 
-      <CardContent>
+      <CardContent className="px-0">
         {people.length === 0 ? (
           <p className="text-muted-foreground">
             Add people first to assign items
           </p>
         ) : (
-          <ul className="divide-y rounded-md border">
+          <ul className="divide-y">
             {receipt.items.map((item, index) => {
               const isUnassigned = unassignedItems.includes(index);
               return (
                 <li
                   key={index}
-                  className={`flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:gap-3 ${
-                    isUnassigned ? "bg-destructive/5" : ""
+                  className={`flex flex-col gap-2 px-4 py-4 sm:px-5 sm:flex-row sm:items-center sm:gap-3 ${
+                    isUnassigned ? "bg-accent/25" : ""
                   }`}
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-2">
                     {isItemFullyAssigned(index) ? (
-                      <Check className="h-4 w-4 shrink-0 text-green-500" />
+                      <Check className="h-4 w-4 shrink-0 text-primary" />
                     ) : (
-                      <AlertCircle className="h-4 w-4 shrink-0 text-destructive" />
+                      <Circle className="h-4 w-4 shrink-0 text-muted-foreground" />
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="truncate font-medium">{item.name}</div>
@@ -438,7 +438,7 @@ export function ItemAssignment({
                         >
                           <span
                             className={`truncate ${
-                              isUnassigned ? "text-destructive" : ""
+                              isUnassigned ? "text-muted-foreground" : "text-primary"
                             }`}
                           >
                             {getAssignmentSummary(index)}

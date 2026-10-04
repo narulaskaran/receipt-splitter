@@ -5,13 +5,13 @@ interface PersonAvatarProps {
   className?: string;
 }
 
-/** Neutral initial badge, matching the shared /split page rows. */
+/** Initial badge shared by people, totals, and payment rows. */
 export function PersonAvatar({ name, className }: PersonAvatarProps) {
   return (
     <span
       aria-hidden="true"
       className={cn(
-        "flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium",
+        "flex size-9 shrink-0 items-center justify-center rounded-full bg-accent text-primary text-sm font-semibold",
         className
       )}
     >

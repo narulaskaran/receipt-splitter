@@ -49,7 +49,7 @@ describe("Home Page", () => {
 
     it("shows the receipt uploader", () => {
       render(<Home />);
-      expect(screen.getByText(/drag and drop, or tap to take a photo/i)).toBeInTheDocument();
+      expect(screen.getByText(/drop files here, or choose a photo or PDF/i)).toBeInTheDocument();
     });
 
     it("hides the Split evenly button", () => {

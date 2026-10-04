@@ -4,6 +4,26 @@ import { createMockReceipt, createStoredReceipt } from "@/test/test-utils";
 import { setThumbnail } from "@/lib/receipt-thumbnails";
 
 describe("ParsedReceiptsList", () => {
+  it("lets the latest receipt collapse and reopen", () => {
+    const stored = createStoredReceipt(createMockReceipt({ restaurant: "Cafe" }), "r1");
+    render(
+      <ParsedReceiptsList
+        receipts={[stored]}
+        onReceiptUpdate={jest.fn()}
+        onRemoveReceipt={jest.fn()}
+      />
+    );
+
+    const toggle = screen.getByRole("button", { name: /^Cafe/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Subtotal")).not.toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Subtotal")).toBeInTheDocument();
+  });
+
   it("renders restaurant, date, item count, and total", () => {
     const stored = createStoredReceipt(
       createMockReceipt({

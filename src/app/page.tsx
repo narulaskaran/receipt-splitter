@@ -639,7 +639,7 @@ export default function Home() {
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-30 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
-        <div className="mx-auto flex h-14 w-full max-w-3xl items-center justify-between gap-3 px-4">
+        <div className="mx-auto flex h-16 w-full max-w-3xl items-center justify-between gap-3 px-4">
           <div className="flex items-center gap-2">
             <span
               className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"
@@ -666,14 +666,14 @@ export default function Home() {
       </header>
 
       <main
-        className={`mx-auto w-full max-w-3xl flex-1 px-4 pt-4 ${
+        className={`mx-auto w-full max-w-3xl flex-1 px-4 pt-6 sm:pt-8 ${
           showFooter ? "pb-28" : "pb-10"
         }`}
       >
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-7 sm:gap-9">
           <TabsList
             aria-label="Steps"
-            className="grid h-auto w-full grid-cols-4 gap-1 rounded-xl bg-muted/70 p-1"
+            className="grid h-auto w-full grid-cols-4 gap-1 rounded-xl border bg-muted/70 p-1"
           >
             <StepTrigger value="upload" step={1} label="Receipts" complete={hasReceipt} />
             <StepTrigger
@@ -698,7 +698,7 @@ export default function Home() {
             />
           </TabsList>
 
-          <TabsContent value="upload" className="flex flex-col gap-4">
+          <TabsContent value="upload" className="flex flex-col gap-5">
             <StepHeader
               title={hasReceipt ? "Your receipts" : "Split a receipt in seconds"}
               description={
@@ -723,7 +723,7 @@ export default function Home() {
             />
           </TabsContent>
 
-          <TabsContent value="people" className="flex flex-col gap-4">
+          <TabsContent value="people" className="flex flex-col gap-5">
             <StepHeader
               title="Who's splitting?"
               description="Add everyone who shared the bill."
@@ -746,7 +746,7 @@ export default function Home() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="assign" className="flex flex-col gap-4">
+          <TabsContent value="assign" className="flex flex-col gap-5">
             <StepHeader
               title="Who had what?"
               description="Pick who had each item. Shared items split evenly."
@@ -776,7 +776,7 @@ export default function Home() {
             })}
           </TabsContent>
 
-          <TabsContent value="results" className="flex flex-col gap-4">
+          <TabsContent value="results" className="flex flex-col gap-5">
             <StepHeader
               title="Who owes what"
               description="Tax and tip are split in proportion to what each person ordered."

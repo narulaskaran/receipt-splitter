@@ -251,8 +251,8 @@ export function ReceiptUploader({
     <div
       {...getRootProps()}
       className={cn(
-        "w-full cursor-pointer rounded-xl border-2 border-dashed bg-card text-center transition-colors hover:border-primary/60 hover:bg-accent/40",
-        compact ? "px-4 py-3" : "px-6 py-10 sm:py-14",
+        "w-full cursor-pointer rounded-2xl border border-dashed bg-card shadow-sm text-center transition-colors hover:border-primary/60 hover:bg-accent/40",
+        compact ? "px-4 py-4" : "px-5 py-10 sm:py-14",
         isDragActive ? "border-primary bg-accent/60" : "border-input",
         isBusy && "cursor-not-allowed opacity-60"
       )}
@@ -293,13 +293,13 @@ export function ReceiptUploader({
         </div>
       ) : (
         <div className="flex flex-col items-center gap-4">
-          <span className="flex size-14 items-center justify-center rounded-full bg-accent text-primary">
+          <span className="flex size-14 items-center justify-center rounded-2xl bg-accent text-primary">
             <Camera className="size-6" />
           </span>
           <div className="flex flex-col gap-1">
             <p className="text-lg font-semibold">Upload a receipt</p>
             <p className="text-sm text-muted-foreground">
-              Drag and drop, or tap to take a photo or choose files
+              Drop files here, or choose a photo or PDF
             </p>
           </div>
           <span className={buttonVariants()}>

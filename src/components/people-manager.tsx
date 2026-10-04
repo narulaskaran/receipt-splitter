@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PersonAvatar } from '@/components/person-avatar';
 import { type Person } from '@/types';
 import { toast } from 'sonner';
 
@@ -105,13 +106,14 @@ export function PeopleManager({ people, onPeopleChange }: PeopleManagerProps) {
           {people.map(person => (
             <li
               key={person.id}
-              className="flex items-center gap-1 rounded-full bg-secondary py-1 pr-1 pl-3 text-secondary-foreground"
+              className="flex items-center gap-2 rounded-full border bg-card py-1 pr-1 pl-1 text-secondary-foreground"
             >
+              <PersonAvatar name={person.name} className="size-7 text-xs" />
               <span className="text-sm font-medium">{person.name}</span>
               <button
                 type="button"
                 onClick={() => removePerson(person.id)}
-                className="flex size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                className="flex size-11 items-center sm:size-8 justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                 aria-label={`Remove ${person.name}`}
               >
                 <X className="size-4" />

@@ -246,6 +246,15 @@ export function ResultsSummary({
           >
             {showBreakdown ? "Day total" : "Totals"}
           </h3>
+          <div className="flex items-end justify-between gap-4 border-b bg-accent/40 px-4 py-5 sm:px-5">
+            <div>
+              <p className="text-xs font-medium text-muted-foreground">{receiptName || "Your split"}</p>
+              <p className="mt-1 text-sm font-medium">Total to settle</p>
+            </div>
+            <p className="text-3xl font-semibold tracking-tight text-primary tabular-nums">
+              {formatCurrency(dayTotal, currencyCode)}
+            </p>
+          </div>
           <ul className="divide-y">
             {sortedPeople.map((person) => {
               const isExpanded = expandedPersonId === person.id;
@@ -253,7 +262,7 @@ export function ResultsSummary({
                 <li key={person.id}>
                   <button
                     type="button"
-                    className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50"
+                    className="flex w-full items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-muted/50"
                     onClick={() =>
                       setExpandedPersonId(isExpanded ? null : person.id)
                     }
@@ -299,12 +308,6 @@ export function ResultsSummary({
               );
             })}
           </ul>
-          <div className="flex items-center justify-between border-t bg-muted/30 px-4 py-3 text-sm">
-            <span className="text-muted-foreground">Total</span>
-            <span className="font-semibold tabular-nums">
-              {formatCurrency(dayTotal, currencyCode)}
-            </span>
-          </div>
         </section>
       </Card>
 

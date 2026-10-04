@@ -676,7 +676,7 @@ describe("ResultsSummary", () => {
       expect(screen.queryByTestId("receipt-breakdown")).not.toBeInTheDocument();
       expect(screen.queryByRole("heading", { name: "Day total" })).not.toBeInTheDocument();
       expect(screen.queryByRole("heading", { name: "By receipt" })).not.toBeInTheDocument();
-      expect(screen.queryByText("Coffee Shop")).not.toBeInTheDocument();
+      expect(screen.getByText("Coffee Shop")).toBeInTheDocument();
     });
 
     it("puts Day total amounts before By receipt in share text", async () => {
