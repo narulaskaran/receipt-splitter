@@ -378,7 +378,7 @@ export function ItemAssignment({
                           {isItemFullyAssigned(index) ? (
                             <Check className="h-4 w-4 text-muted-foreground" />
                           ) : (
-                            <AlertCircle className="h-4 w-4 text-amber-500" />
+                            <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                           )}
                           <Popover>
                             <PopoverTrigger asChild>
@@ -527,173 +527,173 @@ export function ItemAssignment({
             <div className="md:hidden -mx-6 divide-y border-y">
               {receipt.items.map((item, index) => (
                 <div key={index} className="px-6 py-3">
-                    <div className="space-y-2">
-                      {/* Item Name and Quantity */}
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium truncate">{item.name}</div>
-                          {item.quantity > 1 && (
-                            <div className="text-xs text-muted-foreground">
-                              Qty: {item.quantity}
-                            </div>
-                          )}
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="-mr-2 ml-2 px-2 text-sm tabular-nums"
-                          onClick={() => handleEditItem(index)}
-                          title="Edit price and quantity"
-                        >
-                          {formatCurrency(item.price * (item.quantity || 1))}
-                        </Button>
+                  <div className="space-y-2">
+                    {/* Item Name and Quantity */}
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{item.name}</div>
+                        {item.quantity > 1 && (
+                          <div className="text-xs text-muted-foreground">
+                            Qty: {item.quantity}
+                          </div>
+                        )}
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="-mr-2 ml-2 px-2 text-sm tabular-nums"
+                        onClick={() => handleEditItem(index)}
+                        title="Edit price and quantity"
+                      >
+                        {formatCurrency(item.price * (item.quantity || 1))}
+                      </Button>
+                    </div>
 
-                      {/* Assignment Status and Actions */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          {isItemFullyAssigned(index) ? (
-                            <Check className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          ) : (
-                            <AlertCircle className="h-4 w-4 text-amber-500 flex-shrink-0" />
-                          )}
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="flex-1 justify-between text-xs px-2 min-w-0"
+                    {/* Assignment Status and Actions */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        {isItemFullyAssigned(index) ? (
+                          <Check className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        ) : (
+                          <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                        )}
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 justify-between text-xs px-2 min-w-0"
+                            >
+                              <span
+                                className={`truncate ${
+                                  unassignedItems.includes(index)
+                                    ? "text-muted-foreground"
+                                    : ""
+                                }`}
                               >
-                                <span
-                                  className={`truncate ${
-                                    unassignedItems.includes(index)
-                                      ? "text-muted-foreground"
-                                      : ""
-                                  }`}
+                                {getAssignmentSummary(index)}
+                              </span>
+                              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="p-0 w-80" align="end">
+                            <div className="p-2 flex flex-col gap-2 max-h-64 overflow-y-auto">
+                              {/* Individual People */}
+                              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                                Individuals
+                              </div>
+                              {people.map((person) => (
+                                <div
+                                  key={person.id}
+                                  className="flex items-center gap-2"
                                 >
-                                  {getAssignmentSummary(index)}
-                                </span>
-                                <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="p-0 w-80" align="end">
-                              <div className="p-2 flex flex-col gap-2 max-h-64 overflow-y-auto">
-                                {/* Individual People */}
-                                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                                  Individuals
-                                </div>
-                                {people.map((person) => (
-                                  <div
-                                    key={person.id}
-                                    className="flex items-center gap-2"
+                                  <Checkbox
+                                    id={`person-${person.id}-item-${index}-mobile`}
+                                    checked={(
+                                      selectedPeople.get(index) || new Set()
+                                    ).has(person.id)}
+                                    onCheckedChange={() =>
+                                      togglePersonSelection(index, person.id)
+                                    }
+                                  />
+                                  <label
+                                    htmlFor={`person-${person.id}-item-${index}-mobile`}
+                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
                                   >
-                                    <Checkbox
-                                      id={`person-${person.id}-item-${index}-mobile`}
-                                      checked={(
-                                        selectedPeople.get(index) || new Set()
-                                      ).has(person.id)}
-                                      onCheckedChange={() =>
-                                        togglePersonSelection(index, person.id)
-                                      }
-                                    />
-                                    <label
-                                      htmlFor={`person-${person.id}-item-${index}-mobile`}
-                                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                                    >
-                                      {person.name}
-                                    </label>
-                                  </div>
-                                ))}
+                                    {person.name}
+                                  </label>
+                                </div>
+                              ))}
 
-                                {/* Groups */}
-                                {groups && groups.length > 0 && (
-                                  <>
-                                    <div className="border-t pt-2 mt-2">
-                                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                                        Groups
-                                      </div>
-                                      {groups.map((group) => (
-                                        <div
-                                          key={group.id}
-                                          className="flex items-center gap-2"
-                                        >
-                                          <Checkbox
-                                            id={`group-${group.id}-item-${index}-mobile`}
-                                            checked={isGroupFullySelected(
+                              {/* Groups */}
+                              {groups && groups.length > 0 && (
+                                <>
+                                  <div className="border-t pt-2 mt-2">
+                                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+                                      Groups
+                                    </div>
+                                    {groups.map((group) => (
+                                      <div
+                                        key={group.id}
+                                        className="flex items-center gap-2"
+                                      >
+                                        <Checkbox
+                                          id={`group-${group.id}-item-${index}-mobile`}
+                                          checked={isGroupFullySelected(
+                                            index,
+                                            group
+                                          )}
+                                          onCheckedChange={() =>
+                                            toggleGroupSelection(index, group)
+                                          }
+                                          className={
+                                            isGroupPartiallySelected(
                                               index,
                                               group
-                                            )}
-                                            onCheckedChange={() =>
-                                              toggleGroupSelection(index, group)
-                                            }
-                                            className={
-                                              isGroupPartiallySelected(
-                                                index,
-                                                group
-                                              ) &&
-                                              !isGroupFullySelected(index, group)
-                                                ? "data-[state=unchecked]:border-primary data-[state=unchecked]:bg-primary/20"
-                                                : ""
-                                            }
-                                          />
-                                          <label
-                                            htmlFor={`group-${group.id}-item-${index}-mobile`}
-                                            className="flex-1 cursor-pointer"
-                                          >
-                                            <div className="flex items-center gap-2">
-                                              <div className="w-4 h-4 flex items-center justify-center">
-                                                {group.emoji || "👥"}
+                                            ) &&
+                                            !isGroupFullySelected(index, group)
+                                              ? "data-[state=unchecked]:border-primary data-[state=unchecked]:bg-primary/20"
+                                              : ""
+                                          }
+                                        />
+                                        <label
+                                          htmlFor={`group-${group.id}-item-${index}-mobile`}
+                                          className="flex-1 cursor-pointer"
+                                        >
+                                          <div className="flex items-center gap-2">
+                                            <div className="w-4 h-4 flex items-center justify-center">
+                                              {group.emoji || "👥"}
+                                            </div>
+                                            <div className="flex-1">
+                                              <div className="text-sm font-medium">
+                                                {group.name}
                                               </div>
-                                              <div className="flex-1">
-                                                <div className="text-sm font-medium">
-                                                  {group.name}
-                                                </div>
-                                                <div className="text-xs text-muted-foreground">
-                                                  {group.memberIds
-                                                    .map(
-                                                      (id) =>
-                                                        people.find(
-                                                          (p) => p.id === id
-                                                        )?.name
-                                                    )
-                                                    .filter(Boolean)
-                                                    .join(", ")}
-                                                </div>
+                                              <div className="text-xs text-muted-foreground">
+                                                {group.memberIds
+                                                  .map(
+                                                    (id) =>
+                                                      people.find(
+                                                        (p) => p.id === id
+                                                      )?.name
+                                                  )
+                                                  .filter(Boolean)
+                                                  .join(", ")}
                                               </div>
                                             </div>
-                                          </label>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                        <div className="flex gap-2 flex-shrink-0">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setCurrentItemIndex(index);
-                              setOpen(true);
-                            }}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDeleteItem(index)}
-                            title="Delete item"
-                            aria-label={`Delete ${item.name}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                                          </div>
+                                        </label>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setCurrentItemIndex(index);
+                            setOpen(true);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDeleteItem(index)}
+                          title="Delete item"
+                          aria-label={`Delete ${item.name}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
+                  </div>
                 </div>
               ))}
             </div>
