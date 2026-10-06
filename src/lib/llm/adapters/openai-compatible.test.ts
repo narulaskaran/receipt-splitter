@@ -134,6 +134,16 @@ describe("createOpenAICompatibleExtractor", () => {
     expect(request).not.toHaveProperty("max_completion_tokens");
   });
 
+  it("merges extraBody into the request", async () => {
+    mockCreate.mockResolvedValue(completion({ content: "{}" }));
+
+    await createExtractor({ extraBody: { provider: { require_parameters: true } } }).extract(
+      input()
+    );
+
+    expect(mockCreate.mock.calls[0][0].provider).toEqual({ require_parameters: true });
+  });
+
   it("rejects PDFs without calling the API when PDF input is disabled", async () => {
     const error = await extractError(
       createExtractor({ supportsPdf: false }).extract(input("application/pdf"))

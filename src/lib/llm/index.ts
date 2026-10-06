@@ -37,6 +37,9 @@ const registry: Record<string, (model: string | undefined) => ReceiptExtractor> 
       model: model ?? "openai/gpt-6-luna",
       tokenLimitParam: "max_tokens",
       defaultHeaders: { "X-Title": "Receipt Splitter" },
+      // Only route to upstreams that honor every request param, so strict
+      // json_schema can't be silently ignored
+      extraBody: { provider: { require_parameters: true } },
     }),
 };
 

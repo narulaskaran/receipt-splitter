@@ -25,6 +25,8 @@ export interface OpenAICompatibleOptions {
   /** Set false for models without native PDF input */
   supportsPdf?: boolean;
   defaultHeaders?: Record<string, string>;
+  /** Provider-specific request fields merged into every request body */
+  extraBody?: Record<string, unknown>;
 }
 
 function toFilePart(
@@ -101,6 +103,7 @@ export function createOpenAICompatibleExtractor(
             type: "json_schema",
             json_schema: { name: "receipt", strict: true, schema: jsonSchema },
           },
+          ...options.extraBody,
         });
       } catch (error) {
         throw toLLMError(provider, error);

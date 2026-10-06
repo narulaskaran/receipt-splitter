@@ -1,8 +1,14 @@
 /**
  * @jest-environment node
  */
+jest.mock("./adapters/openai-compatible", () => {
+  const actual = jest.requireActual("./adapters/openai-compatible");
+  return { createOpenAICompatibleExtractor: jest.fn(actual.createOpenAICompatibleExtractor) };
+});
+
 import { getReceiptExtractor, LLMConfigError } from "./index";
 import { DEFAULT_ANTHROPIC_MODEL } from "./adapters/anthropic";
+import { createOpenAICompatibleExtractor } from "./adapters/openai-compatible";
 
 const ENV_KEYS = [
   "RECEIPT_LLM_PROVIDER",
@@ -61,6 +67,22 @@ describe("getReceiptExtractor", () => {
     process.env.RECEIPT_LLM_PROVIDER = "  OpenRouter ";
     process.env.OPENROUTER_API_KEY = "test-key";
     expect(getReceiptExtractor().provider).toBe("openrouter");
+  });
+
+  it("configures OpenRouter's base URL, token param, headers and parameter routing", () => {
+    process.env.RECEIPT_LLM_PROVIDER = "openrouter";
+    process.env.OPENROUTER_API_KEY = "test-key";
+    getReceiptExtractor();
+
+    expect(createOpenAICompatibleExtractor).toHaveBeenLastCalledWith({
+      provider: "openrouter",
+      apiKey: "test-key",
+      baseURL: "https://openrouter.ai/api/v1",
+      model: "openai/gpt-6-luna",
+      tokenLimitParam: "max_tokens",
+      defaultHeaders: { "X-Title": "Receipt Splitter" },
+      extraBody: { provider: { require_parameters: true } },
+    });
   });
 
   it("overrides the model with RECEIPT_LLM_MODEL", () => {
