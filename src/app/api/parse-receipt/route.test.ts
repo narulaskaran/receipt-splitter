@@ -21,16 +21,18 @@ jest.mock("@/lib/webhook-notifications", () => ({
 jest.mock("@/lib/uploadthing-storage", () => ({
   uploadReceiptFile: jest.fn(),
 }));
-jest.mock("@anthropic-ai/sdk", () => {
-  const createMock = jest.fn();
-  class Anthropic {
-    messages = { create: createMock };
-    static APIError = class APIError extends Error {};
-  }
-  return { __esModule: true, default: Anthropic };
-});
+jest.mock("@/lib/llm", () => ({
+  ...jest.requireActual("@/lib/llm"),
+  getReceiptExtractor: jest.fn(),
+}));
 
-import Anthropic from "@anthropic-ai/sdk";
+import { sendErrorNotification } from "@/lib/webhook-notifications";
+import {
+  getReceiptExtractor,
+  LLMConfigError,
+  LLMError,
+  RECEIPT_PROMPT,
+} from "@/lib/llm";
 import { POST } from "@/app/api/parse-receipt/route";
 
 // Helper function that mirrors the normalization logic in route.ts
@@ -360,69 +362,6 @@ describe("receipt normalization", () => {
   });
 });
 
-describe("JSON code fence stripping (mirrors route.ts fallback logic)", () => {
-  // This must match the stripping logic applied before JSON.parse in route.ts
-  function stripCodeFences(text: string): string {
-    return text.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
-  }
-
-  it("strips ```json code fences from response", () => {
-    const wrapped = '```json\n{"restaurant": "MONTESACRO", "items": []}\n```';
-    const result = stripCodeFences(wrapped);
-    expect(JSON.parse(result)).toEqual({ restaurant: "MONTESACRO", items: [] });
-  });
-
-  it("strips ``` code fences without json tag", () => {
-    const wrapped = '```\n{"restaurant": "Test", "items": []}\n```';
-    const result = stripCodeFences(wrapped);
-    expect(JSON.parse(result)).toEqual({ restaurant: "Test", items: [] });
-  });
-
-  it("leaves plain JSON unchanged", () => {
-    const plain = '{"restaurant": "Test", "items": []}';
-    const result = stripCodeFences(plain);
-    expect(JSON.parse(result)).toEqual({ restaurant: "Test", items: [] });
-  });
-
-  it("handles code fences with trailing whitespace", () => {
-    const wrapped = '```json\n{"restaurant": "Test", "items": []}\n```  ';
-    const result = stripCodeFences(wrapped);
-    expect(JSON.parse(result)).toEqual({ restaurant: "Test", items: [] });
-  });
-
-  it("handles a full realistic Haiku 4.5 response with code fences", () => {
-    const response = `\`\`\`json
-{
-  "restaurant": "MONTESACRO",
-  "date": "2026-02-21",
-  "total": 259.04,
-  "subtotal": 201.00,
-  "tax": 17.84,
-  "tip": 40.20,
-  "items": [
-    { "name": "Carbonara", "price": 25.00, "quantity": 2 },
-    { "name": "Garbatella", "price": 26.00, "quantity": 1 },
-    { "name": "AGNOLOTTI", "price": 26.00, "quantity": 1 },
-    { "name": "Maranella", "price": 25.00, "quantity": 1 },
-    { "name": "INFERNETTO", "price": 25.00, "quantity": 1 },
-    { "name": "Portonaccio", "price": 24.00, "quantity": 1 },
-    { "name": "Carbonara", "price": 25.00, "quantity": 1 }
-  ]
-}
-\`\`\``;
-    const result = stripCodeFences(response);
-    const parsed = JSON.parse(result);
-
-    expect(parsed.restaurant).toBe("MONTESACRO");
-    expect(parsed.items).toHaveLength(7);
-    expect(parsed.total).toBe(259.04);
-
-    // Also validate against receipt schema
-    const schemaResult = receiptSchema.safeParse(parsed);
-    expect(schemaResult.success).toBe(true);
-  });
-});
-
 describe("fixMultiQuantityPrices", () => {
   describe("core bug fix: line total returned instead of per-unit price", () => {
     it("fixes the reported bug: 7 Guinness Dft parsed as $637 instead of $91", () => {
@@ -608,70 +547,64 @@ describe("structured output JSON schema", () => {
   });
 });
 
-describe("currency flows through the parse response", () => {
-  // Each mocked client instance shares the same jest.fn() for messages.create
-  const mockCreate = new Anthropic().messages.create as jest.Mock;
+const mockExtract = jest.fn();
+const mockGetReceiptExtractor = getReceiptExtractor as jest.Mock;
+const mockSendErrorNotification = sendErrorNotification as jest.Mock;
 
-  function makeRequestWithFile() {
-    const fd = new FormData();
-    fd.append(
-      "file",
-      new File(["fake-image-bytes"], "receipt.png", { type: "image/png" })
-    );
-    fd.append("sessionId", "test-session");
-    return {
-      formData: async () => fd,
-      headers: new Headers(),
-    } as unknown as Parameters<typeof POST>[0];
-  }
+function makeRequestWithFile(type = "image/png") {
+  const fd = new FormData();
+  fd.append("file", new File(["fake-image-bytes"], "receipt.png", { type }));
+  fd.append("sessionId", "test-session");
+  return {
+    formData: async () => fd,
+    headers: new Headers(),
+  } as unknown as Parameters<typeof POST>[0];
+}
 
-  function modelResponse(overrides: Record<string, unknown> = {}) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            restaurant: "Cafe de Paris",
-            date: "2026-08-01",
-            total: 24.5,
-            subtotal: 20.0,
-            tax: 2.0,
-            tip: 2.5,
-            currency: "EUR",
-            items: [{ name: "Croissant", price: 4.0, quantity: 2 }],
-            ...overrides,
-          }),
-        },
-      ],
-    };
-  }
+function modelResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    restaurant: "Cafe de Paris",
+    date: "2026-08-01",
+    total: 24.5,
+    subtotal: 20.0,
+    tax: 2.0,
+    tip: 2.5,
+    currency: "EUR",
+    items: [{ name: "Croissant", price: 4.0, quantity: 2 }],
+    ...overrides,
+  };
+}
 
-  beforeEach(() => {
-    process.env.ANTHROPIC_API_KEY = "test-key";
-    delete process.env.UPLOADTHING_TOKEN;
-    delete process.env.WEBHOOK_URL;
-    mockCreate.mockReset();
+beforeEach(() => {
+  delete process.env.UPLOADTHING_TOKEN;
+  delete process.env.WEBHOOK_URL;
+  mockExtract.mockReset();
+  mockSendErrorNotification.mockReset().mockResolvedValue(undefined);
+  mockGetReceiptExtractor.mockReset().mockReturnValue({
+    provider: "anthropic",
+    model: "test-model",
+    supportedMimeTypes: ["image/png", "application/pdf"],
+    extract: mockExtract,
   });
+});
 
-  it("passes the currency-inclusive JSON schema to the Anthropic API", async () => {
-    mockCreate.mockResolvedValue(modelResponse());
+describe("currency flows through the parse response", () => {
+  it("passes the prompt, file and currency-inclusive JSON schema to the extractor", async () => {
+    mockExtract.mockResolvedValue(modelResponse());
 
     const res = await POST(makeRequestWithFile());
     expect(res.status).toBe(200);
 
-    expect(mockCreate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        output_config: expect.objectContaining({
-          format: expect.objectContaining({
-            schema: receiptJsonSchema,
-          }),
-        }),
-      })
-    );
+    expect(mockExtract).toHaveBeenCalledWith({
+      data: Buffer.from("fake-image-bytes"),
+      mimeType: "image/png",
+      prompt: RECEIPT_PROMPT,
+      jsonSchema: receiptJsonSchema,
+    });
   });
 
   it("returns surcharges in fees so the total reconciles", async () => {
-    mockCreate.mockResolvedValue(
+    mockExtract.mockResolvedValue(
       modelResponse({ fees: 0.75, total: 25.25, currency: "USD" })
     );
 
@@ -683,7 +616,7 @@ describe("currency flows through the parse response", () => {
   });
 
   it("normalizes missing fees to null", async () => {
-    mockCreate.mockResolvedValue(modelResponse());
+    mockExtract.mockResolvedValue(modelResponse());
 
     const res = await POST(makeRequestWithFile());
     const body = await res.json();
@@ -691,7 +624,7 @@ describe("currency flows through the parse response", () => {
   });
 
   it("returns a non-USD currency from the mocked parse response", async () => {
-    mockCreate.mockResolvedValue(modelResponse({ currency: "EUR" }));
+    mockExtract.mockResolvedValue(modelResponse({ currency: "EUR" }));
 
     const res = await POST(makeRequestWithFile());
     expect(res.status).toBe(200);
@@ -704,7 +637,7 @@ describe("currency flows through the parse response", () => {
     // THB is a valid ISO 4217 code but not in src/lib/currency.ts's supported
     // list. Without this guard, amounts would display as raw code while
     // formatting applied USD rules — fall back to USD instead.
-    mockCreate.mockResolvedValue(modelResponse({ currency: "THB" }));
+    mockExtract.mockResolvedValue(modelResponse({ currency: "THB" }));
 
     const res = await POST(makeRequestWithFile());
     expect(res.status).toBe(200);
@@ -714,16 +647,99 @@ describe("currency flows through the parse response", () => {
   });
 
   it("falls back to USD when the model response omits currency", async () => {
-    const response = modelResponse();
-    const parsed = JSON.parse(response.content[0].text);
-    delete parsed.currency;
-    response.content[0].text = JSON.stringify(parsed);
-    mockCreate.mockResolvedValue(response);
+    const response: Record<string, unknown> = modelResponse();
+    delete response.currency;
+    mockExtract.mockResolvedValue(response);
 
     const res = await POST(makeRequestWithFile());
     expect(res.status).toBe(200);
 
     const body = await res.json();
     expect(body.currency).toBe("USD");
+  });
+});
+
+describe("provider selection and file validation", () => {
+  it("returns 500 and notifies when the provider is misconfigured", async () => {
+    mockGetReceiptExtractor.mockImplementation(() => {
+      throw new LLMConfigError("ANTHROPIC_API_KEY environment variable is not set");
+    });
+
+    const res = await POST(makeRequestWithFile());
+    expect(res.status).toBe(500);
+    expect((await res.json()).error).toBe("Server configuration error: API key not found");
+    expect(mockSendErrorNotification).toHaveBeenCalledWith(
+      "missing_api_key",
+      "ANTHROPIC_API_KEY environment variable is not set",
+      expect.anything()
+    );
+    expect(mockExtract).not.toHaveBeenCalled();
+  });
+
+  it("rejects file types the provider does not support", async () => {
+    const res = await POST(makeRequestWithFile("text/plain"));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/Unsupported file format/);
+    expect(mockExtract).not.toHaveBeenCalled();
+  });
+
+  it("accepts PDFs when the provider supports them", async () => {
+    mockExtract.mockResolvedValue(modelResponse());
+
+    const res = await POST(makeRequestWithFile("application/pdf"));
+    expect(res.status).toBe(200);
+    expect(mockExtract).toHaveBeenCalledWith(
+      expect.objectContaining({ mimeType: "application/pdf" })
+    );
+  });
+});
+
+describe("LLM error handling", () => {
+  it.each([
+    ["rate_limit", 429, 429, "anthropic_rate_limit", "Rate limit exceeded: boom"],
+    ["bad_request", 400, 400, "anthropic_bad_request", "Bad request to anthropic API: boom"],
+    ["api_error", 529, 503, "anthropic_api_error", "anthropic API error (529): boom"],
+    ["unknown", undefined, 503, "anthropic_unknown_error", "boom"],
+    ["empty_response", undefined, 500, "empty_response", "boom"],
+    ["invalid_json", undefined, 500, "json_parse_error", "Failed to parse JSON response: boom"],
+  ] as const)(
+    "maps %s to the right HTTP status and notification",
+    async (kind, providerStatus, httpStatus, errorType, notification) => {
+      mockExtract.mockRejectedValue(
+        new LLMError(kind, "anthropic", "boom", { status: providerStatus })
+      );
+
+      const res = await POST(makeRequestWithFile());
+      expect(res.status).toBe(httpStatus);
+      expect(mockSendErrorNotification).toHaveBeenCalledWith(
+        errorType,
+        notification,
+        expect.objectContaining({ sessionId: "test-session", fileName: "receipt.png" })
+      );
+    }
+  );
+
+  it("treats a non-LLMError thrown by an adapter as unknown", async () => {
+    mockExtract.mockRejectedValue(new Error("socket hang up"));
+
+    const res = await POST(makeRequestWithFile());
+    expect(res.status).toBe(503);
+    expect(mockSendErrorNotification).toHaveBeenCalledWith(
+      "anthropic_unknown_error",
+      "socket hang up",
+      expect.anything()
+    );
+  });
+
+  it("reports schema-invalid model output as a zod validation failure", async () => {
+    mockExtract.mockResolvedValue({ restaurant: 42 });
+
+    const res = await POST(makeRequestWithFile());
+    expect(res.status).toBe(500);
+    expect(mockSendErrorNotification).toHaveBeenCalledWith(
+      "zod_validation",
+      expect.any(String),
+      expect.anything()
+    );
   });
 });

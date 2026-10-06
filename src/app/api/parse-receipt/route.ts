@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
-import { sendReceiptParsedNotification, sendErrorNotification } from "@/lib/webhook-notifications";
+import {
+  sendReceiptParsedNotification,
+  sendErrorNotification,
+  type ErrorNotificationContext,
+} from "@/lib/webhook-notifications";
 import { uploadReceiptFile } from "@/lib/uploadthing-storage";
 import { MAX_FILE_SIZE_BYTES } from "@/lib/constants";
 import { type GeolocationData } from "@/types";
@@ -10,11 +13,13 @@ import {
   receiptSchema,
   receiptJsonSchema,
 } from "@/lib/receipt-schema";
-
-// Initialize Anthropic client
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+import {
+  getReceiptExtractor,
+  LLMConfigError,
+  LLMError,
+  RECEIPT_PROMPT,
+  type ReceiptExtractor,
+} from "@/lib/llm";
 
 // Extract geolocation data from Vercel headers
 function extractGeolocation(request: NextRequest): GeolocationData | null {
@@ -38,9 +43,70 @@ function extractGeolocation(request: NextRequest): GeolocationData | null {
   };
 }
 
-// Valid media types for Anthropic API
-type ValidMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
-type ValidDocumentType = "application/pdf";
+// Map a failed LLM extraction to a webhook notification and HTTP response
+function handleExtractError(
+  error: unknown,
+  provider: string,
+  errorContext: ErrorNotificationContext
+): NextResponse {
+  const llmError =
+    error instanceof LLMError
+      ? error
+      : new LLMError(
+          "unknown",
+          provider,
+          error instanceof Error ? error.message : "Unknown LLM error",
+          { cause: error }
+        );
+  const { kind, message, status } = llmError;
+  console.error(`LLM extraction failed (${provider}, ${kind}):`, error);
+
+  switch (kind) {
+    case "rate_limit":
+      sendErrorNotification(`${provider}_rate_limit`, `Rate limit exceeded: ${message}`, errorContext).catch(() => {});
+      return NextResponse.json(
+        { error: "Rate limit exceeded. Please try again in a few moments." },
+        { status: 429 }
+      );
+    case "bad_request":
+      sendErrorNotification(`${provider}_bad_request`, `Bad request to ${provider} API: ${message}`, errorContext).catch(() => {});
+      return NextResponse.json(
+        {
+          error:
+            "Invalid request format. Please ensure your file is a valid receipt image or PDF.",
+        },
+        { status: 400 }
+      );
+    case "empty_response":
+      sendErrorNotification("empty_response", message, errorContext).catch(() => {});
+      return NextResponse.json(
+        { error: "Failed to parse receipt. Please try again later." },
+        { status: 500 }
+      );
+    case "invalid_json":
+      sendErrorNotification("json_parse_error", `Failed to parse JSON response: ${message}`, errorContext).catch(() => {});
+      return NextResponse.json(
+        { error: "Failed to parse receipt. Please try again later." },
+        { status: 500 }
+      );
+    case "api_error":
+      sendErrorNotification(`${provider}_api_error`, `${provider} API error (${status}): ${message}`, errorContext).catch(() => {});
+      break;
+    case "unknown":
+      sendErrorNotification(`${provider}_unknown_error`, message, errorContext).catch(() => {});
+      break;
+    default: {
+      // Adding an LLMErrorKind without handling it here is a compile error
+      const unhandled: never = kind;
+      throw new Error(`Unhandled LLM error kind: ${String(unhandled)}`);
+    }
+  }
+
+  return NextResponse.json(
+    { error: "Failed to process receipt. Please try again later." },
+    { status: 503 }
+  );
+}
 
 // Helper function to format file size in MB
 function formatFileSizeMB(bytes: number): number {
@@ -52,10 +118,14 @@ export async function POST(request: NextRequest) {
     // Extract geolocation data from request headers
     const geolocation = extractGeolocation(request);
 
-    // Validate API key exists
-    if (!process.env.ANTHROPIC_API_KEY) {
-      console.error("ANTHROPIC_API_KEY environment variable is not set");
-      sendErrorNotification("missing_api_key", "ANTHROPIC_API_KEY environment variable is not set", { geolocation }).catch(() => {});
+    // Resolve the configured LLM provider (validates its API key)
+    let extractor: ReceiptExtractor;
+    try {
+      extractor = getReceiptExtractor();
+    } catch (error) {
+      if (!(error instanceof LLMConfigError)) throw error;
+      console.error(error.message);
+      sendErrorNotification("missing_api_key", error.message, { geolocation }).catch(() => {});
       return NextResponse.json(
         { error: "Server configuration error: API key not found" },
         { status: 500 }
@@ -91,25 +161,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Convert file to base64
     const buffer = await file.arrayBuffer();
-    const base64 = Buffer.from(buffer).toString("base64");
     const mimeType = file.type;
 
     console.log(`Processing file: ${file.name}, type: ${mimeType}, size: ${file.size} bytes`);
 
-    // Validate mime type
-    const validMediaTypes: ValidMediaType[] = [
-      "image/jpeg",
-      "image/png",
-      "image/gif",
-      "image/webp",
-    ];
-    const validDocumentTypes: ValidDocumentType[] = ["application/pdf"];
-    const isImage = validMediaTypes.includes(mimeType as ValidMediaType);
-    const isPDF = validDocumentTypes.includes(mimeType as ValidDocumentType);
-
-    if (!isImage && !isPDF) {
+    if (!extractor.supportedMimeTypes.includes(mimeType)) {
       return NextResponse.json(
         {
           error:
@@ -144,153 +201,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Prepare content based on file type
-    const promptText = `Parse this receipt and return a JSON object with the following structure:
-              {
-                "restaurant": "Name of the restaurant or store",
-                "date": "Date of purchase in YYYY-MM-DD format",
-                "total": "Total amount as number",
-                "subtotal": "Subtotal amount as number",
-                "tax": "Tax amount as number",
-                "tip": "Tip amount as number (if included)",
-                "fees": "Sum of any surcharges or service fees as number (e.g. credit card surcharge, service charge, delivery fee), or null if none",
-                "currency": "ISO 4217 currency code (e.g., USD, EUR, GBP, JPY, CAD, AUD, etc.)",
-                "items": [
-                  {
-                    "name": "Item name",
-                    "price": "Per-unit price as number (NEVER the line total — see instructions below)",
-                    "quantity": "Quantity as number (default to 1 if not specified)"
-                  }
-                ]
-              }
-              \nInstructions:\n- Detect the currency and return the 3-letter ISO 4217 code (USD, EUR, GBP, JPY, CAD, AUD, INR, CNY, etc.). Use the following priority:\n  1. Explicit currency codes on the receipt (e.g., "USD", "EUR")\n  2. Country/region indicators (e.g., "USA" or US address → USD, "Japan" or Japanese text → JPY, "China" or Chinese characters → CNY)\n  3. Language context as a last resort\n- For ambiguous cases:\n  - If the receipt appears to be from Japan (Japanese text, Japan address, etc.) → use JPY\n  - If the receipt appears to be from China (Chinese characters, China address, etc.) → use CNY\n  - If the receipt appears to be from the USA → use USD\n  - If the receipt appears to be from Canada → use CAD\n  - If the receipt appears to be from Australia → use AUD\n- If the currency cannot be determined with confidence, default to 'USD'\n- Return ONLY the 3-letter ISO 4217 code (e.g., 'JPY'), not the currency symbol or full name\n- CRITICAL — Per-unit pricing for multi-quantity items:\n  - The 'price' field must ALWAYS be the price for ONE unit, never the line total.\n  - If the receipt shows a line total for multiple units, divide to get the per-unit price.\n  - Example: receipt line "7 Guinness Dft  $91.00" → output {"name": "Guinness Dft", "price": 13.00, "quantity": 7} because $91.00 ÷ 7 = $13.00 per drink.\n  - Example: receipt line "2 Club Soda  $16.00" → output {"name": "Club Soda", "price": 8.00, "quantity": 2} because $16.00 ÷ 2 = $8.00 each.\n  - Do NOT output the line total as the price — the application will multiply price × quantity automatically.\n- After extracting all items, verify: the sum of (price × quantity) for all items should approximately equal the subtotal. If it does not, re-examine any multi-quantity items to confirm you used the per-unit price and not the line total.\n- Surcharges and fees (credit card surcharge, service charge, delivery fee, etc.) are NOT items, tax, or tip. Add them together into 'fees'. Verify: subtotal + tax + fees + tip should equal total.\n- Only include items that were actually purchased AND have a visible price on the receipt.\n- SKIP item modifiers or add-ons (like "ADD CHEESE", "EXTRA SAUCE", etc.) that don't have their own price listed - these costs are included in the parent item's price.\n- If you can't determine any field, use null.\n- Keep the item names exactly as they appear on the receipt.\n- Return ONLY the JSON with no explanations or additional text.`;
-
-    const content: Array<
-      | {
-          type: "image";
-          source: {
-            type: "base64";
-            media_type: ValidMediaType;
-            data: string;
-          };
-        }
-      | {
-          type: "document";
-          source: {
-            type: "base64";
-            media_type: ValidDocumentType;
-            data: string;
-          };
-        }
-      | { type: "text"; text: string }
-    > = [];
-
-    if (isImage) {
-      content.push({
-        type: "image",
-        source: {
-          type: "base64",
-          media_type: mimeType as ValidMediaType,
-          data: base64,
-        },
+    let parsedData: unknown;
+    try {
+      parsedData = await extractor.extract({
+        data: Buffer.from(buffer),
+        mimeType,
+        prompt: RECEIPT_PROMPT,
+        jsonSchema: receiptJsonSchema,
       });
-    } else if (isPDF) {
-      content.push({
-        type: "document",
-        source: {
-          type: "base64",
-          media_type: mimeType as ValidDocumentType,
-          data: base64,
-        },
-      });
+    } catch (error) {
+      return handleExtractError(error, extractor.provider, errorContext);
     }
 
-    content.push({
-      type: "text",
-      text: promptText,
-    });
-
-    // Call Anthropic with structured outputs (deterministic JSON via schema)
-    let message;
+    // Validate and normalize the model output
     try {
-      message = await anthropic.messages.create({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 4096,
-        messages: [
-          {
-            role: "user",
-            content,
-          },
-        ],
-        output_config: {
-          format: {
-            type: "json_schema",
-            schema: receiptJsonSchema,
-          },
-        },
-      });
-    } catch (apiError: unknown) {
-      console.error("Anthropic API error:", apiError);
-
-      // Use API status codes for error detection
-      if (apiError instanceof Anthropic.APIError) {
-        if (apiError.status === 429) {
-          sendErrorNotification("anthropic_rate_limit", `Rate limit exceeded: ${apiError.message}`, errorContext).catch(() => {});
-          return NextResponse.json(
-            {
-              error:
-                "Rate limit exceeded. Please try again in a few moments.",
-            },
-            { status: 429 }
-          );
-        }
-
-        if (apiError.status === 400) {
-          sendErrorNotification("anthropic_bad_request", `Bad request to Anthropic API: ${apiError.message}`, errorContext).catch(() => {});
-          return NextResponse.json(
-            {
-              error:
-                "Invalid request format. Please ensure your file is a valid receipt image or PDF.",
-            },
-            { status: 400 }
-          );
-        }
-
-        console.error("Anthropic API error details:", apiError.message, apiError.status);
-        sendErrorNotification("anthropic_api_error", `Anthropic API error (${apiError.status}): ${apiError.message}`, errorContext).catch(() => {});
-      } else {
-        const msg = apiError instanceof Error ? apiError.message : "Unknown Anthropic error";
-        sendErrorNotification("anthropic_unknown_error", msg, errorContext).catch(() => {});
-      }
-
-      return NextResponse.json(
-        {
-          error:
-            "Failed to process receipt. Please try again later.",
-        },
-        { status: 503 }
-      );
-    }
-
-    // Extract and parse the structured JSON response
-    try {
-      const textBlock = message.content.find((block) => block.type === "text");
-      if (!textBlock || textBlock.type !== "text") {
-        console.error("No text content in response");
-        sendErrorNotification("empty_response", "No text content in Anthropic response", errorContext).catch(() => {});
-        return NextResponse.json(
-          { error: "Failed to parse receipt. Please try again later." },
-          { status: 500 }
-        );
-      }
-
-      // Strip code fences if present (safety fallback in case structured outputs
-      // returns fenced JSON due to API version mismatch or model rollback)
-      const jsonText = textBlock.text
-        .replace(/^```(?:json)?\s*\n?/i, "")
-        .replace(/\n?```\s*$/i, "")
-        .trim();
-      const parsedData = JSON.parse(jsonText);
       const validationResult = receiptSchema.safeParse(parsedData);
 
       if (!validationResult.success) {
