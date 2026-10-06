@@ -1,6 +1,11 @@
 import OpenAI from "openai";
 import { parseModelJson } from "../parse-json";
-import { LLMError, type ExtractInput, type ReceiptExtractor } from "../types";
+import {
+  LLMError,
+  llmErrorKindForStatus,
+  type ExtractInput,
+  type ReceiptExtractor,
+} from "../types";
 
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const;
 const DOCUMENT_TYPES = ["application/pdf"] as const;
@@ -34,10 +39,12 @@ function toFilePart(
 }
 
 function toLLMError(provider: string, error: unknown): LLMError {
+  // Connection errors and timeouts extend APIError with no status
   if (error instanceof OpenAI.APIError && error.status !== undefined) {
-    const kind =
-      error.status === 429 ? "rate_limit" : error.status === 400 ? "bad_request" : "api_error";
-    return new LLMError(kind, provider, error.message, { status: error.status, cause: error });
+    return new LLMError(llmErrorKindForStatus(error.status), provider, error.message, {
+      status: error.status,
+      cause: error,
+    });
   }
   const msg = error instanceof Error ? error.message : `Unknown ${provider} error`;
   return new LLMError("unknown", provider, msg, { cause: error });
@@ -99,7 +106,13 @@ export function createOpenAICompatibleExtractor(
         throw toLLMError(provider, error);
       }
 
-      const message = completion.choices[0]?.message;
+      const choice = completion.choices[0];
+      // Reasoning tokens count against the limit, so long receipts can truncate
+      if (choice?.finish_reason === "length") {
+        throw new LLMError("invalid_json", provider, "Response truncated at the output token limit");
+      }
+
+      const message = choice?.message;
       if (!message?.content) {
         const detail = message?.refusal ? `: ${message.refusal}` : "";
         throw new LLMError("empty_response", provider, `No text content in ${provider} response${detail}`);

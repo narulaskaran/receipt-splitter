@@ -48,6 +48,7 @@ interface AdapterHarness {
   create: () => ReceiptExtractor;
   mockCreate: jest.Mock;
   respondWithText: (text: string) => unknown;
+  respondTruncated: () => unknown;
   apiError: APIErrorCtor;
 }
 
@@ -57,6 +58,7 @@ const adapters: AdapterHarness[] = [
     create: () => createAnthropicExtractor({ apiKey: "k" }),
     mockCreate: new Anthropic().messages.create as jest.Mock,
     respondWithText: (text) => ({ content: [{ type: "text", text }] }),
+    respondTruncated: () => ({ stop_reason: "max_tokens", content: [{ type: "text", text: '{"restaurant": "Ca' }] }),
     apiError: Anthropic.APIError as unknown as APIErrorCtor,
   },
   {
@@ -64,6 +66,9 @@ const adapters: AdapterHarness[] = [
     create: () => createOpenAICompatibleExtractor({ provider: "openai", apiKey: "k", model: "m" }),
     mockCreate: new OpenAI().chat.completions.create as unknown as jest.Mock,
     respondWithText: (text) => ({ choices: [{ message: { content: text } }] }),
+    respondTruncated: () => ({
+      choices: [{ finish_reason: "length", message: { content: '{"restaurant": "Ca' } }],
+    }),
     apiError: OpenAI.APIError as unknown as APIErrorCtor,
   },
 ];
@@ -114,6 +119,8 @@ describe.each(adapters)("$name adapter contract", (adapter) => {
   it.each([
     [429, "rate_limit"],
     [400, "bad_request"],
+    [401, "auth"],
+    [403, "auth"],
     [503, "api_error"],
   ] as const)("maps HTTP %i to %s", async (status, kind) => {
     adapter.mockCreate.mockRejectedValue(new adapter.apiError(status, "boom"));
@@ -121,6 +128,24 @@ describe.each(adapters)("$name adapter contract", (adapter) => {
       kind,
       status,
       message: "boom",
+    });
+  });
+
+  it("maps status-less API errors (connection, timeout) to unknown", async () => {
+    adapter.mockCreate.mockRejectedValue(
+      new adapter.apiError(undefined as unknown as number, "Connection error.")
+    );
+    await expect(adapter.create().extract(input("image/png"))).rejects.toMatchObject({
+      kind: "unknown",
+      message: "Connection error.",
+    });
+  });
+
+  it("reports truncated output as invalid_json", async () => {
+    adapter.mockCreate.mockResolvedValue(adapter.respondTruncated());
+    await expect(adapter.create().extract(input("image/png"))).rejects.toMatchObject({
+      kind: "invalid_json",
+      message: "Response truncated at the output token limit",
     });
   });
 

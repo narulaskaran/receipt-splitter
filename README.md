@@ -219,7 +219,7 @@ Add `CRON_SECRET` to your Vercel environment variables to protect the endpoint f
 |----------|----------|-------------|
 | `ANTHROPIC_API_KEY` | Yes (default provider) | Claude API key for receipt parsing |
 | `RECEIPT_LLM_PROVIDER` | No | Receipt parsing provider: `anthropic` (default), `openai`, or `openrouter` |
-| `RECEIPT_LLM_MODEL` | No | Override the provider's default model |
+| `RECEIPT_LLM_MODEL` | No | Override the provider's default model (update or unset it when changing provider) |
 | `OPENAI_API_KEY` | If provider is `openai` | OpenAI API key |
 | `OPENROUTER_API_KEY` | If provider is `openrouter` | OpenRouter API key |
 | `UPLOADTHING_TOKEN` | No | UploadThing API token for file storage |

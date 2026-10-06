@@ -78,6 +78,12 @@ function handleExtractError(
         },
         { status: 400 }
       );
+    case "auth":
+      sendErrorNotification("llm_auth_error", `${provider} rejected the API key: ${message}`, errorContext).catch(() => {});
+      return NextResponse.json(
+        { error: "Server configuration error: LLM provider is not configured" },
+        { status: 500 }
+      );
     case "empty_response":
       sendErrorNotification("empty_response", message, errorContext).catch(() => {});
       return NextResponse.json(

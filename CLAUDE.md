@@ -221,7 +221,9 @@ Receipt parsing goes through the `ReceiptExtractor` interface in `src/lib/llm/ty
 
 Adapters throw `LLMError` (`rate_limit | bad_request | api_error | empty_response | invalid_json | unknown`), which the route maps to HTTP statuses and `llm_*` webhook error types. Zod validation and normalization stay in the route so every provider gets the same safety nets.
 
-**Adding a provider:** for OpenAI-compatible APIs (DeepSeek, Groq, etc.), add a registry entry with a `baseURL`. Otherwise write an adapter implementing `ReceiptExtractor`, register it, and add it to `src/lib/llm/adapters/contract.test.ts`. The selected model must accept image input (and PDF, unless the adapter sets `supportsPdf: false`) and support JSON-schema structured outputs.
+**Adding a provider:** for OpenAI-compatible APIs (DeepSeek, Groq, etc.), add a registry entry with a `baseURL`. Otherwise write an adapter implementing `ReceiptExtractor`, register it, and add it to `src/lib/llm/adapters/contract.test.ts`. The selected model must accept image input (and PDF, unless the adapter sets `supportsPdf: false`) and support JSON-schema structured outputs (on OpenRouter, check the model's `structured_outputs` support; not every backend honors `strict`).
+
+`RECEIPT_LLM_MODEL` is not namespaced per provider: when changing `RECEIPT_LLM_PROVIDER`, update or unset it, or the old model id is sent to the new provider and fails with a 400.
 
 ## Observability Architecture
 

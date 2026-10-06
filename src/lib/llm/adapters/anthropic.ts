@@ -1,6 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { parseModelJson } from "../parse-json";
-import { LLMError, type ExtractInput, type ReceiptExtractor } from "../types";
+import {
+  LLMError,
+  llmErrorKindForStatus,
+  type ExtractInput,
+  type ReceiptExtractor,
+} from "../types";
 
 const PROVIDER = "anthropic";
 export const DEFAULT_ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
@@ -34,10 +39,12 @@ function toFileBlock(
 }
 
 function toLLMError(error: unknown): LLMError {
-  if (error instanceof Anthropic.APIError) {
-    const kind =
-      error.status === 429 ? "rate_limit" : error.status === 400 ? "bad_request" : "api_error";
-    return new LLMError(kind, PROVIDER, error.message, { status: error.status, cause: error });
+  // Connection errors and timeouts extend APIError with no status
+  if (error instanceof Anthropic.APIError && error.status !== undefined) {
+    return new LLMError(llmErrorKindForStatus(error.status), PROVIDER, error.message, {
+      status: error.status,
+      cause: error,
+    });
   }
   const msg = error instanceof Error ? error.message : "Unknown Anthropic error";
   return new LLMError("unknown", PROVIDER, msg, { cause: error });
@@ -76,6 +83,10 @@ export function createAnthropicExtractor(options: {
         });
       } catch (error) {
         throw toLLMError(error);
+      }
+
+      if (message.stop_reason === "max_tokens") {
+        throw new LLMError("invalid_json", PROVIDER, "Response truncated at the output token limit");
       }
 
       const textBlock = message.content.find((block) => block.type === "text");
