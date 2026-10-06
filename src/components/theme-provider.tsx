@@ -42,6 +42,8 @@ function readStoredTheme(): Theme | null {
   }
 }
 
+const subscribeToNothing = () => () => {};
+
 // When attribute === "class", theme classes are toggled via classList above;
 // never overwrite the root's entire class attribute.
 function applyAttribute(
@@ -97,7 +99,19 @@ export function ThemeProvider({
     window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
   }, []);
 
+  // The hydration render uses the server snapshot (defaultTheme), not the
+  // saved theme, so applying classes then would briefly swap out the theme the
+  // inline init script already set. Wait until hydration is done; React
+  // re-renders with the saved theme right after.
+  const isHydrated = useSyncExternalStore(
+    subscribeToNothing,
+    () => true,
+    () => false
+  );
+
   useEffect(() => {
+    if (!isHydrated) return;
+
     const root = window.document.documentElement;
 
     root.classList.remove("light", "dark");
@@ -122,7 +136,7 @@ export function ThemeProvider({
 
     root.classList.add(theme);
     applyAttribute(root, attribute, theme);
-  }, [theme, enableSystem, disableTransitionOnChange, attribute]);
+  }, [isHydrated, theme, enableSystem, disableTransitionOnChange, attribute]);
 
   // Listen for system theme changes
   useEffect(() => {
