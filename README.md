@@ -166,7 +166,7 @@ The application includes optional observability features for monitoring uploads 
 
 ### File Storage (UploadThing)
 
-Receipt files are automatically uploaded to UploadThing after successful parsing, providing:
+Receipt files are automatically uploaded to UploadThing before parsing (so failed parses keep the file too), providing:
 - Public URLs for files that can be displayed in webhook notifications
 - Automatic 90-day retention with daily cleanup via Vercel Cron
 
