@@ -1,7 +1,8 @@
 "use client";
 
 import { Monitor, Moon, Sun } from "lucide-react";
-import { useTheme, type Theme } from "@/components/theme-provider";
+import { useTheme } from "@/components/theme-provider";
+import type { Theme } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 
 const OPTIONS: { value: Theme; label: string; Icon: typeof Sun }[] = [

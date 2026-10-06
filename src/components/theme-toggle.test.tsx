@@ -1,5 +1,6 @@
-import { render, screen, fireEvent } from "@testing-library/react";
-import { ThemeProvider, THEME_STORAGE_KEY } from "./theme-provider";
+import { act, render, screen, fireEvent } from "@testing-library/react";
+import { ThemeProvider } from "./theme-provider";
+import { THEME_STORAGE_KEY } from "@/lib/theme";
 import { ThemeToggle } from "./theme-toggle";
 
 beforeAll(() => {
@@ -66,5 +67,35 @@ describe("ThemeToggle", () => {
     renderToggle();
     expect(screen.getByRole("button", { name: "System theme" })).toHaveAttribute("aria-pressed", "true");
     expect(document.documentElement.classList.contains("light")).toBe(true);
+  });
+
+  it("picks up a theme changed in another tab", () => {
+    renderToggle();
+    localStorage.setItem(THEME_STORAGE_KEY, "dark");
+    act(() => {
+      window.dispatchEvent(new StorageEvent("storage", { key: THEME_STORAGE_KEY }));
+    });
+    expect(screen.getByRole("button", { name: "Dark theme" })).toHaveAttribute("aria-pressed", "true");
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+  });
+});
+
+describe("ThemeToggle when storage is blocked", () => {
+  it("still switches the theme for this page load", () => {
+    const getItem = jest.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+    const setItem = jest.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("blocked");
+    });
+
+    renderToggle();
+    fireEvent.click(screen.getByRole("button", { name: "Dark theme" }));
+
+    expect(screen.getByRole("button", { name: "Dark theme" })).toHaveAttribute("aria-pressed", "true");
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+
+    getItem.mockRestore();
+    setItem.mockRestore();
   });
 });

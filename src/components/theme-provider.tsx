@@ -1,10 +1,8 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useSyncExternalStore } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useSyncExternalStore } from "react";
 
-export type Theme = "dark" | "light" | "system";
-
-export const THEME_STORAGE_KEY = "theme";
+import { THEME_STORAGE_KEY, isTheme, type Theme } from "@/lib/theme";
 
 type ThemeProviderProps = {
   children: React.ReactNode;
@@ -28,10 +26,6 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
 const THEME_CHANGE_EVENT = "themechange";
 
-function isTheme(value: unknown): value is Theme {
-  return value === "light" || value === "dark" || value === "system";
-}
-
 function readStoredTheme(): Theme | null {
   try {
     const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
@@ -40,19 +34,6 @@ function readStoredTheme(): Theme | null {
     return null;
   }
 }
-
-function subscribeToStoredTheme(onChange: () => void): () => void {
-  window.addEventListener("storage", onChange);
-  window.addEventListener(THEME_CHANGE_EVENT, onChange);
-  return () => {
-    window.removeEventListener("storage", onChange);
-    window.removeEventListener(THEME_CHANGE_EVENT, onChange);
-  };
-}
-
-// Runs before hydration (see layout.tsx) so a saved dark preference doesn't
-// flash light on load.
-export const themeInitScript = `(function(){try{var t=localStorage.getItem("${THEME_STORAGE_KEY}");if(t!=="light"&&t!=="dark"){t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}document.documentElement.classList.add(t)}catch(e){}})()`;
 
 // When attribute === "class", theme classes are toggled via classList above;
 // never overwrite the root's entire class attribute.
@@ -74,17 +55,37 @@ export function ThemeProvider({
   attribute = "data-theme",
   ...props
 }: ThemeProviderProps) {
+  // The latest choice made in this tab. Takes precedence over storage so the
+  // toggle still works when localStorage is blocked or full; cleared when
+  // another tab changes the stored theme.
+  const chosenTheme = useRef<Theme | null>(null);
+
+  const subscribe = useCallback((onChange: () => void) => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== null && event.key !== THEME_STORAGE_KEY) return;
+      chosenTheme.current = null;
+      onChange();
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener(THEME_CHANGE_EVENT, onChange);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(THEME_CHANGE_EVENT, onChange);
+    };
+  }, []);
+
   const theme = useSyncExternalStore(
-    subscribeToStoredTheme,
-    () => readStoredTheme() ?? defaultTheme,
+    subscribe,
+    () => chosenTheme.current ?? readStoredTheme() ?? defaultTheme,
     () => defaultTheme
   );
 
   const setTheme = useCallback((next: Theme) => {
+    chosenTheme.current = next;
     try {
       window.localStorage.setItem(THEME_STORAGE_KEY, next);
     } catch {
-      // Storage unavailable (private mode); the change still applies this session.
+      // Storage blocked or full: chosenTheme still applies for this page load.
     }
     window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
   }, []);
@@ -121,12 +122,12 @@ export function ThemeProvider({
     if (!enableSystem) return;
 
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-
+    
     const handleChange = () => {
       if (theme === "system") {
         const systemTheme = mediaQuery.matches ? "dark" : "light";
         const root = window.document.documentElement;
-
+        
         root.classList.remove("light", "dark");
         root.classList.add(systemTheme);
         applyAttribute(root, attribute, systemTheme);

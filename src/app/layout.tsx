@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
-import { ThemeProvider, themeInitScript } from "@/components/theme-provider";
+import { ThemeProvider } from "@/components/theme-provider";
+import { getThemeInitScript, type Theme } from "@/lib/theme";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
@@ -36,6 +37,9 @@ export const metadata: Metadata = {
   },
 };
 
+// Shared by the pre-hydration script and the provider so first paint matches.
+const DEFAULT_THEME: Theme = "system";
+
 export const viewport = {
   width: "device-width",
   initialScale: 1,
@@ -49,14 +53,14 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <script dangerouslySetInnerHTML={{ __html: getThemeInitScript(DEFAULT_THEME) }} />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
+          defaultTheme={DEFAULT_THEME}
           enableSystem
           disableTransitionOnChange
         >
