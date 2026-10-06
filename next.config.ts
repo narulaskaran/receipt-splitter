@@ -8,14 +8,6 @@ const nextConfig: NextConfig = {
   // Empty turbopack config lets `next dev` use Turbopack while next-pwa's
   // webpack plugin still runs for production builds (`next build --webpack`).
   turbopack: {},
-  images: {
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "storage.ko-fi.com",
-      },
-    ],
-  },
 };
 
 export default withPWA({

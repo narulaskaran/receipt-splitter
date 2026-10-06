@@ -14,7 +14,7 @@ import { GroupManager } from "@/components/group-manager";
 import { ItemAssignment } from "@/components/item-assignment";
 import { ResultsSummary } from "@/components/results-summary";
 import { PersonItems } from "@/components/person-items";
-import { KofiButton } from "@/components/kofi-button";
+import { SupportFooter, SupportCard } from "@/components/support-links";
 import { ValidationErrors } from "@/components/validation-errors";
 
 import {
@@ -768,12 +768,12 @@ export default function Home() {
           />
 
           <PersonItems people={state.people} currencyCode={sessionCurrency(state.receipts)} />
+
+          <SupportCard />
         </TabsContent>
       </Tabs>
 
-      <div className="flex justify-between items-center w-full mt-4">
-        <KofiButton />
-      </div>
+      <SupportFooter />
     </main>
   );
 }
