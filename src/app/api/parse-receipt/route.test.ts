@@ -26,7 +26,10 @@ jest.mock("@/lib/llm", () => ({
   getReceiptExtractor: jest.fn(),
 }));
 
-import { sendErrorNotification } from "@/lib/webhook-notifications";
+import {
+  sendErrorNotification,
+  sendReceiptParsedNotification,
+} from "@/lib/webhook-notifications";
 import {
   getReceiptExtractor,
   LLMConfigError,
@@ -603,6 +606,23 @@ describe("currency flows through the parse response", () => {
     });
   });
 
+  it("passes the provider and model to the success webhook", async () => {
+    process.env.WEBHOOK_URL = "https://example.com/hook";
+    mockExtract.mockResolvedValue(modelResponse());
+
+    const res = await POST(makeRequestWithFile());
+    expect(res.status).toBe(200);
+    expect(sendReceiptParsedNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ restaurant: "Cafe de Paris" }),
+      null,
+      "test-session",
+      "receipt.png",
+      "image/png",
+      null,
+      { provider: "anthropic", model: "test-model" }
+    );
+  });
+
   it("returns surcharges in fees so the total reconciles", async () => {
     mockExtract.mockResolvedValue(
       modelResponse({ fees: 0.75, total: 25.25, currency: "USD" })
@@ -667,9 +687,11 @@ describe("provider selection and file validation", () => {
 
     const res = await POST(makeRequestWithFile());
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe("Server configuration error: API key not found");
+    expect((await res.json()).error).toBe(
+      "Server configuration error: LLM provider is not configured"
+    );
     expect(mockSendErrorNotification).toHaveBeenCalledWith(
-      "missing_api_key",
+      "llm_config_error",
       "ANTHROPIC_API_KEY environment variable is not set",
       expect.anything()
     );
@@ -680,6 +702,19 @@ describe("provider selection and file validation", () => {
     const res = await POST(makeRequestWithFile("text/plain"));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/Unsupported file format/);
+    expect(mockExtract).not.toHaveBeenCalled();
+  });
+
+  it("rejects PDFs when the provider does not support them", async () => {
+    mockGetReceiptExtractor.mockReturnValue({
+      provider: "openrouter",
+      model: "text-and-image-only",
+      supportedMimeTypes: ["image/png"],
+      extract: mockExtract,
+    });
+
+    const res = await POST(makeRequestWithFile("application/pdf"));
+    expect(res.status).toBe(400);
     expect(mockExtract).not.toHaveBeenCalled();
   });
 
@@ -696,10 +731,11 @@ describe("provider selection and file validation", () => {
 
 describe("LLM error handling", () => {
   it.each([
-    ["rate_limit", 429, 429, "anthropic_rate_limit", "Rate limit exceeded: boom"],
-    ["bad_request", 400, 400, "anthropic_bad_request", "Bad request to anthropic API: boom"],
-    ["api_error", 529, 503, "anthropic_api_error", "anthropic API error (529): boom"],
-    ["unknown", undefined, 503, "anthropic_unknown_error", "boom"],
+    ["rate_limit", 429, 429, "llm_rate_limit", "Rate limit exceeded: boom"],
+    ["bad_request", 400, 400, "llm_bad_request", "Bad request to anthropic API: boom"],
+    ["auth", 401, 500, "llm_auth_error", "anthropic auth or billing error (401): boom"],
+    ["api_error", 529, 503, "llm_api_error", "anthropic API error (529): boom"],
+    ["unknown", undefined, 503, "llm_unknown_error", "boom"],
     ["empty_response", undefined, 500, "empty_response", "boom"],
     ["invalid_json", undefined, 500, "json_parse_error", "Failed to parse JSON response: boom"],
   ] as const)(
@@ -714,7 +750,11 @@ describe("LLM error handling", () => {
       expect(mockSendErrorNotification).toHaveBeenCalledWith(
         errorType,
         notification,
-        expect.objectContaining({ sessionId: "test-session", fileName: "receipt.png" })
+        expect.objectContaining({
+          sessionId: "test-session",
+          fileName: "receipt.png",
+          llm: { provider: "anthropic", model: "test-model" },
+        })
       );
     }
   );
@@ -725,7 +765,7 @@ describe("LLM error handling", () => {
     const res = await POST(makeRequestWithFile());
     expect(res.status).toBe(503);
     expect(mockSendErrorNotification).toHaveBeenCalledWith(
-      "anthropic_unknown_error",
+      "llm_unknown_error",
       "socket hang up",
       expect.anything()
     );

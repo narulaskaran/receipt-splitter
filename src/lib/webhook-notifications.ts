@@ -9,12 +9,19 @@ function currencySymbol(receipt: Receipt): string {
   return getCurrencyInfo(receipt.currency || 'USD').symbol;
 }
 
+/** Which LLM provider/model handled the parse */
+export interface LLMInfo {
+  provider: string;
+  model: string;
+}
+
 export interface ErrorNotificationContext {
   sessionId?: string;
   fileName?: string;
   mimeType?: string;
   fileUrl?: string | null;
   geolocation?: GeolocationData | null;
+  llm?: LLMInfo | null;
 }
 
 /**
@@ -27,6 +34,7 @@ export interface ReceiptWebhookData {
   fileName: string;
   mimeType: string;
   geolocation: GeolocationData | null;
+  llm: LLMInfo | null;
 }
 
 /**
@@ -210,7 +218,7 @@ class SlackFormatter implements WebhookPayloadFormatter {
       elements: [
         {
           type: 'mrkdwn',
-          text: `File: ${fileName} (${mimeType})`,
+          text: `File: ${fileName} (${mimeType})${data.llm ? ` · Model: ${data.llm.provider}/${data.llm.model}` : ''}`,
         },
       ],
     });
@@ -228,13 +236,14 @@ class SlackFormatter implements WebhookPayloadFormatter {
  */
 class GenericJsonFormatter implements WebhookPayloadFormatter {
   format(data: ReceiptWebhookData): Record<string, unknown> {
-    const { receipt, fileUrl, sessionId, fileName, mimeType, geolocation } = data;
+    const { receipt, fileUrl, sessionId, fileName, mimeType, geolocation, llm } = data;
 
     return {
       event: 'receipt_parsed',
       timestamp: new Date().toISOString(),
       sessionId,
       geolocation,
+      llm,
       file: {
         url: fileUrl,
         name: fileName,
@@ -287,6 +296,12 @@ class SlackErrorFormatter implements ErrorPayloadFormatter {
             type: 'mrkdwn',
             text: `*Timestamp:*\n${new Date().toISOString()}`,
           },
+          ...(context.llm
+            ? [{
+                type: 'mrkdwn',
+                text: `*Model:*\n${context.llm.provider}/${context.llm.model}`,
+              }]
+            : []),
         ],
       },
       {
@@ -366,6 +381,7 @@ class GenericJsonErrorFormatter implements ErrorPayloadFormatter {
       errorMessage,
       sessionId: context.sessionId || null,
       geolocation: context.geolocation || null,
+      llm: context.llm || null,
       file: {
         url: context.fileUrl || null,
         name: context.fileName || null,
@@ -401,12 +417,13 @@ export type WebhookType = 'slack' | 'json';
  * - WEBHOOK_URL: The webhook endpoint URL
  * - WEBHOOK_TYPE: Format type ('slack' or 'json', defaults to 'slack')
  *
- * @param receipt - Parsed receipt data from Claude
+ * @param receipt - Parsed receipt data from the LLM
  * @param fileUrl - Public URL of uploaded receipt file (or null if upload failed)
  * @param sessionId - UUID session identifier
  * @param fileName - Original file name
  * @param mimeType - File MIME type
  * @param geolocation - Geolocation data from Vercel headers (or null if not available)
+ * @param llm - Provider/model that parsed the receipt (or null if unknown)
  */
 export async function sendReceiptParsedNotification(
   receipt: Receipt,
@@ -414,7 +431,8 @@ export async function sendReceiptParsedNotification(
   sessionId: string,
   fileName: string,
   mimeType: string,
-  geolocation: GeolocationData | null
+  geolocation: GeolocationData | null,
+  llm: LLMInfo | null = null
 ): Promise<void> {
   try {
     const webhookUrl = process.env.WEBHOOK_URL;
@@ -440,6 +458,7 @@ export async function sendReceiptParsedNotification(
       fileName,
       mimeType,
       geolocation,
+      llm,
     };
     const payload = formatter.format(data);
 
@@ -480,7 +499,7 @@ export async function sendReceiptParsedNotification(
 /**
  * Send webhook notification for an error that occurred during receipt processing
  *
- * @param errorType - Category of error (e.g., "anthropic_rate_limit", "zod_validation")
+ * @param errorType - Category of error (e.g., "llm_rate_limit", "zod_validation")
  * @param errorMessage - Human-readable error description
  * @param context - Additional context about the request
  */

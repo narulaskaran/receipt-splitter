@@ -166,6 +166,26 @@ describe('webhook-notifications', () => {
         expect(bodyString).not.toContain('Fees');
       });
 
+      it('shows the LLM provider and model in the Slack footer', async () => {
+        await sendReceiptParsedNotification(
+          mockReceipt,
+          null,
+          'test-session-id',
+          'receipt.jpg',
+          'image/jpeg',
+          null,
+          { provider: 'anthropic', model: 'claude-haiku-4-5-20251001' }
+        );
+
+        const callBody = JSON.parse(
+          (global.fetch as jest.Mock).mock.calls[0][1].body
+        );
+        const footer = callBody.blocks.find((b: { type: string }) => b.type === 'context');
+        expect(footer.elements[0].text).toBe(
+          'File: receipt.jpg (image/jpeg) · Model: anthropic/claude-haiku-4-5-20251001'
+        );
+      });
+
       it('includes fees in Slack format when present', async () => {
         await sendReceiptParsedNotification(
           { ...mockReceipt, fees: 0.75, total: 25.75 },
@@ -233,6 +253,39 @@ describe('webhook-notifications', () => {
 
         expect(callBody.timestamp).toBeDefined();
         expect(new Date(callBody.timestamp).getTime()).toBeGreaterThan(0);
+      });
+
+      it('includes the LLM provider and model in JSON format', async () => {
+        await sendReceiptParsedNotification(
+          mockReceipt,
+          null,
+          'test-session-id',
+          'receipt.jpg',
+          'image/jpeg',
+          null,
+          { provider: 'openrouter', model: 'openai/gpt-6-luna' }
+        );
+
+        const callBody = JSON.parse(
+          (global.fetch as jest.Mock).mock.calls[0][1].body
+        );
+        expect(callBody.llm).toEqual({ provider: 'openrouter', model: 'openai/gpt-6-luna' });
+      });
+
+      it('sends llm as null when not provided', async () => {
+        await sendReceiptParsedNotification(
+          mockReceipt,
+          null,
+          'test-session-id',
+          'receipt.jpg',
+          'image/jpeg',
+          null
+        );
+
+        const callBody = JSON.parse(
+          (global.fetch as jest.Mock).mock.calls[0][1].body
+        );
+        expect(callBody.llm).toBeNull();
       });
 
       it('handles null file URL in JSON format', async () => {
@@ -526,7 +579,7 @@ describe('webhook-notifications', () => {
       });
 
       it('sends error notification with red color attachment', async () => {
-        await sendErrorNotification('anthropic_rate_limit', 'Rate limit exceeded', {
+        await sendErrorNotification('llm_rate_limit', 'Rate limit exceeded', {
           sessionId: 'test-session-id',
           fileName: 'receipt.jpg',
           mimeType: 'image/jpeg',
@@ -559,7 +612,7 @@ describe('webhook-notifications', () => {
         );
 
         const bodyString = JSON.stringify(blocks);
-        expect(bodyString).toContain('anthropic_rate_limit');
+        expect(bodyString).toContain('llm_rate_limit');
         expect(bodyString).toContain('Rate limit exceeded');
         expect(bodyString).toContain('test-session-id');
       });
@@ -621,6 +674,18 @@ describe('webhook-notifications', () => {
         expect(bodyString).toContain('San Francisco, CA, US');
       });
 
+      it('includes the LLM provider and model when provided', async () => {
+        await sendErrorNotification('llm_api_error', 'boom', {
+          llm: { provider: 'openai', model: 'gpt-6-luna' },
+        });
+
+        const callBody = JSON.parse(
+          (global.fetch as jest.Mock).mock.calls[0][1].body
+        );
+        const fields = callBody.attachments[0].blocks[1].fields;
+        expect(fields).toContainEqual({ type: 'mrkdwn', text: '*Model:*\nopenai/gpt-6-luna' });
+      });
+
       it('includes context footer with file info', async () => {
         await sendErrorNotification('json_parse_error', 'Parse failed', {
           fileName: 'receipt.png',
@@ -652,7 +717,7 @@ describe('webhook-notifications', () => {
       });
 
       it('sends error in generic JSON format', async () => {
-        await sendErrorNotification('anthropic_rate_limit', 'Rate limit exceeded', {
+        await sendErrorNotification('llm_rate_limit', 'Rate limit exceeded', {
           sessionId: 'test-session-id',
           fileName: 'receipt.jpg',
           mimeType: 'image/jpeg',
@@ -665,7 +730,7 @@ describe('webhook-notifications', () => {
 
         expect(callBody).toMatchObject({
           event: 'receipt_parse_error',
-          errorType: 'anthropic_rate_limit',
+          errorType: 'llm_rate_limit',
           errorMessage: 'Rate limit exceeded',
           sessionId: 'test-session-id',
           file: {
@@ -676,6 +741,17 @@ describe('webhook-notifications', () => {
         });
 
         expect(callBody.timestamp).toBeDefined();
+      });
+
+      it('includes the LLM provider and model when provided', async () => {
+        await sendErrorNotification('llm_api_error', 'boom', {
+          llm: { provider: 'openai', model: 'gpt-6-luna' },
+        });
+
+        const callBody = JSON.parse(
+          (global.fetch as jest.Mock).mock.calls[0][1].body
+        );
+        expect(callBody.llm).toEqual({ provider: 'openai', model: 'gpt-6-luna' });
       });
 
       it('handles minimal context', async () => {

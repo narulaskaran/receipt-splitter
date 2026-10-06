@@ -32,11 +32,13 @@ export type LLMErrorKind =
   | "rate_limit"
   /** Provider rejected the request (HTTP 400), e.g. unreadable file */
   | "bad_request"
+  /** Needs operator action: bad API key (401/403) or out of credits (402) */
+  | "auth"
   /** Any other provider API error with a status code */
   | "api_error"
   /** Model returned no text content */
   | "empty_response"
-  /** Model returned text that is not valid JSON */
+  /** Model returned text that is not valid JSON, or output was truncated */
   | "invalid_json"
   /** Network failure or anything else without a status */
   | "unknown";
@@ -58,6 +60,14 @@ export class LLMError extends Error {
     this.provider = provider;
     this.status = options?.status;
   }
+}
+
+/** Maps a provider HTTP status to an error kind (shared by all adapters). */
+export function llmErrorKindForStatus(status: number): LLMErrorKind {
+  if (status === 429) return "rate_limit";
+  if (status === 400) return "bad_request";
+  if (status === 401 || status === 402 || status === 403) return "auth";
+  return "api_error";
 }
 
 /** Thrown when the selected provider is missing configuration (e.g. API key). */

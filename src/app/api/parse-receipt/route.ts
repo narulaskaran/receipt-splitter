@@ -46,9 +46,10 @@ function extractGeolocation(request: NextRequest): GeolocationData | null {
 // Map a failed LLM extraction to a webhook notification and HTTP response
 function handleExtractError(
   error: unknown,
-  provider: string,
+  extractor: ReceiptExtractor,
   errorContext: ErrorNotificationContext
 ): NextResponse {
+  const { provider } = extractor;
   const llmError =
     error instanceof LLMError
       ? error
@@ -63,19 +64,25 @@ function handleExtractError(
 
   switch (kind) {
     case "rate_limit":
-      sendErrorNotification(`${provider}_rate_limit`, `Rate limit exceeded: ${message}`, errorContext).catch(() => {});
+      sendErrorNotification("llm_rate_limit", `Rate limit exceeded: ${message}`, errorContext).catch(() => {});
       return NextResponse.json(
         { error: "Rate limit exceeded. Please try again in a few moments." },
         { status: 429 }
       );
     case "bad_request":
-      sendErrorNotification(`${provider}_bad_request`, `Bad request to ${provider} API: ${message}`, errorContext).catch(() => {});
+      sendErrorNotification("llm_bad_request", `Bad request to ${provider} API: ${message}`, errorContext).catch(() => {});
       return NextResponse.json(
         {
           error:
             "Invalid request format. Please ensure your file is a valid receipt image or PDF.",
         },
         { status: 400 }
+      );
+    case "auth":
+      sendErrorNotification("llm_auth_error", `${provider} auth or billing error (${status}): ${message}`, errorContext).catch(() => {});
+      return NextResponse.json(
+        { error: "Server configuration error: LLM provider is not configured" },
+        { status: 500 }
       );
     case "empty_response":
       sendErrorNotification("empty_response", message, errorContext).catch(() => {});
@@ -90,10 +97,10 @@ function handleExtractError(
         { status: 500 }
       );
     case "api_error":
-      sendErrorNotification(`${provider}_api_error`, `${provider} API error (${status}): ${message}`, errorContext).catch(() => {});
+      sendErrorNotification("llm_api_error", `${provider} API error (${status}): ${message}`, errorContext).catch(() => {});
       break;
     case "unknown":
-      sendErrorNotification(`${provider}_unknown_error`, message, errorContext).catch(() => {});
+      sendErrorNotification("llm_unknown_error", message, errorContext).catch(() => {});
       break;
     default: {
       // Adding an LLMErrorKind without handling it here is a compile error
@@ -125,9 +132,9 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       if (!(error instanceof LLMConfigError)) throw error;
       console.error(error.message);
-      sendErrorNotification("missing_api_key", error.message, { geolocation }).catch(() => {});
+      sendErrorNotification("llm_config_error", error.message, { geolocation }).catch(() => {});
       return NextResponse.json(
-        { error: "Server configuration error: API key not found" },
+        { error: "Server configuration error: LLM provider is not configured" },
         { status: 500 }
       );
     }
@@ -177,7 +184,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Error notification context — shared across error paths
-    const errorContext = { sessionId, fileName: file.name, mimeType, fileUrl: null as string | null, geolocation };
+    const llm = { provider: extractor.provider, model: extractor.model };
+    const errorContext = { sessionId, fileName: file.name, mimeType, fileUrl: null as string | null, geolocation, llm };
 
     // Upload file to UploadThing storage BEFORE parsing
     // This ensures the file URL is available for both success and error notifications
@@ -210,7 +218,7 @@ export async function POST(request: NextRequest) {
         jsonSchema: receiptJsonSchema,
       });
     } catch (error) {
-      return handleExtractError(error, extractor.provider, errorContext);
+      return handleExtractError(error, extractor, errorContext);
     }
 
     // Validate and normalize the model output
@@ -311,7 +319,8 @@ export async function POST(request: NextRequest) {
             sessionId,
             file.name,
             file.type,
-            geolocation
+            geolocation,
+            llm
           );
         } catch (error) {
           // Webhook errors are already logged in the function, this is a safety catch

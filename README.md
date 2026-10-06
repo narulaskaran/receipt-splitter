@@ -217,7 +217,11 @@ Add `CRON_SECRET` to your Vercel environment variables to protect the endpoint f
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `ANTHROPIC_API_KEY` | Yes | Claude API key for receipt parsing |
+| `ANTHROPIC_API_KEY` | Yes (default provider) | Claude API key for receipt parsing |
+| `RECEIPT_LLM_PROVIDER` | No | Receipt parsing provider: `anthropic` (default), `openai`, or `openrouter`. Receipt images are sent to the selected provider |
+| `RECEIPT_LLM_MODEL` | No | Override the provider's default model (update or unset it when changing provider) |
+| `OPENAI_API_KEY` | If provider is `openai` | OpenAI API key |
+| `OPENROUTER_API_KEY` | If provider is `openrouter` | OpenRouter API key |
 | `UPLOADTHING_TOKEN` | No | UploadThing API token for file storage |
 | `WEBHOOK_URL` | No | Slack or generic webhook URL for notifications |
 | `CRON_SECRET` | No | Secret for cron job authentication |

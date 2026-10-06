@@ -31,7 +31,7 @@ This project is a receipt splitting web application built with Next.js, TypeScri
 
 ### API Routes
 
-- `src/app/api/parse-receipt/route.ts` - Anthropic Claude API integration for receipt parsing
+- `src/app/api/parse-receipt/route.ts` - Receipt parsing endpoint (LLM call via `src/lib/llm/`, Anthropic by default)
 
 ### Split Sharing Route
 
@@ -128,7 +128,7 @@ This project is a receipt splitting web application built with Next.js, TypeScri
 
 ### API Routes
 
-- `src/app/api/parse-receipt/route.ts` - Anthropic Claude API integration for receipt parsing
+- `src/app/api/parse-receipt/route.ts` - Receipt parsing endpoint (LLM call via `src/lib/llm/`, Anthropic by default)
 
 ### Split Sharing Route
 
