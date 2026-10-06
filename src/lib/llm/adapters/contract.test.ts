@@ -120,6 +120,7 @@ describe.each(adapters)("$name adapter contract", (adapter) => {
     [429, "rate_limit"],
     [400, "bad_request"],
     [401, "auth"],
+    [402, "auth"],
     [403, "auth"],
     [503, "api_error"],
   ] as const)("maps HTTP %i to %s", async (status, kind) => {

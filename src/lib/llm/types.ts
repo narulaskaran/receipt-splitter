@@ -32,7 +32,7 @@ export type LLMErrorKind =
   | "rate_limit"
   /** Provider rejected the request (HTTP 400), e.g. unreadable file */
   | "bad_request"
-  /** Provider rejected the credentials (HTTP 401/403), e.g. bad API key */
+  /** Needs operator action: bad API key (401/403) or out of credits (402) */
   | "auth"
   /** Any other provider API error with a status code */
   | "api_error"
@@ -66,7 +66,7 @@ export class LLMError extends Error {
 export function llmErrorKindForStatus(status: number): LLMErrorKind {
   if (status === 429) return "rate_limit";
   if (status === 400) return "bad_request";
-  if (status === 401 || status === 403) return "auth";
+  if (status === 401 || status === 402 || status === 403) return "auth";
   return "api_error";
 }
 

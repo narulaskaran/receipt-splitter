@@ -733,7 +733,7 @@ describe("LLM error handling", () => {
   it.each([
     ["rate_limit", 429, 429, "llm_rate_limit", "Rate limit exceeded: boom"],
     ["bad_request", 400, 400, "llm_bad_request", "Bad request to anthropic API: boom"],
-    ["auth", 401, 500, "llm_auth_error", "anthropic rejected the API key: boom"],
+    ["auth", 401, 500, "llm_auth_error", "anthropic auth or billing error (401): boom"],
     ["api_error", 529, 503, "llm_api_error", "anthropic API error (529): boom"],
     ["unknown", undefined, 503, "llm_unknown_error", "boom"],
     ["empty_response", undefined, 500, "empty_response", "boom"],
