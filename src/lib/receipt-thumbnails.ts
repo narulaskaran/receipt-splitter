@@ -85,7 +85,7 @@ export function subscribeThumbnails(onStoreChange: () => void): () => void {
 
 /**
  * Discard the in-memory snapshot so the next read hydrates from localStorage.
- * Used by tests after `localStorage.clear()`.
+ * Used by jest.setup.ts after `localStorage.clear()`.
  */
 export function resetThumbnailsStore(): void {
   hydrated = false;

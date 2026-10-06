@@ -62,6 +62,27 @@ export class LLMError extends Error {
   }
 }
 
+/** Media types every adapter accepts as receipt files. */
+export const IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const;
+export const DOCUMENT_TYPES = ["application/pdf"] as const;
+
+/**
+ * Wraps an SDK error as an LLMError. `status` is the SDK's HTTP status when the
+ * error is an API error; connection errors and timeouts have none.
+ */
+export function toLLMError(
+  provider: string,
+  error: unknown,
+  status: number | undefined,
+  unknownMessage = `Unknown ${provider} error`
+): LLMError {
+  const msg = error instanceof Error ? error.message : unknownMessage;
+  if (status !== undefined) {
+    return new LLMError(llmErrorKindForStatus(status), provider, msg, { status, cause: error });
+  }
+  return new LLMError("unknown", provider, msg, { cause: error });
+}
+
 /** Maps a provider HTTP status to an error kind (shared by all adapters). */
 export function llmErrorKindForStatus(status: number): LLMErrorKind {
   if (status === 429) return "rate_limit";

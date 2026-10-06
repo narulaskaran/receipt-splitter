@@ -9,6 +9,9 @@ function currencySymbol(receipt: Receipt): string {
   return getCurrencyInfo(receipt.currency || 'USD').symbol;
 }
 
+/** File types Slack's image block can inline; anything else is linked. */
+const SLACK_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
 /** Which LLM provider/model handled the parse */
 export interface LLMInfo {
   provider: string;
@@ -182,8 +185,7 @@ class SlackFormatter implements WebhookPayloadFormatter {
     // Add file preview if URL available
     // Note: Slack's image block only supports actual images (JPEG, PNG, GIF, WebP)
     // PDFs and other file types need to be displayed as links instead
-    const imageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    const isImageFile = imageTypes.includes(mimeType);
+    const isImageFile = SLACK_IMAGE_TYPES.includes(mimeType);
 
     if (fileUrl) {
       if (isImageFile) {
@@ -315,8 +317,7 @@ class SlackErrorFormatter implements ErrorPayloadFormatter {
 
     // Add file preview if URL available
     if (context.fileUrl) {
-      const imageTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-      const isImageFile = context.mimeType && imageTypes.includes(context.mimeType);
+      const isImageFile = context.mimeType && SLACK_IMAGE_TYPES.includes(context.mimeType);
 
       if (isImageFile) {
         blocks.push({
@@ -410,6 +411,35 @@ const ERROR_FORMATTERS: Record<string, ErrorPayloadFormatter> = {
 export type WebhookType = 'slack' | 'json';
 
 /**
+ * POST a JSON payload with a 5 second timeout; throws on a non-OK response.
+ */
+async function postWebhook(url: string, payload: unknown, onTimeout?: () => void): Promise<void> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    onTimeout?.();
+    controller.abort();
+  }, 5000);
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unable to read response body');
+      throw new Error(
+        `Webhook request failed: ${response.status} ${response.statusText}. Body: ${errorText.substring(0, 200)}`
+      );
+    }
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/**
  * Send webhook notification with receipt data
  *
  * This is a generic webhook sender that supports multiple formats.
@@ -460,29 +490,9 @@ export async function sendReceiptParsedNotification(
       geolocation,
       llm,
     };
-    const payload = formatter.format(data);
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      console.error('[Webhook] Request timed out after 5 seconds');
-      controller.abort();
-    }, 5000);
-
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'Unable to read response body');
-      throw new Error(
-        `Webhook request failed: ${response.status} ${response.statusText}. Body: ${errorText.substring(0, 200)}`
-      );
-    }
+    await postWebhook(webhookUrl, formatter.format(data), () =>
+      console.error('[Webhook] Request timed out after 5 seconds')
+    );
   } catch (error) {
     if (error instanceof Error) {
       console.error('[Webhook] Error sending notification (non-blocking):', error.message);
@@ -523,28 +533,7 @@ export async function sendErrorNotification(
       return;
     }
 
-    const payload = formatter.format(errorType, errorMessage, context);
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => {
-      controller.abort();
-    }, 5000);
-
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'Unable to read response body');
-      throw new Error(
-        `Webhook request failed: ${response.status} ${response.statusText}. Body: ${errorText.substring(0, 200)}`
-      );
-    }
+    await postWebhook(webhookUrl, formatter.format(errorType, errorMessage, context));
   } catch (error) {
     if (error instanceof Error) {
       console.error('[Webhook] Error sending error notification (non-blocking):', error.message);

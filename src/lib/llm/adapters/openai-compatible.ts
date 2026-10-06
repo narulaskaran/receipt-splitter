@@ -1,14 +1,13 @@
 import OpenAI from "openai";
 import { parseModelJson } from "../parse-json";
 import {
+  DOCUMENT_TYPES,
+  IMAGE_TYPES,
   LLMError,
-  llmErrorKindForStatus,
+  toLLMError,
   type ExtractInput,
   type ReceiptExtractor,
 } from "../types";
-
-const IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const;
-const DOCUMENT_TYPES = ["application/pdf"] as const;
 
 export interface OpenAICompatibleOptions {
   /** Provider id used in errors and webhooks, e.g. "openai", "openrouter" */
@@ -38,18 +37,6 @@ function toFilePart(
     return { type: "file", file: { filename: "receipt.pdf", file_data: dataUrl } };
   }
   return { type: "image_url", image_url: { url: dataUrl } };
-}
-
-function toLLMError(provider: string, error: unknown): LLMError {
-  // Connection errors and timeouts extend APIError with no status
-  if (error instanceof OpenAI.APIError && error.status !== undefined) {
-    return new LLMError(llmErrorKindForStatus(error.status), provider, error.message, {
-      status: error.status,
-      cause: error,
-    });
-  }
-  const msg = error instanceof Error ? error.message : `Unknown ${provider} error`;
-  return new LLMError("unknown", provider, msg, { cause: error });
 }
 
 /**
@@ -106,7 +93,9 @@ export function createOpenAICompatibleExtractor(
           ...options.extraBody,
         });
       } catch (error) {
-        throw toLLMError(provider, error);
+        // Connection errors and timeouts extend APIError with no status
+        const status = error instanceof OpenAI.APIError ? error.status : undefined;
+        throw toLLMError(provider, error, status);
       }
 
       const choice = completion.choices[0];

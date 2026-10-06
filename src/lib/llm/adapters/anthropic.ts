@@ -1,17 +1,16 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { parseModelJson } from "../parse-json";
 import {
+  DOCUMENT_TYPES,
+  IMAGE_TYPES,
   LLMError,
-  llmErrorKindForStatus,
+  toLLMError,
   type ExtractInput,
   type ReceiptExtractor,
 } from "../types";
 
 const PROVIDER = "anthropic";
 export const DEFAULT_ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
-
-const IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"] as const;
-const DOCUMENT_TYPES = ["application/pdf"] as const;
 
 type ImageMediaType = (typeof IMAGE_TYPES)[number];
 type DocumentMediaType = (typeof DOCUMENT_TYPES)[number];
@@ -36,18 +35,6 @@ function toFileBlock(
   }
   // Defensive: the route already rejects types outside supportedMimeTypes
   throw new LLMError("bad_request", PROVIDER, `Unsupported media type: ${mimeType}`);
-}
-
-function toLLMError(error: unknown): LLMError {
-  // Connection errors and timeouts extend APIError with no status
-  if (error instanceof Anthropic.APIError && error.status !== undefined) {
-    return new LLMError(llmErrorKindForStatus(error.status), PROVIDER, error.message, {
-      status: error.status,
-      cause: error,
-    });
-  }
-  const msg = error instanceof Error ? error.message : "Unknown Anthropic error";
-  return new LLMError("unknown", PROVIDER, msg, { cause: error });
 }
 
 export function createAnthropicExtractor(options: {
@@ -82,7 +69,9 @@ export function createAnthropicExtractor(options: {
           },
         });
       } catch (error) {
-        throw toLLMError(error);
+        // Connection errors and timeouts extend APIError with no status
+        const status = error instanceof Anthropic.APIError ? error.status : undefined;
+        throw toLLMError(PROVIDER, error, status, "Unknown Anthropic error");
       }
 
       if (message.stop_reason === "max_tokens") {

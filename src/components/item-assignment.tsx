@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { Check, AlertCircle, Pencil, Trash2, Plus, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -79,9 +79,22 @@ export function ItemAssignment({
   const [currentEditItemIndex, setCurrentEditItemIndex] = useState<
     number | null
   >(null);
-  const [selectedPeople, setSelectedPeople] = useState<
-    Map<number, Set<string>>
-  >(new Map());
+  // People selected for each item, derived from the current assignments
+  const selectedPeople = useMemo(() => {
+    const map = new Map<number, Set<string>>();
+    assignedItems.forEach((assignments, itemIndex) => {
+      if (assignments.length > 0) {
+        map.set(itemIndex, new Set(assignments.map((a) => a.personId)));
+      }
+    });
+    return map;
+  }, [assignedItems]);
+
+  const personNames = useMemo(
+    () => new Map(people.map((p) => [p.id, p.name])),
+    [people]
+  );
+  const unassignedSet = new Set(unassignedItems);
 
   // Check if all members of a group are selected for an item
   const isGroupFullySelected = (itemIndex: number, group: Group): boolean => {
@@ -98,85 +111,39 @@ export function ItemAssignment({
     return group.memberIds.some((memberId) => selected.has(memberId));
   };
 
+  // Assign equal shares to the given selection immediately
+  const assignSelection = (itemIndex: number, selected: Set<string>) => {
+    onAssignItems(itemIndex, distributeEqualShares(Array.from(selected)));
+  };
+
   // Toggle group selection for an item
   const toggleGroupSelection = (itemIndex: number, group: Group) => {
-    const currentSelected = selectedPeople.get(itemIndex) || new Set<string>();
-    const newSelected = new Set(currentSelected);
-
-    // If group is fully selected, deselect all members
-    if (isGroupFullySelected(itemIndex, group)) {
-      group.memberIds.forEach((memberId) => {
-        newSelected.delete(memberId);
-      });
-    } else {
-      // If group is not fully selected, select all members
-      group.memberIds.forEach((memberId) => {
-        newSelected.add(memberId);
-      });
-    }
-
-    // Update selected people
-    const newSelectedPeople = new Map(selectedPeople);
-    newSelectedPeople.set(itemIndex, newSelected);
-    setSelectedPeople(newSelectedPeople);
-
-    // Auto-assign equal shares immediately
-    if (newSelected.size > 0) {
-      const peopleToAssign = Array.from(newSelected);
-      const assignments = distributeEqualShares(peopleToAssign);
-
-      // Call the parent handler to update assignments
-      onAssignItems(itemIndex, assignments);
-    } else {
-      // If no people selected, clear assignments
-      onAssignItems(itemIndex, []);
-    }
+    const newSelected = new Set(selectedPeople.get(itemIndex));
+    // If group is fully selected, deselect all members; otherwise select all
+    const deselect = isGroupFullySelected(itemIndex, group);
+    group.memberIds.forEach((memberId) => {
+      if (deselect) newSelected.delete(memberId);
+      else newSelected.add(memberId);
+    });
+    assignSelection(itemIndex, newSelected);
   };
 
   // Toggle person selection for an item
   const togglePersonSelection = (itemIndex: number, personId: string) => {
-    // Get current selected people for this item
-    const currentSelected = selectedPeople.get(itemIndex) || new Set<string>();
-    const newSelected = new Set(currentSelected);
-
+    const newSelected = new Set(selectedPeople.get(itemIndex));
     if (newSelected.has(personId)) {
       newSelected.delete(personId);
     } else {
       newSelected.add(personId);
     }
-
-    // Update selected people
-    const newSelectedPeople = new Map(selectedPeople);
-    newSelectedPeople.set(itemIndex, newSelected);
-    setSelectedPeople(newSelectedPeople);
-
-    // Auto-assign equal shares immediately
-    if (newSelected.size > 0) {
-      const peopleToAssign = Array.from(newSelected);
-      const assignments = distributeEqualShares(peopleToAssign);
-
-      // Call the parent handler to update assignments
-      onAssignItems(itemIndex, assignments);
-    } else {
-      // If no people selected, clear assignments
-      onAssignItems(itemIndex, []);
-    }
+    assignSelection(itemIndex, newSelected);
   };
 
   // Handle split save from dialog
   const handleSaveSplit = (itemIndex: number, assignments: PersonItemAssignment[]) => {
-    const newSelected = new Set(assignments.map((a) => a.personId));
-    const newSelectedPeople = new Map(selectedPeople);
-    newSelectedPeople.set(itemIndex, newSelected);
-    setSelectedPeople(newSelectedPeople);
     onAssignItems(itemIndex, assignments);
     setOpen(false);
     setCurrentItemIndex(null);
-  };
-
-  // Get person name by ID
-  const getPersonName = (personId: string): string => {
-    return people.find((p) => p.id === personId)?.name || "Unknown";
   };
 
   // Create a readable assignment summary
@@ -189,33 +156,80 @@ export function ItemAssignment({
 
     // Show just the names of people assigned to this item
     return itemAssignments
-      .map((a) => getPersonName(a.personId))
+      .map((a) => personNames.get(a.personId) || "Unknown")
       .join(", ");
   };
 
-  // Check if an item is fully assigned (100%)
-  const isItemFullyAssigned = (itemIndex: number): boolean => {
-    const itemAssignments = assignedItems.get(itemIndex) || [];
-    const totalPercentage = itemAssignments.reduce(
-      (sum, a) => sum + a.sharePercentage,
-      0
-    );
-    return Math.abs(totalPercentage - 100) < 0.01;
-  };
+  // Checkbox list of people and groups for an item's assignment popover.
+  // `idSuffix` keeps checkbox ids unique between the desktop and mobile layouts.
+  const renderAssignmentOptions = (index: number, idSuffix = "") => (
+    <div className="p-2 flex flex-col gap-2 max-h-64 overflow-y-auto">
+      {/* Individual People */}
+      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+        Individuals
+      </div>
+      {people.map((person) => (
+        <div key={person.id} className="flex items-center gap-2">
+          <Checkbox
+            id={`person-${person.id}-item-${index}${idSuffix}`}
+            checked={selectedPeople.get(index)?.has(person.id) ?? false}
+            onCheckedChange={() => togglePersonSelection(index, person.id)}
+          />
+          <label
+            htmlFor={`person-${person.id}-item-${index}${idSuffix}`}
+            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+          >
+            {person.name}
+          </label>
+        </div>
+      ))}
 
-  // Initialize selected people from existing assignments
-  useEffect(() => {
-    const newSelectedPeople = new Map<number, Set<string>>();
-
-    assignedItems.forEach((assignments, itemIndex) => {
-      const selected = new Set(assignments.map((a) => a.personId));
-      if (selected.size > 0) {
-        newSelectedPeople.set(itemIndex, selected);
-      }
-    });
-
-    setSelectedPeople(newSelectedPeople);
-  }, [assignedItems]);
+      {/* Groups */}
+      {groups.length > 0 && (
+        <div className="border-t pt-2 mt-2">
+          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
+            Groups
+          </div>
+          {groups.map((group) => {
+            const fullySelected = isGroupFullySelected(index, group);
+            return (
+              <div key={group.id} className="flex items-center gap-2">
+                <Checkbox
+                  id={`group-${group.id}-item-${index}${idSuffix}`}
+                  checked={fullySelected}
+                  onCheckedChange={() => toggleGroupSelection(index, group)}
+                  className={
+                    !fullySelected && isGroupPartiallySelected(index, group)
+                      ? "data-[state=unchecked]:border-primary data-[state=unchecked]:bg-primary/20"
+                      : ""
+                  }
+                />
+                <label
+                  htmlFor={`group-${group.id}-item-${index}${idSuffix}`}
+                  className="flex-1 cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 flex items-center justify-center">
+                      {group.emoji || "👥"}
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-sm font-medium">{group.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {group.memberIds
+                          .map((id) => personNames.get(id))
+                          .filter(Boolean)
+                          .join(", ")}
+                      </div>
+                    </div>
+                  </div>
+                </label>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 
   // Handle item edit
   const handleEditItem = (index: number) => {
@@ -351,7 +365,7 @@ export function ItemAssignment({
                     <TableRow
                       key={index}
                       className={
-                        unassignedItems.includes(index) ? "bg-destructive/5" : ""
+                        unassignedSet.has(index) ? "bg-destructive/5" : ""
                       }
                     >
                       <TableCell>
@@ -375,7 +389,7 @@ export function ItemAssignment({
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-1">
-                          {isItemFullyAssigned(index) ? (
+                          {!unassignedSet.has(index) ? (
                             <Check className="h-4 w-4 text-muted-foreground" />
                           ) : (
                             <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
@@ -389,7 +403,7 @@ export function ItemAssignment({
                               >
                                 <span
                                   className={
-                                    unassignedItems.includes(index)
+                                    unassignedSet.has(index)
                                       ? "text-muted-foreground"
                                       : ""
                                   }
@@ -399,97 +413,7 @@ export function ItemAssignment({
                               </Button>
                             </PopoverTrigger>
                             <PopoverContent className="p-0" align="end">
-                              <div className="p-2 flex flex-col gap-2 max-h-64 overflow-y-auto">
-                                {/* Individual People */}
-                                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                                  Individuals
-                                </div>
-                                {people.map((person) => (
-                                  <div
-                                    key={person.id}
-                                    className="flex items-center gap-2"
-                                  >
-                                    <Checkbox
-                                      id={`person-${person.id}-item-${index}`}
-                                      checked={(
-                                        selectedPeople.get(index) || new Set()
-                                      ).has(person.id)}
-                                      onCheckedChange={() =>
-                                        togglePersonSelection(index, person.id)
-                                      }
-                                    />
-                                    <label
-                                      htmlFor={`person-${person.id}-item-${index}`}
-                                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                                    >
-                                      {person.name}
-                                    </label>
-                                  </div>
-                                ))}
-
-                                {/* Groups */}
-                                {groups && groups.length > 0 && (
-                                  <>
-                                    <div className="border-t pt-2 mt-2">
-                                      <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                                        Groups
-                                      </div>
-                                      {groups.map((group) => (
-                                        <div
-                                          key={group.id}
-                                          className="flex items-center gap-2"
-                                        >
-                                          <Checkbox
-                                            id={`group-${group.id}-item-${index}`}
-                                            checked={isGroupFullySelected(
-                                              index,
-                                              group
-                                            )}
-                                            onCheckedChange={() =>
-                                              toggleGroupSelection(index, group)
-                                            }
-                                            className={
-                                              isGroupPartiallySelected(
-                                                index,
-                                                group
-                                              ) &&
-                                              !isGroupFullySelected(index, group)
-                                                ? "data-[state=unchecked]:border-primary data-[state=unchecked]:bg-primary/20"
-                                                : ""
-                                            }
-                                          />
-                                          <label
-                                            htmlFor={`group-${group.id}-item-${index}`}
-                                            className="flex-1 cursor-pointer"
-                                          >
-                                            <div className="flex items-center gap-2">
-                                              <div className="w-4 h-4 flex items-center justify-center">
-                                                {group.emoji || "👥"}
-                                              </div>
-                                              <div className="flex-1">
-                                                <div className="text-sm font-medium">
-                                                  {group.name}
-                                                </div>
-                                                <div className="text-xs text-muted-foreground">
-                                                  {group.memberIds
-                                                    .map(
-                                                      (id) =>
-                                                        people.find(
-                                                          (p) => p.id === id
-                                                        )?.name
-                                                    )
-                                                    .filter(Boolean)
-                                                    .join(", ")}
-                                                </div>
-                                              </div>
-                                            </div>
-                                          </label>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </>
-                                )}
-                              </div>
+                              {renderAssignmentOptions(index)}
                             </PopoverContent>
                           </Popover>
                         </div>
@@ -552,7 +476,7 @@ export function ItemAssignment({
                     {/* Assignment Status and Actions */}
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                        {isItemFullyAssigned(index) ? (
+                        {!unassignedSet.has(index) ? (
                           <Check className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         ) : (
                           <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
@@ -566,7 +490,7 @@ export function ItemAssignment({
                             >
                               <span
                                 className={`truncate ${
-                                  unassignedItems.includes(index)
+                                  unassignedSet.has(index)
                                     ? "text-muted-foreground"
                                     : ""
                                 }`}
@@ -577,97 +501,7 @@ export function ItemAssignment({
                             </Button>
                           </PopoverTrigger>
                           <PopoverContent className="p-0 w-80" align="end">
-                            <div className="p-2 flex flex-col gap-2 max-h-64 overflow-y-auto">
-                              {/* Individual People */}
-                              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                                Individuals
-                              </div>
-                              {people.map((person) => (
-                                <div
-                                  key={person.id}
-                                  className="flex items-center gap-2"
-                                >
-                                  <Checkbox
-                                    id={`person-${person.id}-item-${index}-mobile`}
-                                    checked={(
-                                      selectedPeople.get(index) || new Set()
-                                    ).has(person.id)}
-                                    onCheckedChange={() =>
-                                      togglePersonSelection(index, person.id)
-                                    }
-                                  />
-                                  <label
-                                    htmlFor={`person-${person.id}-item-${index}-mobile`}
-                                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                                  >
-                                    {person.name}
-                                  </label>
-                                </div>
-                              ))}
-
-                              {/* Groups */}
-                              {groups && groups.length > 0 && (
-                                <>
-                                  <div className="border-t pt-2 mt-2">
-                                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">
-                                      Groups
-                                    </div>
-                                    {groups.map((group) => (
-                                      <div
-                                        key={group.id}
-                                        className="flex items-center gap-2"
-                                      >
-                                        <Checkbox
-                                          id={`group-${group.id}-item-${index}-mobile`}
-                                          checked={isGroupFullySelected(
-                                            index,
-                                            group
-                                          )}
-                                          onCheckedChange={() =>
-                                            toggleGroupSelection(index, group)
-                                          }
-                                          className={
-                                            isGroupPartiallySelected(
-                                              index,
-                                              group
-                                            ) &&
-                                            !isGroupFullySelected(index, group)
-                                              ? "data-[state=unchecked]:border-primary data-[state=unchecked]:bg-primary/20"
-                                              : ""
-                                          }
-                                        />
-                                        <label
-                                          htmlFor={`group-${group.id}-item-${index}-mobile`}
-                                          className="flex-1 cursor-pointer"
-                                        >
-                                          <div className="flex items-center gap-2">
-                                            <div className="w-4 h-4 flex items-center justify-center">
-                                              {group.emoji || "👥"}
-                                            </div>
-                                            <div className="flex-1">
-                                              <div className="text-sm font-medium">
-                                                {group.name}
-                                              </div>
-                                              <div className="text-xs text-muted-foreground">
-                                                {group.memberIds
-                                                  .map(
-                                                    (id) =>
-                                                      people.find(
-                                                        (p) => p.id === id
-                                                      )?.name
-                                                  )
-                                                  .filter(Boolean)
-                                                  .join(", ")}
-                                              </div>
-                                            </div>
-                                          </div>
-                                        </label>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </>
-                              )}
-                            </div>
+                            {renderAssignmentOptions(index, "-mobile")}
                           </PopoverContent>
                         </Popover>
                       </div>

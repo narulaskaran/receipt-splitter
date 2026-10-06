@@ -5,10 +5,10 @@ import {
   type ErrorNotificationContext,
 } from "@/lib/webhook-notifications";
 import { uploadReceiptFile } from "@/lib/uploadthing-storage";
-import { MAX_FILE_SIZE_BYTES } from "@/lib/constants";
+import { MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_MB } from "@/lib/constants";
 import { type GeolocationData } from "@/types";
 import { fixMultiQuantityPrices } from "@/lib/receipt-utils";
-import { isSupportedCurrency } from "@/lib/currency";
+import { DEFAULT_CURRENCY, isSupportedCurrency } from "@/lib/currency";
 import {
   receiptSchema,
   receiptJsonSchema,
@@ -115,11 +115,6 @@ function handleExtractError(
   );
 }
 
-// Helper function to format file size in MB
-function formatFileSizeMB(bytes: number): number {
-  return bytes / (1024 * 1024);
-}
-
 export async function POST(request: NextRequest) {
   try {
     // Extract geolocation data from request headers
@@ -155,7 +150,7 @@ export async function POST(request: NextRequest) {
     if (file.size > MAX_FILE_SIZE_BYTES) {
       return NextResponse.json(
         {
-          error: `File size exceeds the maximum limit of ${formatFileSizeMB(MAX_FILE_SIZE_BYTES)}MB`,
+          error: `File size exceeds the maximum limit of ${MAX_FILE_SIZE_MB}MB`,
         },
         { status: 400 }
       );
@@ -278,7 +273,7 @@ export async function POST(request: NextRequest) {
         console.warn(
           `[parse-receipt] Unsupported currency "${currency}" returned by the model; falling back to USD`
         );
-        currency = "USD";
+        currency = DEFAULT_CURRENCY;
       }
 
       // Normalize items: ensure quantity defaults to 1
