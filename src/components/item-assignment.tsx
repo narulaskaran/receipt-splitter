@@ -384,7 +384,7 @@ export function ItemAssignment({
                           onClick={() => handleEditItem(index)}
                           title="Click to edit price and quantity"
                         >
-                          {formatCurrency(item.price * (item.quantity || 1))}
+                          {formatCurrency(item.price * (item.quantity || 1), receipt.currency)}
                         </Button>
                       </TableCell>
                       <TableCell className="text-right">
@@ -469,7 +469,7 @@ export function ItemAssignment({
                         onClick={() => handleEditItem(index)}
                         title="Edit price and quantity"
                       >
-                        {formatCurrency(item.price * (item.quantity || 1))}
+                        {formatCurrency(item.price * (item.quantity || 1), receipt.currency)}
                       </Button>
                     </div>
 
