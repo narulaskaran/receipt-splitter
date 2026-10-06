@@ -38,6 +38,9 @@ export const metadata: Metadata = {
 };
 
 // Shared by the pre-hydration script and the provider so first paint matches.
+// The script only toggles a light/dark class and always honors the system
+// setting, so update getThemeInitScript if the provider's attribute or
+// enableSystem props change.
 const DEFAULT_THEME: Theme = "system";
 
 export const viewport = {

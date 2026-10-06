@@ -24,6 +24,10 @@ beforeEach(() => {
   document.documentElement.className = "";
 });
 
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
 function renderToggle() {
   return render(
     <ThemeProvider attribute="class" defaultTheme="system">
@@ -80,22 +84,37 @@ describe("ThemeToggle", () => {
   });
 });
 
+describe("ThemeToggle when storage is cleared in another tab", () => {
+  it("drops this tab's choice and falls back to the default", () => {
+    renderToggle();
+    fireEvent.click(screen.getByRole("button", { name: "Dark theme" }));
+
+    localStorage.clear();
+    act(() => {
+      window.dispatchEvent(new StorageEvent("storage", { key: null }));
+    });
+
+    expect(screen.getByRole("button", { name: "System theme" })).toHaveAttribute("aria-pressed", "true");
+    expect(document.documentElement.classList.contains("light")).toBe(true);
+  });
+});
+
 describe("ThemeToggle when storage is blocked", () => {
   it("still switches the theme for this page load", () => {
-    const getItem = jest.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+    // jest.setup.ts installs a plain-object localStorage mock, so spy on it
+    // directly rather than on Storage.prototype.
+    const blocked = () => {
       throw new Error("blocked");
-    });
-    const setItem = jest.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-      throw new Error("blocked");
-    });
+    };
+    const getItem = jest.spyOn(window.localStorage, "getItem").mockImplementation(blocked);
+    const setItem = jest.spyOn(window.localStorage, "setItem").mockImplementation(blocked);
 
     renderToggle();
     fireEvent.click(screen.getByRole("button", { name: "Dark theme" }));
 
+    expect(getItem).toHaveBeenCalled();
+    expect(setItem).toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Dark theme" })).toHaveAttribute("aria-pressed", "true");
     expect(document.documentElement.classList.contains("dark")).toBe(true);
-
-    getItem.mockRestore();
-    setItem.mockRestore();
   });
 });

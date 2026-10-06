@@ -18,6 +18,10 @@ beforeEach(() => {
   mockSystemDark(false);
 });
 
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
 describe("getThemeInitScript", () => {
   it("applies a saved theme", () => {
     localStorage.setItem(THEME_STORAGE_KEY, "dark");
@@ -48,10 +52,13 @@ describe("getThemeInitScript", () => {
   });
 
   it("falls back to the default when storage throws", () => {
-    const spy = jest.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+    localStorage.setItem(THEME_STORAGE_KEY, "light");
+    // jest.setup.ts installs a plain-object localStorage mock, so spy on it
+    // directly rather than on Storage.prototype.
+    const spy = jest.spyOn(window.localStorage, "getItem").mockImplementation(() => {
       throw new Error("blocked");
     });
     expect(runScript("dark").contains("dark")).toBe(true);
-    spy.mockRestore();
+    expect(spy).toHaveBeenCalled();
   });
 });
