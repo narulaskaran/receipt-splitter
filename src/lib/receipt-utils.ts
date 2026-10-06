@@ -101,6 +101,7 @@ export function calculatePersonTotals(
   const subtotal = new Decimal(receipt.subtotal || 0);
   const tax = new Decimal(receipt.tax || 0);
   const tip = new Decimal(receipt.tip || 0);
+  const fees = new Decimal(receipt.fees || 0);
   
   // Calculate each person's items and pre-tax total
   const updatedPeople = people.map((person) => {
@@ -141,17 +142,19 @@ export function calculatePersonTotals(
       });
     });
     
-    // Calculate proportional tax and tip
+    // Calculate proportional tax, fees, and tip
     let personTax = new Decimal(0);
     let personTip = new Decimal(0);
+    let personFees = new Decimal(0);
     
     if (!subtotal.isZero()) {
       const proportion = totalBeforeTax.div(subtotal);
       personTax = tax.mul(proportion);
       personTip = tip.mul(proportion);
+      personFees = fees.mul(proportion);
     }
     
-    const finalTotal = totalBeforeTax.add(personTax).add(personTip);
+    const finalTotal = totalBeforeTax.add(personTax).add(personFees).add(personTip);
     
     return {
       ...person,
@@ -159,6 +162,7 @@ export function calculatePersonTotals(
       totalBeforeTax: totalBeforeTax.toNumber(),
       tax: personTax.toNumber(),
       tip: personTip.toNumber(),
+      fees: personFees.toNumber(),
       finalTotal: finalTotal.toNumber(),
     };
   });
@@ -348,6 +352,15 @@ export function validateReceiptInvariants(
     });
   }
 
+  if (receipt.fees != null && receipt.fees < 0) {
+    errors.push({
+      type: AmountValidationError.NEGATIVE_AMOUNT,
+      message: 'Receipt fees cannot be negative',
+      expected: 0,
+      actual: receipt.fees,
+    });
+  }
+
   if (receipt.total < 0) {
     errors.push({
       type: AmountValidationError.NEGATIVE_AMOUNT,
@@ -357,11 +370,12 @@ export function validateReceiptInvariants(
     });
   }
 
-  // 2. Validate that total equals subtotal + tax + tip
+  // 2. Validate that total equals subtotal + tax + fees + tip
   const subtotalDecimal = new Decimal(receipt.subtotal || 0);
   const taxDecimal = new Decimal(receipt.tax || 0);
+  const feesDecimal = new Decimal(receipt.fees || 0);
   const tipDecimal = new Decimal(receipt.tip || 0);
-  const expectedTotal = subtotalDecimal.add(taxDecimal).add(tipDecimal);
+  const expectedTotal = subtotalDecimal.add(taxDecimal).add(feesDecimal).add(tipDecimal);
   const actualTotal = new Decimal(receipt.total);
   const totalDifference = expectedTotal.sub(actualTotal).abs();
 
@@ -371,7 +385,7 @@ export function validateReceiptInvariants(
   if (totalDifference.toDecimalPlaces(2).toNumber() > tolerance.toDecimalPlaces(2).toNumber()) {
     errors.push({
       type: AmountValidationError.RECEIPT_TOTAL_MISMATCH,
-      message: 'Receipt total does not equal subtotal + tax + tip',
+      message: 'Receipt total does not equal subtotal + tax + fees + tip',
       expected: expectedTotal.toNumber(),
       actual: actualTotal.toNumber(),
       diff: totalDifference.toNumber(),
@@ -579,6 +593,7 @@ export function calculateSessionPersonTotals(
     totalBeforeTax: new Decimal(0),
     tax: new Decimal(0),
     tip: new Decimal(0),
+    fees: new Decimal(0),
     finalTotal: new Decimal(0),
   }));
 
@@ -600,6 +615,7 @@ export function calculateSessionPersonTotals(
       totals[index].totalBeforeTax = totals[index].totalBeforeTax.add(person.totalBeforeTax);
       totals[index].tax = totals[index].tax.add(person.tax);
       totals[index].tip = totals[index].tip.add(person.tip);
+      totals[index].fees = totals[index].fees.add(person.fees ?? 0);
       totals[index].finalTotal = totals[index].finalTotal.add(person.finalTotal);
     }
   }
@@ -609,6 +625,7 @@ export function calculateSessionPersonTotals(
     totalBeforeTax: person.totalBeforeTax.toNumber(),
     tax: person.tax.toNumber(),
     tip: person.tip.toNumber(),
+    fees: person.fees.toNumber(),
     finalTotal: person.finalTotal.toNumber(),
   }));
 }

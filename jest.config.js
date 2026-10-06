@@ -1,3 +1,8 @@
+// Run tests west of UTC so date-only strings parsed as UTC midnight
+// (e.g. new Date("2026-10-05")) show up as the previous day and fail.
+// Set here, before workers spawn, because test files see a sandboxed process.env.
+process.env.TZ = "America/New_York";
+
 /** @type {import('jest').Config} */
 const config = {
   testEnvironment: "jsdom",

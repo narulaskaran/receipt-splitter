@@ -163,6 +163,21 @@ describe('webhook-notifications', () => {
         expect(bodyString).toContain('$2.00'); // Tax
         expect(bodyString).toContain('$3.00'); // Tip
         expect(bodyString).toContain('test-session-id');
+        expect(bodyString).not.toContain('Fees');
+      });
+
+      it('includes fees in Slack format when present', async () => {
+        await sendReceiptParsedNotification(
+          { ...mockReceipt, fees: 0.75, total: 25.75 },
+          null,
+          'test-session-id',
+          'receipt.jpg',
+          'image/jpeg',
+          null
+        );
+
+        const bodyString = (global.fetch as jest.Mock).mock.calls[0][1].body;
+        expect(bodyString).toContain('*Fees:*\\n$0.75');
       });
     });
 

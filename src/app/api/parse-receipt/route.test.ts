@@ -567,6 +567,13 @@ describe("structured output JSON schema", () => {
     }
   });
 
+  it("lets the model return surcharges and service fees", () => {
+    // Without fees in the schema, a "Credit Card Surcharge" line had nowhere
+    // to go and was silently dropped from everyone's share.
+    expect(receiptJsonSchema.properties).toHaveProperty("fees");
+    expect(receiptJsonSchema.required).toContain("fees");
+  });
+
   it("validates a model response with a non-USD currency through the Zod schema", () => {
     const result = receiptSchema.safeParse({
       restaurant: "Tokyo Ramen",
@@ -661,6 +668,26 @@ describe("currency flows through the parse response", () => {
         }),
       })
     );
+  });
+
+  it("returns surcharges in fees so the total reconciles", async () => {
+    mockCreate.mockResolvedValue(
+      modelResponse({ fees: 0.75, total: 25.25, currency: "USD" })
+    );
+
+    const res = await POST(makeRequestWithFile());
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body.fees).toBe(0.75);
+  });
+
+  it("normalizes missing fees to null", async () => {
+    mockCreate.mockResolvedValue(modelResponse());
+
+    const res = await POST(makeRequestWithFile());
+    const body = await res.json();
+    expect(body.fees).toBeNull();
   });
 
   it("returns a non-USD currency from the mocked parse response", async () => {
