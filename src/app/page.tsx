@@ -16,6 +16,7 @@ import { ResultsSummary } from "@/components/results-summary";
 import { PersonItems } from "@/components/person-items";
 import { SupportFooter, SupportCard } from "@/components/support-links";
 import { ValidationErrors } from "@/components/validation-errors";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 import {
   type Receipt,
@@ -717,7 +718,9 @@ export default function Home() {
         </TabsContent>
       </Tabs>
 
-      <SupportFooter />
+      <SupportFooter>
+        <ThemeToggle />
+      </SupportFooter>
     </main>
   );
 }

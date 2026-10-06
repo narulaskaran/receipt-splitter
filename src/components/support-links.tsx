@@ -4,18 +4,21 @@ import { Button } from "@/components/ui/button";
 
 export const KOFI_URL = "https://ko-fi.com/Y8Y21CC8IA";
 
-export const SupportFooter: React.FC = () => (
+export const SupportFooter: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
   <footer className="w-full mt-12 pt-6 border-t border-border/60 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
-    <span>Free to use. No sign-up.</span>
-    <a
-      href={KOFI_URL}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors"
-    >
-      <Coffee className="h-3.5 w-3.5" />
-      Support on Ko-fi
-    </a>
+    <div className="flex flex-col items-center sm:items-start gap-2">
+      <span>Free to use. No sign-up.</span>
+      <a
+        href={KOFI_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors"
+      >
+        <Coffee className="h-3.5 w-3.5" />
+        Support on Ko-fi
+      </a>
+    </div>
+    {children}
   </footer>
 );
 

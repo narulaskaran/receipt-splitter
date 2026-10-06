@@ -1,8 +1,15 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useSyncExternalStore,
+} from "react";
 
-type Theme = "dark" | "light" | "system";
+import { THEME_STORAGE_KEY, isTheme, type Theme } from "@/lib/theme";
 
 type ThemeProviderProps = {
   children: React.ReactNode;
@@ -24,6 +31,19 @@ const initialState: ThemeProviderState = {
 
 const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
+const THEME_CHANGE_EVENT = "themechange";
+
+function readStoredTheme(): Theme | null {
+  try {
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    return isTheme(stored) ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+const subscribeToNothing = () => () => {};
+
 // When attribute === "class", theme classes are toggled via classList above;
 // never overwrite the root's entire class attribute.
 function applyAttribute(
@@ -44,9 +64,54 @@ export function ThemeProvider({
   attribute = "data-theme",
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(defaultTheme);
+  // The latest choice made in this tab. Takes precedence over storage so the
+  // toggle still works when localStorage is blocked or full; cleared when
+  // another tab changes the stored theme.
+  const chosenTheme = useRef<Theme | null>(null);
+
+  const subscribe = useCallback((onChange: () => void) => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== null && event.key !== THEME_STORAGE_KEY) return;
+      chosenTheme.current = null;
+      onChange();
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener(THEME_CHANGE_EVENT, onChange);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(THEME_CHANGE_EVENT, onChange);
+    };
+  }, []);
+
+  const theme = useSyncExternalStore(
+    subscribe,
+    () => chosenTheme.current ?? readStoredTheme() ?? defaultTheme,
+    () => defaultTheme
+  );
+
+  const setTheme = useCallback((next: Theme) => {
+    chosenTheme.current = next;
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, next);
+    } catch {
+      // Storage blocked or full: chosenTheme still applies for this page load.
+    }
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
+  }, []);
+
+  // The hydration render uses the server snapshot (defaultTheme), not the
+  // saved theme, so applying classes then would briefly swap out the theme the
+  // inline init script already set. Wait until hydration is done; React
+  // re-renders with the saved theme right after.
+  const isHydrated = useSyncExternalStore(
+    subscribeToNothing,
+    () => true,
+    () => false
+  );
 
   useEffect(() => {
+    if (!isHydrated) return;
+
     const root = window.document.documentElement;
 
     root.classList.remove("light", "dark");
@@ -71,7 +136,7 @@ export function ThemeProvider({
 
     root.classList.add(theme);
     applyAttribute(root, attribute, theme);
-  }, [theme, enableSystem, disableTransitionOnChange, attribute]);
+  }, [isHydrated, theme, enableSystem, disableTransitionOnChange, attribute]);
 
   // Listen for system theme changes
   useEffect(() => {
@@ -94,15 +159,8 @@ export function ThemeProvider({
     return () => mediaQuery.removeEventListener("change", handleChange);
   }, [theme, attribute, enableSystem]);
 
-  const value = {
-    theme,
-    setTheme: (theme: Theme) => {
-      setTheme(theme);
-    },
-  };
-
   return (
-    <ThemeProviderContext.Provider {...props} value={value}>
+    <ThemeProviderContext.Provider {...props} value={{ theme, setTheme }}>
       {children}
     </ThemeProviderContext.Provider>
   );
