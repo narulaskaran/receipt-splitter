@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { type Person } from "@/types";
 import { formatCurrency, type ReceiptValidationResult } from "@/lib/receipt-utils";
+import { parseDateString } from "@/lib/date-utils";
 import {
   generateShareableUrl,
   validateSerializationInput,
@@ -54,6 +55,7 @@ export function ResultsSummary({
   // Sort people by final total (highest first)
   const sortedPeople = [...people].sort((a, b) => b.finalTotal - a.finalTotal);
   const showBreakdown = (receiptBreakdown?.length ?? 0) > 1;
+  const showFees = people.some((person) => !!person.fees);
 
   // Create a shareable text summary matching on-screen order:
   // Day total (people amounts), then By receipt (restaurant + date).
@@ -86,7 +88,7 @@ export function ResultsSummary({
     }
 
     if (receiptDate) {
-      text += `Date: ${new Date(receiptDate).toLocaleDateString()}\n`;
+      text += `Date: ${parseDateString(receiptDate)?.toLocaleDateString() ?? receiptDate}\n`;
     }
 
     text += "\nAmount owed by each person:\n";
@@ -257,6 +259,11 @@ export function ResultsSummary({
                   <TableHead className="text-right min-w-[60px] hidden sm:table-cell">
                     Tax
                   </TableHead>
+                  {showFees && (
+                    <TableHead className="text-right min-w-[60px] hidden sm:table-cell">
+                      Fees
+                    </TableHead>
+                  )}
                   <TableHead className="text-right min-w-[60px] hidden sm:table-cell">
                     Tip
                   </TableHead>
@@ -277,7 +284,11 @@ export function ResultsSummary({
                         {/* Mobile-only breakdown */}
                         <div className="text-xs text-muted-foreground mt-1 sm:hidden">
                           Subtotal: {formatCurrency(person.totalBeforeTax, currencyCode)} •
-                          Tax: {formatCurrency(person.tax, currencyCode)} • Tip:{" "}
+                          Tax: {formatCurrency(person.tax, currencyCode)} •
+                          {showFees && (
+                            <> Fees: {formatCurrency(person.fees ?? 0, currencyCode)} •</>
+                          )}{" "}
+                          Tip:{" "}
                           {formatCurrency(person.tip, currencyCode)}
                         </div>
                       </div>
@@ -288,6 +299,11 @@ export function ResultsSummary({
                     <TableCell className="text-right py-4 hidden sm:table-cell">
                       {formatCurrency(person.tax, currencyCode)}
                     </TableCell>
+                    {showFees && (
+                      <TableCell className="text-right py-4 hidden sm:table-cell">
+                        {formatCurrency(person.fees ?? 0, currencyCode)}
+                      </TableCell>
+                    )}
                     <TableCell className="text-right py-4 hidden sm:table-cell">
                       {formatCurrency(person.tip, currencyCode)}
                     </TableCell>

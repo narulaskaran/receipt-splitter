@@ -29,6 +29,22 @@ describe("ReceiptDetails", () => {
       expect(screen.getByText("2024-01-01")).toBeInTheDocument();
     });
 
+    it("shows fees only when the receipt has them", () => {
+      const { rerender } = render(
+        <ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />
+      );
+      expect(screen.queryByText("Fees")).not.toBeInTheDocument();
+
+      rerender(
+        <ReceiptDetails
+          receipt={{ ...mockReceipt, fees: 2.67, total: 127.67 }}
+          onReceiptUpdate={mockOnReceiptUpdate}
+        />
+      );
+      expect(screen.getByText("Fees")).toBeInTheDocument();
+      expect(screen.getByText("$2.67")).toBeInTheDocument();
+    });
+
     it("renders all receipt financial details", () => {
       render(<ReceiptDetails receipt={mockReceipt} onReceiptUpdate={mockOnReceiptUpdate} />);
 
@@ -632,6 +648,26 @@ describe("ReceiptDetails", () => {
       openDialogAndEdit(mockReceipt, { Tax: "20" });
 
       expect(screen.getByLabelText("Total")).toHaveValue(135);
+    });
+
+    it("includes fees in the auto-calculated total", () => {
+      openDialogAndEdit(mockReceipt, { Fees: "2.67" });
+
+      expect(screen.getByLabelText("Total")).toHaveValue(127.67);
+    });
+
+    it("saves a receipt whose total includes a surcharge", () => {
+      mockOnReceiptUpdate.mockReturnValue(true);
+
+      const { save } = openDialogAndEdit(
+        { ...mockReceipt, fees: 2.67, total: 127.67 }
+      );
+      save();
+
+      expect(toast.error).not.toHaveBeenCalled();
+      expect(mockOnReceiptUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ fees: 2.67, total: 127.67 })
+      );
     });
 
     it("flags a genuine printed-total mismatch on save instead of silently rewriting it", () => {

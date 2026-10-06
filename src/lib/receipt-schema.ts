@@ -16,6 +16,9 @@ export const receiptSchema = z.object({
   subtotal: z.number().nullable(),
   tax: z.number().nullable(),
   tip: z.number().nullable(),
+  // Surcharges and service fees (e.g. "Credit Card Surcharge 3%"). Optional so
+  // older payloads without the field still validate.
+  fees: z.number().nullable().optional(),
   items: z.array(receiptItemSchema),
   // Optional with a default so the field is always present on validated data
   // (see src/types/index.ts: currency is always present after parsing).
@@ -42,6 +45,7 @@ export const receiptJsonSchema = {
     subtotal: { type: ["number", "null"] },
     tax: { type: ["number", "null"] },
     tip: { type: ["number", "null"] },
+    fees: { type: ["number", "null"] },
     currency: { type: "string" },
     items: {
       type: "array",
@@ -64,6 +68,7 @@ export const receiptJsonSchema = {
     "subtotal",
     "tax",
     "tip",
+    "fees",
     "currency",
     "items",
   ],

@@ -25,9 +25,10 @@ import { formatCurrency, validateReceiptInvariants, AmountValidationError } from
 import { getSupportedCurrencies } from "@/lib/currency";
 import { ReceiptThumbnail } from "@/components/receipt-thumbnail";
 
-function computedReceiptTotal(receipt: Pick<Receipt, "subtotal" | "tax" | "tip">): number {
+function computedReceiptTotal(receipt: Pick<Receipt, "subtotal" | "tax" | "fees" | "tip">): number {
   return new Decimal(receipt.subtotal || 0)
     .add(new Decimal(receipt.tax || 0))
+    .add(new Decimal(receipt.fees || 0))
     .add(new Decimal(receipt.tip || 0))
     .toNumber();
 }
@@ -50,7 +51,7 @@ export function ReceiptDetails({
   const [isEditing, setIsEditing] = useState(false);
   const [editedReceipt, setEditedReceipt] = useState<Receipt>(receipt);
   // Whether the user explicitly set a total during this edit session.
-  // Until then, total auto-calculates from subtotal + tax + tip; once the
+  // Until then, total auto-calculates from subtotal + tax + fees + tip; once the
   // user types a total, it is respected so a genuine printed-total
   // mismatch can surface via the RECEIPT_TOTAL_MISMATCH guard on save.
   const [totalManuallyEdited, setTotalManuallyEdited] = useState(false);
@@ -65,7 +66,7 @@ export function ReceiptDetails({
   // Updates an amount field; recalculates the total unless the user has
   // explicitly edited it
   const updateAmount = (
-    field: "subtotal" | "tax" | "tip",
+    field: "subtotal" | "tax" | "fees" | "tip",
     value: number
   ) => {
     setEditedReceipt((prev) => {
@@ -91,6 +92,7 @@ export function ReceiptDetails({
     if (
       editedReceipt.subtotal < 0 ||
       editedReceipt.tax < 0 ||
+      (editedReceipt.fees != null && editedReceipt.fees < 0) ||
       (editedReceipt.tip !== null && editedReceipt.tip < 0) ||
       editedReceipt.total < 0
     ) {
@@ -109,7 +111,7 @@ export function ReceiptDetails({
     if (totalMismatchError) {
       toast.error(
         `Total ($${editedReceipt.total.toFixed(2)}) doesn't match ` +
-        `subtotal + tax + tip ($${totalMismatchError.expected?.toFixed(2)})`
+        `subtotal + tax + fees + tip ($${totalMismatchError.expected?.toFixed(2)})`
       );
       return;
     }
@@ -160,6 +162,13 @@ export function ReceiptDetails({
               <p className="text-sm text-muted-foreground">Tax</p>
               <p className="font-medium">{formatCurrency(receipt.tax, receipt.currency)}</p>
             </div>
+
+            {!!receipt.fees && (
+              <div>
+                <p className="text-sm text-muted-foreground">Fees</p>
+                <p className="font-medium">{formatCurrency(receipt.fees, receipt.currency)}</p>
+              </div>
+            )}
 
             <div>
               <p className="text-sm text-muted-foreground">Tip</p>
@@ -285,6 +294,21 @@ export function ReceiptDetails({
 
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
+                <Label htmlFor="fees">Fees</Label>
+                <Input
+                  id="fees"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editedReceipt.fees ?? ""}
+                  onChange={(e) =>
+                    updateAmount("fees", parseFloat(e.target.value) || 0)
+                  }
+                  placeholder="Surcharges, service fees"
+                />
+              </div>
+
+              <div className="grid gap-2">
                 <Label htmlFor="tip">Tip</Label>
                 <Input
                   id="tip"
@@ -303,7 +327,9 @@ export function ReceiptDetails({
                   placeholder="Leave empty for $0 tip"
                 />
               </div>
+            </div>
 
+            <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="total">Total</Label>
                 <Input
@@ -321,7 +347,7 @@ export function ReceiptDetails({
                   }}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Auto-calculated from subtotal + tax + tip unless edited
+                  Auto-calculated from subtotal + tax + fees + tip unless edited
                   {totalManuallyEdited && (
                     <>
                       {" "}

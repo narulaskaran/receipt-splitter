@@ -148,6 +148,12 @@ export function PersonItems({ people, currencyCode }: PersonItemsProps) {
                           <TableCell colSpan={2} className="font-medium">Tax</TableCell>
                           <TableCell className="text-right">{formatCurrency(person.tax, currencyCode)}</TableCell>
                         </TableRow>
+                        {!!person.fees && (
+                          <TableRow>
+                            <TableCell colSpan={2} className="font-medium">Fees</TableCell>
+                            <TableCell className="text-right">{formatCurrency(person.fees, currencyCode)}</TableCell>
+                          </TableRow>
+                        )}
                         <TableRow>
                           <TableCell colSpan={2} className="font-medium">Tip</TableCell>
                           <TableCell className="text-right">{formatCurrency(person.tip, currencyCode)}</TableCell>

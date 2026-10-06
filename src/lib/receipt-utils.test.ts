@@ -790,6 +790,109 @@ describe("validateReceiptInvariants", () => {
   });
 });
 
+describe("receipt fees (surcharges)", () => {
+  // Toast receipt from Zaatar Cafe: 3% credit card surcharge on top of tax and tip
+  const surchargeReceipt: Receipt = {
+    restaurant: "Zaatar Cafe & Bistro - 8th Avenue",
+    date: "2026-10-05",
+    subtotal: 88.95,
+    tax: 8.14,
+    fees: 2.67,
+    tip: 16.01,
+    total: 115.77,
+    currency: "USD",
+    items: [
+      { name: "SHAWARMA MEAL", price: 18, quantity: 2 },
+      { name: "YEMENI KABOBS MEAL", price: 18, quantity: 1 },
+      { name: "MANQOOSH BIL JUBNA (V)", price: 12, quantity: 1 },
+      { name: "SHAWARMA SANDWICH", price: 13, quantity: 1 },
+      { name: "MARBLE SWIRL CHEESECAKE", price: 9.95, quantity: 1 },
+    ],
+  };
+  const people: Person[] = ["a", "b", "c"].map((id) => ({
+    id,
+    name: id,
+    items: [],
+    totalBeforeTax: 0,
+    tax: 0,
+    tip: 0,
+    finalTotal: 0,
+  }));
+  const assignments = new Map<number, PersonItemAssignment[]>([
+    [0, [{ personId: "a", sharePercentage: 50 }, { personId: "b", sharePercentage: 50 }]],
+    [1, [{ personId: "c", sharePercentage: 100 }]],
+    [2, [{ personId: "a", sharePercentage: 100 }]],
+    [3, [{ personId: "b", sharePercentage: 100 }]],
+    [4, [{ personId: "c", sharePercentage: 100 }]],
+  ]);
+
+  it("counts fees toward the expected receipt total", () => {
+    const result = validateReceiptInvariants(surchargeReceipt, assignments, []);
+    expect(result.isValid).toBe(true);
+  });
+
+  it("still flags a mismatch when fees are missing", () => {
+    const result = validateReceiptInvariants(
+      { ...surchargeReceipt, fees: null },
+      assignments,
+      []
+    );
+    expect(result.errors).toContainEqual(
+      expect.objectContaining({
+        type: AmountValidationError.RECEIPT_TOTAL_MISMATCH,
+        expected: 113.1,
+        actual: 115.77,
+      })
+    );
+  });
+
+  it("rejects negative fees", () => {
+    const result = validateReceiptInvariants(
+      { ...surchargeReceipt, fees: -1, total: 112.1 },
+      assignments,
+      []
+    );
+    expect(result.errors).toContainEqual(
+      expect.objectContaining({ type: AmountValidationError.NEGATIVE_AMOUNT, actual: -1 })
+    );
+  });
+
+  it("splits fees proportionally so person totals sum to the receipt total", () => {
+    const result = calculatePersonTotals(surchargeReceipt, people, assignments);
+    const feesSum = result.reduce((sum, person) => sum + (person.fees ?? 0), 0);
+    const totalSum = result.reduce((sum, person) => sum + person.finalTotal, 0);
+    expect(feesSum).toBeCloseTo(2.67, 10);
+    expect(totalSum).toBeCloseTo(115.77, 10);
+    // a: $18 shawarma share + $12 manqoosh = $30 of $88.95
+    expect(result[0].fees).toBeCloseTo((2.67 * 30) / 88.95, 10);
+  });
+
+  it("treats receipts without a fees field as zero fees", () => {
+    const legacy: Receipt = { ...surchargeReceipt, total: 113.1 };
+    delete legacy.fees;
+    const result = calculatePersonTotals(
+      legacy,
+      people,
+      assignments
+    );
+    expect(result.every((person) => person.fees === 0)).toBe(true);
+    expect(
+      result.reduce((sum, person) => sum + person.finalTotal, 0)
+    ).toBeCloseTo(113.1, 10);
+  });
+
+  it("aggregates fees across a session", () => {
+    const result = calculateSessionPersonTotals(
+      [{ id: "r1", receipt: surchargeReceipt }],
+      people,
+      new Map([["r1", assignments]])
+    );
+    expect(
+      result.reduce((sum, person) => sum + (person.fees ?? 0), 0)
+    ).toBeCloseTo(2.67, 10);
+  });
+});
+
 describe("calculatePersonTotals receipt metadata", () => {
   it("sets receiptName from the restaurant and omits receiptId without a 4th arg", () => {
     const result = calculatePersonTotals(mockReceipt, mockPeople, mockAssignedItems);

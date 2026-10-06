@@ -110,6 +110,23 @@ describe("ResultsSummary", () => {
       expect(screen.getByText("Tip")).toBeInTheDocument();
     });
 
+    it("shows a Fees column only when someone owes fees", () => {
+      const { rerender } = render(
+        <ResultsSummary people={mockPeople} receiptName="Test" receiptDate={null} />
+      );
+      expect(screen.queryByRole("columnheader", { name: "Fees" })).not.toBeInTheDocument();
+
+      rerender(
+        <ResultsSummary
+          people={[{ ...mockPeople[0], fees: 1.23, finalTotal: 40 }]}
+          receiptName="Test"
+          receiptDate={null}
+        />
+      );
+      expect(screen.getByRole("columnheader", { name: "Fees" })).toBeInTheDocument();
+      expect(screen.getAllByText(/\$1\.23/).length).toBeGreaterThan(0);
+    });
+
     it("displays person data in table rows", () => {
       const peopleWithTotals = [
         {
@@ -387,6 +404,27 @@ describe("ResultsSummary", () => {
         expect(clipboardContent).toContain("Receipt for Test Restaurant");
         expect(clipboardContent).toContain("Alice:");
         expect(clipboardContent).toContain("Bob:");
+      });
+    });
+
+    it("shows a date-only receipt date on the same calendar day west of UTC", async () => {
+      // "2026-10-05" parsed by new Date() is UTC midnight, i.e. Oct 4 in the
+      // America/New_York TZ that jest.config.js pins for the test run
+      render(
+        <ResultsSummary
+          people={mockPeople}
+          receiptName="Zaatar Cafe"
+          receiptDate="2026-10-05"
+        />
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: /share text/i }));
+
+      await waitFor(() => {
+        const clipboardContent = (navigator.clipboard.writeText as jest.Mock).mock.calls[0][0];
+        expect(clipboardContent).toContain(
+          `Date: ${new Date(2026, 9, 5).toLocaleDateString()}`
+        );
       });
     });
 

@@ -123,6 +123,12 @@ class SlackFormatter implements WebhookPayloadFormatter {
           type: 'mrkdwn',
           text: `*Tax:*\n${currencySymbol(receipt)}${receipt.tax?.toFixed(2) || '0.00'}`,
         },
+        ...(receipt.fees
+          ? [{
+              type: 'mrkdwn',
+              text: `*Fees:*\n${currencySymbol(receipt)}${receipt.fees.toFixed(2)}`,
+            }]
+          : []),
         {
           type: 'mrkdwn',
           text: `*Tip:*\n${currencySymbol(receipt)}${receipt.tip?.toFixed(2) || '0.00'}`,
@@ -239,6 +245,7 @@ class GenericJsonFormatter implements WebhookPayloadFormatter {
         date: receipt.date,
         subtotal: receipt.subtotal,
         tax: receipt.tax,
+        fees: receipt.fees ?? null,
         tip: receipt.tip,
         total: receipt.total,
         items: receipt.items.map((item) => ({

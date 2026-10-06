@@ -11,6 +11,8 @@ export interface Receipt {
   subtotal: number;
   tax: number;
   tip: number | null;
+  /** Surcharges and service fees, split proportionally like tax. Absent on older receipts. */
+  fees?: number | null;
   total: number;
   items: ReceiptItem[];
   /**
@@ -30,6 +32,8 @@ export interface Person {
   totalBeforeTax: number;
   tax: number;
   tip: number;
+  /** Proportional share of receipt fees. Absent on older stored people. */
+  fees?: number;
   finalTotal: number;
 }
 
