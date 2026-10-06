@@ -232,13 +232,13 @@ Non-Anthropic providers send receipt images (which may include names or partial 
 The application includes optional observability features that are designed to fail gracefully:
 
 ### File Upload Flow
-1. User uploads receipt → AI parses it
-2. After successful parse, file is uploaded to UploadThing (`uploadthing-storage.ts`)
-3. Upload is awaited before webhook is sent (ensures URL is available)
-4. If upload fails, webhook still sends with `fileUrl: null`
+1. User uploads receipt → file is uploaded to UploadThing (`uploadthing-storage.ts`) **before** the AI parses it, so the file URL is available to both success and error webhooks
+2. AI parses the receipt
+3. Success or error webhook is sent with the file URL
+4. If upload fails, parsing continues and webhooks send with `fileUrl: null`
 
 ### Webhook Notifications
-- Triggered after successful receipt parsing (`webhook-notifications.ts`)
+- Triggered after successful receipt parsing, and on parse failures via `sendErrorNotification` (`webhook-notifications.ts`)
 - Supports Slack-formatted messages (detected via `hooks.slack.com` URL)
 - Supports generic JSON webhooks for other integrations
 - Includes receipt details, file URL (if available), session ID, geolocation data, and the LLM provider/model that parsed it
