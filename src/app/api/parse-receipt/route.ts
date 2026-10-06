@@ -95,6 +95,11 @@ function handleExtractError(
     case "unknown":
       sendErrorNotification(`${provider}_unknown_error`, message, errorContext).catch(() => {});
       break;
+    default: {
+      // Adding an LLMErrorKind without handling it here is a compile error
+      const unhandled: never = kind;
+      throw new Error(`Unhandled LLM error kind: ${String(unhandled)}`);
+    }
   }
 
   return NextResponse.json(

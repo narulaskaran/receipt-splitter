@@ -20,5 +20,7 @@ const registry: Record<string, () => ReceiptExtractor> = {
 
 /** Returns the configured receipt extractor. Throws LLMConfigError if misconfigured. */
 export function getReceiptExtractor(): ReceiptExtractor {
+  // Anthropic is the only provider for now; env-based selection comes with
+  // the next adapter.
   return registry.anthropic();
 }

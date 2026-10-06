@@ -29,6 +29,7 @@ function toFileBlock(
   if (isDocumentType(mimeType)) {
     return { type: "document", source: { type: "base64", media_type: mimeType, data } };
   }
+  // Defensive: the route already rejects types outside supportedMimeTypes
   throw new LLMError("bad_request", PROVIDER, `Unsupported media type: ${mimeType}`);
 }
 
