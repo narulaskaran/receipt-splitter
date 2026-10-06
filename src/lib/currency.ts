@@ -158,15 +158,22 @@ export function getCurrencyInfo(currencyCode: string): CurrencyInfo {
 /**
  * Format an amount in the specified currency
  */
+const formatterCache = new Map<string, Intl.NumberFormat>();
+
 export function formatCurrency(amount: number, currencyCode: string = DEFAULT_CURRENCY): string {
   const currency = getCurrencyInfo(currencyCode);
 
-  return new Intl.NumberFormat(currency.locale, {
-    style: 'currency',
-    currency: currency.code,
-    minimumFractionDigits: currency.minorUnits,
-    maximumFractionDigits: currency.minorUnits,
-  }).format(amount);
+  let formatter = formatterCache.get(currency.code);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(currency.locale, {
+      style: 'currency',
+      currency: currency.code,
+      minimumFractionDigits: currency.minorUnits,
+      maximumFractionDigits: currency.minorUnits,
+    });
+    formatterCache.set(currency.code, formatter);
+  }
+  return formatter.format(amount);
 }
 
 /**

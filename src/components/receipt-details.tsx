@@ -1,6 +1,5 @@
 import { Edit, Calculator } from "lucide-react";
 import { useState } from "react";
-import Decimal from "decimal.js";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,16 +20,12 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { type Receipt } from "@/types";
-import { formatCurrency, validateReceiptInvariants, AmountValidationError } from "@/lib/receipt-utils";
-import { getSupportedCurrencies } from "@/lib/currency";
+import { formatCurrency, validateReceiptInvariants, AmountValidationError, expectedReceiptTotal } from "@/lib/receipt-utils";
+import { getCurrencyInfo, getSupportedCurrencies, isSupportedCurrency } from "@/lib/currency";
 import { ReceiptThumbnail } from "@/components/receipt-thumbnail";
 
 function computedReceiptTotal(receipt: Pick<Receipt, "subtotal" | "tax" | "fees" | "tip">): number {
-  return new Decimal(receipt.subtotal || 0)
-    .add(new Decimal(receipt.tax || 0))
-    .add(new Decimal(receipt.fees || 0))
-    .add(new Decimal(receipt.tip || 0))
-    .toNumber();
+  return expectedReceiptTotal(receipt).toNumber();
 }
 
 interface ReceiptDetailsProps {
@@ -184,11 +179,10 @@ export function ReceiptDetails({
               <p className="text-sm text-muted-foreground">Currency</p>
               <p className="font-medium">
                 {(() => {
-                  const currencies = getSupportedCurrencies();
-                  const currency = currencies.find(c => c.code === (receipt.currency || 'USD'));
-                  return currency
-                    ? `${currency.code} - ${currency.name} (${currency.symbol})`
-                    : receipt.currency || 'USD';
+                  const code = receipt.currency || 'USD';
+                  if (!isSupportedCurrency(code)) return code;
+                  const currency = getCurrencyInfo(code);
+                  return `${currency.code} - ${currency.name} (${currency.symbol})`;
                 })()}
               </p>
             </div>

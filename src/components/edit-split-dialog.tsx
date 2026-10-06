@@ -133,11 +133,6 @@ export function EditSplitDialog({
         toast.error("No people to assign");
         return;
       }
-      const tmpAssignments = new Map(assignments);
-      selectedPeopleIds.forEach((personId) => {
-        tmpAssignments.set(personId, 0);
-      });
-      setAssignments(tmpAssignments);
     }
 
     const result = distributeEqualShares(selectedPeopleIds);
@@ -149,28 +144,35 @@ export function EditSplitDialog({
     setRawInputs(new Map());
   };
 
+  const totalPct = Array.from(assignments.values()).reduce(
+    (sum, v) => sum + (v || 0),
+    0
+  );
+  const dollarSum = Array.from(assignments.values()).reduce(
+    (sum, pct) =>
+      sum.plus(new Decimal(pct || 0).dividedBy(100).times(itemTotal)),
+    new Decimal(0)
+  );
+  const isValid =
+    splitMode === "amount"
+      ? dollarSum.minus(itemTotal).abs().lessThanOrEqualTo(0.01)
+      : Math.abs(totalPct - 100) <= 0.01;
+
   const saveAssignment = () => {
     if (itemIndex === null) return;
+
+    if (!isValid) {
+      toast.error(
+        splitMode === "amount"
+          ? `Dollar amounts must sum to ${formatCurrency(itemTotal.toNumber(), currency)}`
+          : "Total percentage must be 100%"
+      );
+      return;
+    }
 
     let assignmentArray: PersonItemAssignment[];
 
     if (splitMode === "amount") {
-      const dollarSum = Array.from(assignments.values()).reduce(
-        (sum, pct) =>
-          sum.plus(new Decimal(pct || 0).dividedBy(100).times(itemTotal)),
-        new Decimal(0)
-      );
-
-      if (dollarSum.minus(itemTotal).abs().greaterThan(0.01)) {
-        toast.error(
-          `Dollar amounts must sum to ${formatCurrency(
-            itemTotal.toNumber(),
-            currency
-          )}`
-        );
-        return;
-      }
-
       const entries = Array.from(assignments.entries()).filter(
         ([, pct]) => pct > 0
       );
@@ -195,16 +197,6 @@ export function EditSplitDialog({
         }
       });
     } else {
-      const totalPercentage = Array.from(assignments.values()).reduce(
-        (sum, value) => sum + (value || 0),
-        0
-      );
-
-      if (Math.abs(totalPercentage - 100) > 0.01) {
-        toast.error("Total percentage must be 100%");
-        return;
-      }
-
       assignmentArray = [];
       assignments.forEach((percentage, personId) => {
         if (percentage > 0) {
@@ -219,20 +211,6 @@ export function EditSplitDialog({
     onSave(itemIndex, assignmentArray);
     onOpenChange(false);
   };
-
-  const totalPct = Array.from(assignments.values()).reduce(
-    (sum, v) => sum + (v || 0),
-    0
-  );
-  const dollarSum = Array.from(assignments.values()).reduce(
-    (sum, pct) =>
-      sum.plus(new Decimal(pct || 0).dividedBy(100).times(itemTotal)),
-    new Decimal(0)
-  );
-  const isValid =
-    splitMode === "amount"
-      ? dollarSum.minus(itemTotal).abs().lessThanOrEqualTo(0.01)
-      : Math.abs(totalPct - 100) <= 0.01;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

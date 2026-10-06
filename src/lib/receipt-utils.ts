@@ -88,6 +88,31 @@ export function distributeEqualShares(personIds: string[]): PersonItemAssignment
   return assignments;
 }
 
+/** An item's line total (price × quantity) as a Decimal. */
+function itemLineTotal(item: Pick<ReceiptItem, 'price' | 'quantity'>): Decimal {
+  return new Decimal(item.price).mul(item.quantity || 1);
+}
+
+/** A person's share of a line total; $0 items are assigned $0 without calculation. */
+function shareOfLineTotal(lineTotal: Decimal, sharePercentage: number): Decimal {
+  return lineTotal.isZero() ? new Decimal(0) : lineTotal.mul(sharePercentage).div(100);
+}
+
+/** True when `difference` exceeds `tolerance`, comparing both rounded to cents. */
+function exceedsTolerance(difference: Decimal, tolerance: number): boolean {
+  return difference.toDecimalPlaces(2).toNumber() > new Decimal(tolerance).toDecimalPlaces(2).toNumber();
+}
+
+/** The total a receipt should have: subtotal + tax + fees + tip. */
+export function expectedReceiptTotal(
+  receipt: Pick<Receipt, 'subtotal' | 'tax' | 'fees' | 'tip'>
+): Decimal {
+  return new Decimal(receipt.subtotal || 0)
+    .add(receipt.tax || 0)
+    .add(receipt.fees || 0)
+    .add(receipt.tip || 0);
+}
+
 /**
  * Calculates the proportion of tax and tip each person should pay based on their items
  */
@@ -118,15 +143,7 @@ export function calculatePersonTotals(
       if (!assignment) return;
       
       const sharePercentage = assignment.sharePercentage;
-      const itemPrice = new Decimal(item.price);
-      const itemQuantity = new Decimal(item.quantity || 1);
-      const totalItemPrice = itemPrice.mul(itemQuantity);
-
-      // Calculate this person's share of this item
-      // For $0 items, explicitly assign $0 without calculation
-      const personShare = totalItemPrice.isZero()
-        ? new Decimal(0)
-        : totalItemPrice.mul(sharePercentage).div(100);
+      const personShare = shareOfLineTotal(itemLineTotal(item), sharePercentage);
       totalBeforeTax = totalBeforeTax.add(personShare);
       
       // Add to person's items
@@ -179,24 +196,7 @@ export function validateItemAssignments(
   assignedItems: Map<number, PersonItemAssignment[]>
 ): boolean {
   if (!receipt) return false;
-  if (!receipt.items?.length) return true;
-  
-  for (let i = 0; i < receipt.items.length; i++) {
-    const assignments = assignedItems.get(i) || [];
-    
-    // Sum up all share percentages for this item
-    const totalPercentage = assignments.reduce(
-      (sum, assignment) => sum + assignment.sharePercentage, 
-      0
-    );
-    
-    // Item must be fully assigned (100%)
-    if (Math.abs(totalPercentage - 100) > 0.01) {
-      return false;
-    }
-  }
-  
-  return true;
+  return getUnassignedItems(receipt, assignedItems).length === 0;
 }
 
 /**
@@ -232,14 +232,11 @@ export function getUnassignedItems(
  * Calculates subtotal using Decimal.js for precision
  */
 export function calculateSubtotal(items: Receipt['items']): number {
-  return items.reduce(
-    (sum, item) => {
-      const itemPrice = new Decimal(item.price);
-      const itemQuantity = new Decimal(item.quantity || 1);
-      return sum.add(itemPrice.mul(itemQuantity));
-    },
-    new Decimal(0)
-  ).toNumber();
+  return itemsTotal(items).toNumber();
+}
+
+function itemsTotal(items: Receipt['items']): Decimal {
+  return items.reduce((sum, item) => sum.add(itemLineTotal(item)), new Decimal(0));
 }
 
 /**
@@ -371,18 +368,12 @@ export function validateReceiptInvariants(
   }
 
   // 2. Validate that total equals subtotal + tax + fees + tip
-  const subtotalDecimal = new Decimal(receipt.subtotal || 0);
-  const taxDecimal = new Decimal(receipt.tax || 0);
-  const feesDecimal = new Decimal(receipt.fees || 0);
-  const tipDecimal = new Decimal(receipt.tip || 0);
-  const expectedTotal = subtotalDecimal.add(taxDecimal).add(feesDecimal).add(tipDecimal);
+  const expectedTotal = expectedReceiptTotal(receipt);
   const actualTotal = new Decimal(receipt.total);
   const totalDifference = expectedTotal.sub(actualTotal).abs();
 
   // Use same tolerance as other validations (1 cent)
-  const tolerance = new Decimal(VALIDATION_LIMITS.SPLIT_AMOUNT_DEVIATION_PER_PERSON);
-
-  if (totalDifference.toDecimalPlaces(2).toNumber() > tolerance.toDecimalPlaces(2).toNumber()) {
+  if (exceedsTolerance(totalDifference, VALIDATION_LIMITS.SPLIT_AMOUNT_DEVIATION_PER_PERSON)) {
     errors.push({
       type: AmountValidationError.RECEIPT_TOTAL_MISMATCH,
       message: 'Receipt total does not equal subtotal + tax + fees + tip',
@@ -420,31 +411,20 @@ export function validateReceiptInvariants(
 
   // 3. Validate items sum to subtotal (within tolerance)
   if (receipt.items.length > 0) {
-    const itemsTotal = new Decimal(
-      receipt.items.reduce((sum, item) => {
-        const itemPrice = new Decimal(item.price);
-        const itemQuantity = new Decimal(item.quantity || 1);
-        return sum.add(itemPrice.mul(itemQuantity));
-      }, new Decimal(0))
-    );
+    const actualItemsTotal = itemsTotal(receipt.items);
 
     const subtotal = new Decimal(receipt.subtotal);
-    const difference = itemsTotal.sub(subtotal).abs();
+    const difference = actualItemsTotal.sub(subtotal).abs();
 
     // Dynamic tolerance: SPLIT_AMOUNT_DEVIATION_PER_PERSON (0.01) per item
     const dynamicTolerance = VALIDATION_LIMITS.SPLIT_AMOUNT_DEVIATION_PER_PERSON * receipt.items.length;
-    const toleranceDecimal = new Decimal(dynamicTolerance);
 
-    // Round to 2 decimal places to avoid floating point precision issues
-    const roundedDifference = difference.toDecimalPlaces(2).toNumber();
-    const roundedTolerance = toleranceDecimal.toDecimalPlaces(2).toNumber();
-
-    if (roundedDifference > roundedTolerance) {
+    if (exceedsTolerance(difference, dynamicTolerance)) {
       errors.push({
         type: AmountValidationError.ITEMS_SUBTOTAL_MISMATCH,
         message: 'Sum of item prices does not match subtotal',
         expected: subtotal.toNumber(),
-        actual: itemsTotal.toNumber(),
+        actual: actualItemsTotal.toNumber(),
         diff: difference.toNumber(),
         tolerance: dynamicTolerance,
       });
@@ -460,31 +440,20 @@ export function validateReceiptInvariants(
       return;
     }
 
-    const itemPrice = new Decimal(item.price);
-    const itemQuantity = new Decimal(item.quantity || 1);
-    const totalItemPrice = itemPrice.mul(itemQuantity);
+    const totalItemPrice = itemLineTotal(item);
 
     // Calculate sum of all split amounts for this item
-    const splitsTotal = assignments.reduce((sum, assignment) => {
-      const sharePercentage = new Decimal(assignment.sharePercentage);
-      const personShare = totalItemPrice.isZero()
-        ? new Decimal(0)
-        : totalItemPrice.mul(sharePercentage).div(100);
-      return sum.add(personShare);
-    }, new Decimal(0));
+    const splitsTotal = assignments.reduce(
+      (sum, assignment) => sum.add(shareOfLineTotal(totalItemPrice, assignment.sharePercentage)),
+      new Decimal(0)
+    );
 
     const difference = splitsTotal.sub(totalItemPrice).abs();
 
     // Dynamic tolerance: SPLIT_AMOUNT_DEVIATION_PER_PERSON (0.01) per person assigned to this item
-    const participantCount = assignments.length;
-    const dynamicTolerance = VALIDATION_LIMITS.SPLIT_AMOUNT_DEVIATION_PER_PERSON * participantCount;
-    const toleranceDecimal = new Decimal(dynamicTolerance);
+    const dynamicTolerance = VALIDATION_LIMITS.SPLIT_AMOUNT_DEVIATION_PER_PERSON * assignments.length;
 
-    // Round to 2 decimal places to avoid floating point precision issues
-    const roundedDifference = difference.toDecimalPlaces(2).toNumber();
-    const roundedTolerance = toleranceDecimal.toDecimalPlaces(2).toNumber();
-
-    if (roundedDifference > roundedTolerance) {
+    if (exceedsTolerance(difference, dynamicTolerance)) {
       errors.push({
         type: AmountValidationError.ITEM_SPLITS_MISMATCH,
         message: `Sum of splits for item "${item.name}" does not match item price`,

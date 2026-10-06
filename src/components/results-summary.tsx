@@ -139,24 +139,24 @@ export function ResultsSummary({
 
     setShareStatus("copying");
 
+    const fail = (message: string) => {
+      setShareStatus("error");
+      toast.error(message);
+      setTimeout(() => setShareStatus("idle"), 2000);
+    };
+
     try {
       // Check validation errors first
       if (validationResult && !validationResult.isValid) {
-        setShareStatus("error");
-        toast.error(
+        fail(
           "Cannot share split with validation errors. Please fix the issues shown above before sharing."
         );
-        setTimeout(() => setShareStatus("idle"), 2000);
         return;
       }
 
       // Validate that we have required data to share
       if (!cleanPhone) {
-        setShareStatus("error");
-        toast.error(
-          "Phone number is required to share splits with Venmo payment functionality."
-        );
-        setTimeout(() => setShareStatus("idle"), 2000);
+        fail("Phone number is required to share splits with Venmo payment functionality.");
         return;
       }
 
@@ -167,9 +167,7 @@ export function ResultsSummary({
         receiptDate
       );
       if (!validation.isValid) {
-        setShareStatus("error");
-        toast.error(`Cannot share split: ${validation.errorMessages.join(", ")}`);
-        setTimeout(() => setShareStatus("idle"), 2000);
+        fail(`Cannot share split: ${validation.errorMessages.join(", ")}`);
         return;
       }
 
@@ -204,9 +202,7 @@ export function ResultsSummary({
       setTimeout(() => setShareStatus("idle"), 3000);
     } catch (error) {
       console.error("Error sharing split:", error);
-      setShareStatus("error");
-      toast.error("Failed to copy share link. Please try again.");
-      setTimeout(() => setShareStatus("idle"), 2000);
+      fail("Failed to copy share link. Please try again.");
     }
   };
 
@@ -401,10 +397,7 @@ export function ResultsSummary({
               {shareStatus === "success" && (
                 <Check className="h-5 w-5 sm:h-4 sm:w-4" />
               )}
-              {shareStatus === "idle" && (
-                <Link2 className="h-5 w-5 sm:h-4 sm:w-4" />
-              )}
-              {shareStatus === "error" && (
+              {(shareStatus === "idle" || shareStatus === "error") && (
                 <Link2 className="h-5 w-5 sm:h-4 sm:w-4" />
               )}
               <span>

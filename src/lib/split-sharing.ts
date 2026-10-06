@@ -236,6 +236,17 @@ function receiptBreakdownMatchesTotals(
  * @param searchParams - URLSearchParams from the shared URL
  * @returns SharedSplitData object or null if invalid
  */
+/**
+ * Parses a shared amount. Back-compat: integers without a "." are minor units;
+ * anything else is a major-unit string from older links.
+ */
+function parseAmountParam(value: string, currency: string): number {
+  const raw = Number(value);
+  return Number.isInteger(raw) && !value.includes(".")
+    ? fromMinorUnits(raw, currency)
+    : parseFloat(value);
+}
+
 export function deserializeSplitData(
   searchParams: URLSearchParams
 ): SharedSplitData | null {
@@ -267,13 +278,7 @@ export function deserializeSplitData(
     const amountStrings = amountsParam
       .split(",")
       .map((amount) => amount.trim());
-    // Back-compat: support both minor units (integers) and major unit strings
-    const parsedTotalRaw = Number(totalParam);
-    const isTotalInMinorUnits =
-      Number.isInteger(parsedTotalRaw) && !totalParam.includes(".");
-    const total = isTotalInMinorUnits
-      ? fromMinorUnits(parsedTotalRaw, currency)
-      : parseFloat(totalParam);
+    const total = parseAmountParam(totalParam, currency);
     const note = noteParam.trim();
     const phone = phoneParam.trim();
 
@@ -290,9 +295,7 @@ export function deserializeSplitData(
     // Parse and validate amounts
     const amounts: number[] = [];
     for (const amountStr of amountStrings) {
-      const raw = Number(amountStr);
-      const isMinorUnits = Number.isInteger(raw) && !amountStr.includes(".");
-      const amount = isMinorUnits ? fromMinorUnits(raw, currency) : parseFloat(amountStr);
+      const amount = parseAmountParam(amountStr, currency);
       if (isNaN(amount) || amount < 0) {
         return null;
       }
@@ -650,41 +653,7 @@ export function validateSplitDataDetailed(
       }
     }
 
-    // Validate required note field
-    if (!splitData.note || splitData.note.trim().length === 0) {
-      errors.push(SplitDataError.EMPTY_NAME); // Reuse existing error type
-      errorMessages.push(
-        `Note/memo is required for split sharing. Received: '${
-          splitData.note || "undefined"
-        }'`
-      );
-    } else if (splitData.note.length > VALIDATION_LIMITS.MAX_NOTE_LENGTH) {
-      errors.push(SplitDataError.NOTE_TOO_LONG);
-      errorMessages.push(
-        `Note '${splitData.note}' exceeds ${VALIDATION_LIMITS.MAX_NOTE_LENGTH} characters (length: ${splitData.note.length})`
-      );
-    }
-
-    // Validate required phone field
-    if (!splitData.phone || splitData.phone.trim().length === 0) {
-      errors.push(SplitDataError.INVALID_PHONE_NUMBER);
-      errorMessages.push(
-        `Phone number is required for split sharing. Received: '${
-          splitData.phone || "undefined"
-        }'`
-      );
-    } else if (!isValidPhoneNumber(splitData.phone)) {
-      errors.push(SplitDataError.INVALID_PHONE_NUMBER);
-      errorMessages.push(
-        `Phone number '${splitData.phone}' format is invalid for Venmo (must be 10 or 11 digits)`
-      );
-    }
-
-    // Validate optional date field
-    if (splitData.date && !isValidDateFormat(splitData.date)) {
-      errors.push(SplitDataError.INVALID_DATE_FORMAT);
-      errorMessages.push(`Date format '${splitData.date}' is invalid`);
-    }
+    pushNotePhoneDateErrors(splitData.note, splitData.phone, splitData.date, errors, errorMessages);
 
     return {
       isValid: errors.length === 0,
@@ -701,6 +670,54 @@ export function validateSplitDataDetailed(
         )}`,
       ],
     };
+  }
+}
+
+/**
+ * Validates the note, phone, and date fields shared by split data and
+ * serialization input, appending to the caller's error lists.
+ */
+function pushNotePhoneDateErrors(
+  note: string | undefined,
+  phone: string | undefined,
+  date: string | null | undefined,
+  errors: SplitDataError[],
+  errorMessages: string[]
+): void {
+  // Validate required note field
+  if (!note || note.trim().length === 0) {
+    errors.push(SplitDataError.EMPTY_NAME); // Reuse existing error type
+    errorMessages.push(
+      `Note/memo is required for split sharing. Received: '${
+        note || "undefined"
+      }'`
+    );
+  } else if (note.length > VALIDATION_LIMITS.MAX_NOTE_LENGTH) {
+    errors.push(SplitDataError.NOTE_TOO_LONG);
+    errorMessages.push(
+      `Note '${note}' exceeds ${VALIDATION_LIMITS.MAX_NOTE_LENGTH} characters (length: ${note.length})`
+    );
+  }
+
+  // Validate required phone field
+  if (!phone || phone.trim().length === 0) {
+    errors.push(SplitDataError.INVALID_PHONE_NUMBER);
+    errorMessages.push(
+      `Phone number is required for split sharing. Received: '${
+        phone || "undefined"
+      }'`
+    );
+  } else if (!isValidPhoneNumber(phone)) {
+    errors.push(SplitDataError.INVALID_PHONE_NUMBER);
+    errorMessages.push(
+      `Phone number '${phone}' format is invalid for Venmo (must be 10 or 11 digits)`
+    );
+  }
+
+  // Validate optional date field
+  if (date && !isValidDateFormat(date)) {
+    errors.push(SplitDataError.INVALID_DATE_FORMAT);
+    errorMessages.push(`Date format '${date}' is invalid`);
   }
 }
 
@@ -764,41 +781,7 @@ export function validateSerializationInput(
     }
   });
 
-  // Validate required note field
-  if (!note || note.trim().length === 0) {
-    errors.push(SplitDataError.EMPTY_NAME); // Reuse existing error type
-    errorMessages.push(
-      `Note/memo is required for split sharing. Received: '${
-        note || "undefined"
-      }'`
-    );
-  } else if (note.length > VALIDATION_LIMITS.MAX_NOTE_LENGTH) {
-    errors.push(SplitDataError.NOTE_TOO_LONG);
-    errorMessages.push(
-      `Note '${note}' exceeds ${VALIDATION_LIMITS.MAX_NOTE_LENGTH} characters (length: ${note.length})`
-    );
-  }
-
-  // Validate required phone field
-  if (!phone || phone.trim().length === 0) {
-    errors.push(SplitDataError.INVALID_PHONE_NUMBER);
-    errorMessages.push(
-      `Phone number is required for split sharing. Received: '${
-        phone || "undefined"
-      }'`
-    );
-  } else if (!isValidPhoneNumber(phone)) {
-    errors.push(SplitDataError.INVALID_PHONE_NUMBER);
-    errorMessages.push(
-      `Phone number '${phone}' format is invalid for Venmo (must be 10 or 11 digits)`
-    );
-  }
-
-  // Validate optional date field
-  if (date && !isValidDateFormat(date)) {
-    errors.push(SplitDataError.INVALID_DATE_FORMAT);
-    errorMessages.push(`Date format '${date}' is invalid`);
-  }
+  pushNotePhoneDateErrors(note, phone, date, errors, errorMessages);
 
   return {
     isValid: errors.length === 0,

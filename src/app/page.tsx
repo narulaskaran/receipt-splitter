@@ -72,6 +72,21 @@ type ParseResult =
   | { status: "capped"; next: ReceiptState }
   | { status: "mismatch"; next: ReceiptState; pinned: string };
 
+/**
+ * Applies a change to receipts, assignments, or people and recomputes each
+ * person's totals so they never go stale.
+ */
+function withPersonTotals(
+  prev: ReceiptState,
+  patch: Partial<Pick<ReceiptState, "receipts" | "assignedItems" | "people">>
+): ReceiptState {
+  const next = { ...prev, ...patch };
+  return {
+    ...next,
+    people: calculateSessionPersonTotals(next.receipts, next.people, next.assignedItems),
+  };
+}
+
 function addParsedReceipt(prev: ReceiptState, receipt: Receipt): ParseResult {
   if (prev.receipts.length >= MAX_RECEIPTS_PER_SESSION) {
     return { status: "capped", next: prev };
@@ -91,14 +106,7 @@ function addParsedReceipt(prev: ReceiptState, receipt: Receipt): ParseResult {
   return {
     status: "added",
     next: {
-      ...prev,
-      receipts: nextReceipts,
-      assignedItems: nextAssigned,
-      people: calculateSessionPersonTotals(
-        nextReceipts,
-        prev.people,
-        nextAssigned
-      ),
+      ...withPersonTotals(prev, { receipts: nextReceipts, assignedItems: nextAssigned }),
       error: null,
     },
   };
@@ -128,16 +136,7 @@ function removeReceiptFromState(
   const nextReceipts = prev.receipts.filter((stored) => stored.id !== receiptId);
   const nextAssigned = new Map(prev.assignedItems);
   nextAssigned.delete(receiptId);
-  return {
-    ...prev,
-    receipts: nextReceipts,
-    assignedItems: nextAssigned,
-    people: calculateSessionPersonTotals(
-      nextReceipts,
-      prev.people,
-      nextAssigned
-    ),
-  };
+  return withPersonTotals(prev, { receipts: nextReceipts, assignedItems: nextAssigned });
 }
 
 function updateReceiptInState(
@@ -161,17 +160,10 @@ function updateReceiptInState(
     nextOuter.set(receiptId, remappedAssignments);
   }
 
-  return {
-    ...prev,
-    receipts: nextReceipts,
-    assignedItems: nextOuter,
-    people: calculateSessionPersonTotals(
-      nextReceipts,
-      prev.people,
-      nextOuter
-    ),
-  };
+  return withPersonTotals(prev, { receipts: nextReceipts, assignedItems: nextOuter });
 }
+
+const TAB_ORDER = ["upload", "people", "assign", "results"] as const;
 
 export default function Home() {
   const [state, setState] = useState<ReceiptState>(emptyReceiptState);
@@ -186,7 +178,7 @@ export default function Home() {
     setState(next);
   };
 
-  const activeReceipt = state.receipts[0]?.receipt ?? null;
+  const currency = sessionCurrency(state.receipts);
 
   const validationResult = useMemo(() => {
     return validateSessionInvariants(
@@ -368,16 +360,9 @@ export default function Home() {
       nextAssigned = nextOuter;
     }
 
-    const next = {
-      ...prevState,
-      people: calculateSessionPersonTotals(
-        prevState.receipts,
-        updatedPeople,
-        nextAssigned
-      ),
-      assignedItems: nextAssigned,
-    };
-    commitState(next);
+    commitState(
+      withPersonTotals(prevState, { people: updatedPeople, assignedItems: nextAssigned })
+    );
   };
 
   // Handle receipt updates. Currency mismatches are rejected like uploads.
@@ -429,16 +414,7 @@ export default function Home() {
     }
     nextOuter.set(receiptId, inner);
 
-    const next = {
-      ...prevState,
-      assignedItems: nextOuter,
-      people: calculateSessionPersonTotals(
-        prevState.receipts,
-        prevState.people,
-        nextOuter
-      ),
-    };
-    commitState(next);
+    commitState(withPersonTotals(prevState, { assignedItems: nextOuter }));
   };
 
   // Update loading state
@@ -502,34 +478,11 @@ export default function Home() {
     });
   };
 
-  // Navigate to the next tab
-  const goToNextTab = () => {
-    switch (activeTab) {
-      case "upload":
-        setActiveTab("people");
-        break;
-      case "people":
-        setActiveTab("assign");
-        break;
-      case "assign":
-        setActiveTab("results");
-        break;
-    }
-  };
-
-  // Navigate to the previous tab
-  const goToPreviousTab = () => {
-    switch (activeTab) {
-      case "people":
-        setActiveTab("upload");
-        break;
-      case "assign":
-        setActiveTab("people");
-        break;
-      case "results":
-        setActiveTab("assign");
-        break;
-    }
+  // Navigate to the adjacent tab, staying put at either end
+  const goToAdjacentTab = (step: 1 | -1) => {
+    const index = TAB_ORDER.indexOf(activeTab as (typeof TAB_ORDER)[number]);
+    const target = TAB_ORDER[index + step];
+    if (index !== -1 && target) setActiveTab(target);
   };
 
   // Check if can proceed to next tab
@@ -574,16 +527,7 @@ export default function Home() {
       `Split remaining items on ${receiptRestaurantName(stored)}.`
     );
 
-    const next = {
-      ...prevState,
-      assignedItems: nextOuter,
-      people: calculateSessionPersonTotals(
-        prevState.receipts,
-        prevState.people,
-        nextOuter
-      ),
-    };
-    commitState(next);
+    commitState(withPersonTotals(prevState, { assignedItems: nextOuter }));
   };
 
   const hasReceipt = state.receipts.length > 0;
@@ -618,7 +562,7 @@ export default function Home() {
           <Button
             variant="outline"
             size="sm"
-            onClick={goToPreviousTab}
+            onClick={() => goToAdjacentTab(-1)}
             disabled={activeTab === "upload"}
             className="flex items-center gap-1"
           >
@@ -628,7 +572,7 @@ export default function Home() {
           <Button
             variant="default"
             size="sm"
-            onClick={goToNextTab}
+            onClick={() => goToAdjacentTab(1)}
             disabled={!canGoToNextTab()}
             className="flex items-center gap-1"
           >
@@ -710,7 +654,7 @@ export default function Home() {
             <p className="text-sm text-muted-foreground">
               {state.receipts.length}{" "}
               {state.receipts.length === 1 ? "receipt" : "receipts"} ·{" "}
-              {sessionCurrency(state.receipts) ?? "USD"}
+              {currency ?? "USD"}
             </p>
           )}
 
@@ -756,18 +700,18 @@ export default function Home() {
         </TabsContent>
 
         <TabsContent value="results" className="space-y-6">
-          <ValidationErrors errors={validationResult.errors} currencyCode={activeReceipt?.currency} />
+          <ValidationErrors errors={validationResult.errors} currencyCode={currency} />
 
           <ResultsSummary
             people={state.people}
             receiptName={sessionShareNote(state.receipts)}
             receiptDate={sessionShareDate(state.receipts)}
-            currencyCode={sessionCurrency(state.receipts)}
+            currencyCode={currency}
             validationResult={validationResult}
             receiptBreakdown={receiptBreakdown}
           />
 
-          <PersonItems people={state.people} currencyCode={sessionCurrency(state.receipts)} />
+          <PersonItems people={state.people} currencyCode={currency} />
 
           <SupportCard />
         </TabsContent>
