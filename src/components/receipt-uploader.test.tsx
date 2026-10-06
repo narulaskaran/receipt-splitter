@@ -76,6 +76,25 @@ describe("ReceiptUploader", () => {
     expect(screen.queryByAltText("Receipt preview")).not.toBeInTheDocument();
   });
 
+  it("infers an image type for typeless HEIC files", async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ restaurant: "Test Restaurant", total: 100, items: [] }),
+    });
+
+    renderUploader();
+
+    const heicFile = new File(["mock heic content"], "IMG_0001.HEIC", { type: "" });
+    await userEvent.upload(getFileInput(), heicFile);
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/parse-receipt",
+        expect.objectContaining({ method: "POST" })
+      );
+    });
+  });
+
   it("rejects non-image and non-PDF files", async () => {
     renderUploader();
 

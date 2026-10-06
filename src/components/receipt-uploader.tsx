@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useDropzone } from "react-dropzone";
+import { useDropzone, type DropEvent } from "react-dropzone";
+import { DEFAULT_MIME_TYPES, fromEvent } from "file-selector";
 import { UploadCloud, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -33,6 +34,18 @@ interface ReceiptUploaderProps {
   maxRemaining?: number;
   /** When true, show the compact "add another" dropzone instead of the empty-state prompt. */
   hasReceipts?: boolean;
+}
+
+// file-selector's default extension table omits HEIC/HEIF, and browsers often
+// leave those files typeless, which prepareReceiptFile would then reject.
+const RECEIPT_MIME_TYPES = new Map([
+  ...DEFAULT_MIME_TYPES,
+  ["heic", "image/heic"],
+  ["heif", "image/heif"],
+]);
+
+function getReceiptFilesFromEvent(event: DropEvent | FileSystemFileHandle[]) {
+  return fromEvent(event, { mimeTypes: RECEIPT_MIME_TYPES });
 }
 
 const MAX_COMPRESSION_FILE_SIZE_MB = 50;
@@ -231,6 +244,7 @@ export function ReceiptUploader({
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
+    getFilesFromEvent: getReceiptFilesFromEvent,
     accept: {
       "image/*": [".jpeg", ".jpg", ".png", ".heif", ".heic", ".webp"],
       "application/pdf": [".pdf"],
