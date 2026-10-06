@@ -2,6 +2,7 @@ import { render, screen, fireEvent, within } from "@testing-library/react";
 import { ItemAssignment } from "./item-assignment";
 import { mockPeople, mockReceipt, mockAssignedItems } from "@/test/test-utils";
 import { toast } from "sonner";
+import { formatCurrency } from "@/lib/currency";
 
 describe("ItemAssignment", () => {
   it("renders item and people names", () => {
@@ -21,6 +22,26 @@ describe("ItemAssignment", () => {
     // Alice and Bob appear in assignment summaries in both desktop and mobile views
     expect(screen.getAllByText(/Alice/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Bob/).length).toBeGreaterThan(0);
+  });
+
+  it("formats item prices in the receipt's currency", () => {
+    render(
+      <ItemAssignment
+        receipt={{
+          ...mockReceipt,
+          currency: "JPY",
+          items: [{ name: "Ramen", price: 1200, quantity: 2 }],
+        }}
+        people={mockPeople}
+        assignedItems={new Map()}
+        unassignedItems={[0]}
+        onAssignItems={() => {}}
+        onReceiptUpdate={() => {}}
+      />
+    );
+    // Desktop and mobile layouts each render the line total
+    expect(screen.getAllByText(formatCurrency(2400, "JPY"))).toHaveLength(2);
+    expect(screen.queryByText(formatCurrency(2400, "USD"))).not.toBeInTheDocument();
   });
 
   describe("Add Item", () => {
