@@ -15,7 +15,7 @@ Receipt Splitter is a Next.js web application for splitting receipts among frien
 - **State Management**: React hooks with localStorage persistence
 - **Validation**: Zod schemas
 - **Testing**: Jest + React Testing Library
-- **AI**: Anthropic Claude API for receipt parsing
+- **AI**: Anthropic Claude API for receipt parsing by default; swappable via `src/lib/llm/` (OpenAI, OpenRouter)
 
 ## Project Structure
 
@@ -42,6 +42,7 @@ src/
 │   ├── currency.ts          # Multi-currency support (20 currencies)
 │   ├── receipt-utils.ts     # Tax/tip calculations
 │   ├── split-sharing.ts     # URL serialization/deserialization
+│   ├── llm/                 # Provider-agnostic receipt parsing (adapters + registry)
 │   ├── venmo-utils.ts       # Payment link generation (USD only)
 │   ├── emoji-utils.ts       # Group emoji management
 │   ├── uploadthing-storage.ts  # UploadThing file upload/delete/list
@@ -192,12 +193,35 @@ Required:
 ANTHROPIC_API_KEY=your_api_key_here
 ```
 
+Optional (LLM provider selection, see "LLM Providers"):
+```
+RECEIPT_LLM_PROVIDER=anthropic          # anthropic (default) | openai | openrouter
+RECEIPT_LLM_MODEL=...                   # Override the provider's default model
+OPENAI_API_KEY=...                      # Required when provider is openai
+OPENROUTER_API_KEY=...                  # Required when provider is openrouter
+```
+
+`ANTHROPIC_API_KEY` is only required when the provider is `anthropic`.
+
 Optional (for observability features):
 ```
 UPLOADTHING_TOKEN=your_token_here      # File storage for receipts
 WEBHOOK_URL=https://hooks.slack.com/...  # Slack/webhook notifications
 CRON_SECRET=your_secret_here            # Cron job authentication
 ```
+
+## LLM Providers
+
+Receipt parsing goes through the `ReceiptExtractor` interface in `src/lib/llm/types.ts`: file + prompt + JSON schema in, parsed JSON out. The parse route never imports a provider SDK.
+
+- `src/lib/llm/index.ts`: registry + `getReceiptExtractor()`, selected by `RECEIPT_LLM_PROVIDER` / `RECEIPT_LLM_MODEL`
+- `src/lib/llm/adapters/anthropic.ts`: Anthropic Messages API (default: Claude Haiku 4.5)
+- `src/lib/llm/adapters/openai-compatible.ts`: any OpenAI Chat Completions API with `json_schema` structured outputs. Registered as `openai` (default `gpt-6-luna`) and `openrouter` (default `openai/gpt-6-luna`; any OpenRouter model id works via `RECEIPT_LLM_MODEL`)
+- `src/lib/llm/receipt-prompt.ts`: the shared prompt
+
+Adapters throw `LLMError` (`rate_limit | bad_request | api_error | empty_response | invalid_json | unknown`), which the route maps to HTTP statuses and `llm_*` webhook error types. Zod validation and normalization stay in the route so every provider gets the same safety nets.
+
+**Adding a provider:** for OpenAI-compatible APIs (DeepSeek, Groq, etc.), add a registry entry with a `baseURL`. Otherwise write an adapter implementing `ReceiptExtractor`, register it, and add it to `src/lib/llm/adapters/contract.test.ts`. The selected model must accept image input (and PDF, unless the adapter sets `supportsPdf: false`) and support JSON-schema structured outputs.
 
 ## Observability Architecture
 
@@ -213,7 +237,7 @@ The application includes optional observability features that are designed to fa
 - Triggered after successful receipt parsing (`webhook-notifications.ts`)
 - Supports Slack-formatted messages (detected via `hooks.slack.com` URL)
 - Supports generic JSON webhooks for other integrations
-- Includes receipt details, file URL (if available), session ID, and geolocation data
+- Includes receipt details, file URL (if available), session ID, geolocation data, and the LLM provider/model that parsed it
 - Geolocation data (city, region, country, lat/long) is extracted from Vercel headers (`extractGeolocation()` in `parse-receipt/route.ts`)
 - Returns `null` in local development when Vercel headers are unavailable
 - PDF receipts are handled differently than images in Slack webhooks (linked vs. inlined)
