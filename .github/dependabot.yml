@@ -22,6 +22,12 @@ updates:
         patterns:
           - "@radix-ui/*"
 
+      # The uploader imports file-selector directly; keep it on react-dropzone's major.
+      dropzone:
+        patterns:
+          - react-dropzone
+          - file-selector
+
       testing:
         patterns:
           - jest

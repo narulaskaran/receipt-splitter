@@ -93,6 +93,10 @@ describe("ReceiptUploader", () => {
         expect.objectContaining({ method: "POST" })
       );
     });
+    const body = (global.fetch as jest.Mock).mock.calls[0][1].body as FormData;
+    const sent = body.get("file") as File;
+    expect(sent.name).toBe("IMG_0001.HEIC");
+    expect(sent.type).toBe("image/heic");
   });
 
   it("rejects non-image and non-PDF files", async () => {
