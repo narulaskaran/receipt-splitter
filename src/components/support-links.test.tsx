@@ -9,6 +9,15 @@ describe("SupportFooter", () => {
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
   });
+
+  it("renders children alongside the support text", () => {
+    render(
+      <SupportFooter>
+        <button type="button">Extra</button>
+      </SupportFooter>
+    );
+    expect(screen.getByRole("button", { name: "Extra" })).toBeInTheDocument();
+  });
 });
 
 describe("SupportCard", () => {

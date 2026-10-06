@@ -1,8 +1,10 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useSyncExternalStore } from "react";
 
-type Theme = "dark" | "light" | "system";
+export type Theme = "dark" | "light" | "system";
+
+export const THEME_STORAGE_KEY = "theme";
 
 type ThemeProviderProps = {
   children: React.ReactNode;
@@ -24,6 +26,34 @@ const initialState: ThemeProviderState = {
 
 const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 
+const THEME_CHANGE_EVENT = "themechange";
+
+function isTheme(value: unknown): value is Theme {
+  return value === "light" || value === "dark" || value === "system";
+}
+
+function readStoredTheme(): Theme | null {
+  try {
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    return isTheme(stored) ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+function subscribeToStoredTheme(onChange: () => void): () => void {
+  window.addEventListener("storage", onChange);
+  window.addEventListener(THEME_CHANGE_EVENT, onChange);
+  return () => {
+    window.removeEventListener("storage", onChange);
+    window.removeEventListener(THEME_CHANGE_EVENT, onChange);
+  };
+}
+
+// Runs before hydration (see layout.tsx) so a saved dark preference doesn't
+// flash light on load.
+export const themeInitScript = `(function(){try{var t=localStorage.getItem("${THEME_STORAGE_KEY}");if(t!=="light"&&t!=="dark"){t=matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}document.documentElement.classList.add(t)}catch(e){}})()`;
+
 // When attribute === "class", theme classes are toggled via classList above;
 // never overwrite the root's entire class attribute.
 function applyAttribute(
@@ -44,7 +74,20 @@ export function ThemeProvider({
   attribute = "data-theme",
   ...props
 }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(defaultTheme);
+  const theme = useSyncExternalStore(
+    subscribeToStoredTheme,
+    () => readStoredTheme() ?? defaultTheme,
+    () => defaultTheme
+  );
+
+  const setTheme = useCallback((next: Theme) => {
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, next);
+    } catch {
+      // Storage unavailable (private mode); the change still applies this session.
+    }
+    window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
+  }, []);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -78,12 +121,12 @@ export function ThemeProvider({
     if (!enableSystem) return;
 
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    
+
     const handleChange = () => {
       if (theme === "system") {
         const systemTheme = mediaQuery.matches ? "dark" : "light";
         const root = window.document.documentElement;
-        
+
         root.classList.remove("light", "dark");
         root.classList.add(systemTheme);
         applyAttribute(root, attribute, systemTheme);
@@ -94,15 +137,8 @@ export function ThemeProvider({
     return () => mediaQuery.removeEventListener("change", handleChange);
   }, [theme, attribute, enableSystem]);
 
-  const value = {
-    theme,
-    setTheme: (theme: Theme) => {
-      setTheme(theme);
-    },
-  };
-
   return (
-    <ThemeProviderContext.Provider {...props} value={value}>
+    <ThemeProviderContext.Provider {...props} value={{ theme, setTheme }}>
       {children}
     </ThemeProviderContext.Provider>
   );
