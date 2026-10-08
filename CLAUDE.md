@@ -215,7 +215,7 @@ CRON_SECRET=your_secret_here            # Cron job authentication
 Receipt parsing goes through the `ReceiptExtractor` interface in `src/lib/llm/types.ts`: file + prompt + JSON schema in, parsed JSON out. The parse route never imports a provider SDK.
 
 - `src/lib/llm/index.ts`: registry + `getReceiptExtractor()`, selected by `RECEIPT_LLM_PROVIDER` / `RECEIPT_LLM_MODEL`
-- `src/lib/llm/adapters/anthropic.ts`: Anthropic Messages API (default: Claude Haiku 4.5)
+- `src/lib/llm/adapters/anthropic.ts`: Anthropic Messages API (default: Claude Haiku 5.5, `claude-haiku-5-5`; adaptive thinking is on by default and counts toward `max_tokens`)
 - `src/lib/llm/adapters/openai-compatible.ts`: any OpenAI Chat Completions API with `json_schema` structured outputs. Registered as `openai` (default `gpt-6-luna`) and `openrouter` (default `openai/gpt-6-luna`; any OpenRouter model id works via `RECEIPT_LLM_MODEL`)
 - `src/lib/llm/receipt-prompt.ts`: the shared prompt
 

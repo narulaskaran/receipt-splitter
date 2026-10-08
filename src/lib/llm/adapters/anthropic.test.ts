@@ -47,7 +47,8 @@ async function extractError(promise: Promise<unknown>): Promise<LLMError> {
 describe("createAnthropicExtractor", () => {
   beforeEach(() => mockCreate.mockReset());
 
-  it("defaults to Haiku 4.5 and allows a model override", () => {
+  it("defaults to Haiku 5.5 and allows a model override", () => {
+    expect(DEFAULT_ANTHROPIC_MODEL).toBe("claude-haiku-5-5");
     expect(createAnthropicExtractor({ apiKey: "k" }).model).toBe(DEFAULT_ANTHROPIC_MODEL);
     expect(createAnthropicExtractor({ apiKey: "k", model: "claude-x" }).model).toBe("claude-x");
   });
@@ -70,7 +71,7 @@ describe("createAnthropicExtractor", () => {
     expect(result).toEqual({ ok: true });
     expect(mockCreate).toHaveBeenCalledWith({
       model: DEFAULT_ANTHROPIC_MODEL,
-      max_tokens: 4096,
+      max_tokens: 16000,
       messages: [
         {
           role: "user",
@@ -144,6 +145,28 @@ describe("createAnthropicExtractor", () => {
 
     const error = await extractError(createAnthropicExtractor({ apiKey: "k" }).extract(input()));
     expect(error.kind).toBe("empty_response");
+  });
+
+  it("reports a safety refusal as empty_response with the category", async () => {
+    mockCreate.mockResolvedValue({
+      stop_reason: "refusal",
+      stop_details: { type: "refusal", category: "general_harms", explanation: null },
+      content: [],
+    });
+
+    const error = await extractError(createAnthropicExtractor({ apiKey: "k" }).extract(input()));
+    expect(error.kind).toBe("empty_response");
+    expect(error.message).toContain("general_harms");
+  });
+
+  it("skips thinking blocks and reads the text block", async () => {
+    mockCreate.mockResolvedValue({
+      content: [{ type: "thinking", thinking: "", signature: "sig" }, { type: "text", text: '{"ok": true}' }],
+    });
+
+    await expect(createAnthropicExtractor({ apiKey: "k" }).extract(input())).resolves.toEqual({
+      ok: true,
+    });
   });
 
   it("reports non-JSON text as invalid_json", async () => {

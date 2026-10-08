@@ -10,7 +10,7 @@ import {
 } from "../types";
 
 const PROVIDER = "anthropic";
-export const DEFAULT_ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
+export const DEFAULT_ANTHROPIC_MODEL = "claude-haiku-5-5";
 
 type ImageMediaType = (typeof IMAGE_TYPES)[number];
 type DocumentMediaType = (typeof DOCUMENT_TYPES)[number];
@@ -54,10 +54,12 @@ export function createAnthropicExtractor(options: {
 
       let message: Anthropic.Message;
       try {
-        // Structured outputs: the response is constrained to jsonSchema
+        // Structured outputs: the response is constrained to jsonSchema.
+        // Adaptive thinking is on by default and counts toward max_tokens, so
+        // leave room for it on top of the JSON.
         message = await client.messages.create({
           model,
-          max_tokens: 4096,
+          max_tokens: 16000,
           messages: [
             {
               role: "user",
@@ -76,6 +78,16 @@ export function createAnthropicExtractor(options: {
 
       if (message.stop_reason === "max_tokens") {
         throw new LLMError("invalid_json", PROVIDER, "Response truncated at the output token limit");
+      }
+
+      // Safety classifiers can decline a request; there is no fallback to retry on
+      if (message.stop_reason === "refusal") {
+        const category = message.stop_details?.category;
+        throw new LLMError(
+          "empty_response",
+          PROVIDER,
+          `Request declined by Anthropic safety classifiers${category ? ` (${category})` : ""}`
+        );
       }
 
       const textBlock = message.content.find((block) => block.type === "text");
