@@ -1,6 +1,7 @@
 import React from "react";
 import { Coffee, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { InstallAppLink } from "@/components/install-app-link";
 
 export const KOFI_URL = "https://ko-fi.com/Y8Y21CC8IA";
 
@@ -17,6 +18,7 @@ export const SupportFooter: React.FC<{ children?: React.ReactNode }> = ({ childr
         <Coffee className="h-3.5 w-3.5" />
         Support on Ko-fi
       </a>
+      <InstallAppLink />
     </div>
     {children}
   </footer>
