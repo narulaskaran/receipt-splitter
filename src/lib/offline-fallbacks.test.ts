@@ -18,6 +18,11 @@ describe("OFFLINE_FALLBACKS", () => {
     expect(fallbackFor("/split", "document")).toBe("/split");
   });
 
+  it("serves the app shell for the home page with a query string", () => {
+    expect(fallbackFor("/?share-target=1", "document")).toBe("/");
+    expect(fallbackFor("/?share-target=error", "document")).toBe("/");
+  });
+
   it("serves the offline page for any other page", () => {
     expect(fallbackFor("/nope", "document")).toBe("/offline");
     expect(fallbackFor("/split/extra", "document")).toBe("/offline");
@@ -28,9 +33,10 @@ describe("OFFLINE_FALLBACKS", () => {
     expect(fallbackFor("/api/parse-receipt", "")).toBeUndefined();
   });
 
-  it("lists the /split entry before the generic one", () => {
+  it("lists the specific entries before the generic one", () => {
     expect(OFFLINE_FALLBACKS.map((entry) => entry.url)).toEqual([
       "/split",
+      "/",
       "/offline",
     ]);
   });
