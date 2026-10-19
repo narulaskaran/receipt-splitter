@@ -269,6 +269,11 @@ There is no default per-endpoint rate limit. Platform DDoS mitigation is always 
 - `src/app/api/cron/cleanup-old-receipts/route.ts` - Cleanup cron job
 - `vercel.json` - Cron schedule configuration
 
+## PWA
+
+### Icons
+The icon set is generated from `assets/app-icon.png` (1024px, rounded square with transparent corners) by `npm run generate-icons`. It writes `public/icon-{192,512}.png` (purpose `any`, transparent corners), `public/icon-maskable-{192,512}.png` and `public/apple-touch-icon.png` (opaque, full-bleed), and `src/app/favicon.ico` (16/32/48). The output is committed; generation is **not** part of the build, so rerun the script and commit after changing the source image. `src/lib/pwa-assets.test.ts` checks sizes and opacity.
+
 ## Multi-Currency Support
 
 Receipt Splitter supports 20 international currencies with automatic AI detection and manual override.
