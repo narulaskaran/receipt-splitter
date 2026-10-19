@@ -39,7 +39,8 @@ export function InstallAppLink() {
             <DialogDescription>
               Open your browser&apos;s Share menu, then choose &quot;Add to
               Home Screen&quot;. Receipt Splitter will open like an app and
-              work offline.
+              work offline. If you opened this link inside another app (such
+              as an email or social app), open it in Safari first.
             </DialogDescription>
           </DialogHeader>
         </DialogContent>
