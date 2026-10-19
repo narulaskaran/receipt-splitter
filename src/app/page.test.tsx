@@ -4,6 +4,7 @@ import Home from "./page";
 import { toast } from "sonner";
 import { mockReceipt, mockPeople, mockGroups, createMockReceipt } from "@/test/test-utils";
 import { RECEIPT_IMAGE_STORAGE_KEY } from "@/lib/storage";
+import * as shareTarget from "@/lib/share-target";
 
 type SerializedAssignments = [number, { personId: string; sharePercentage: number }[]][];
 
@@ -56,6 +57,39 @@ describe("Home Page", () => {
       render(<Home />);
       expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: /split evenly/i })).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Web Share Target", () => {
+    afterEach(() => {
+      window.history.replaceState(null, "", "/");
+    });
+
+    it("hands shared files to the uploader and clears the query param", async () => {
+      const file = new File(["x"], "shared.png", { type: "image/png" });
+      jest.spyOn(shareTarget, "takeSharedFiles").mockResolvedValue([file]);
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: async () => createMockReceipt({ restaurant: "Shared Cafe" }),
+      });
+      window.history.replaceState(null, "", "/?share-target=1");
+
+      render(<Home />);
+
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledWith(
+          "/api/parse-receipt",
+          expect.objectContaining({ method: "POST" })
+        );
+      });
+      expect(window.location.search).toBe("");
+      expect((await screen.findAllByText("Shared Cafe")).length).toBeGreaterThan(0);
+    });
+
+    it("ignores the page when it wasn't opened by a share", async () => {
+      const take = jest.spyOn(shareTarget, "takeSharedFiles");
+      render(<Home />);
+      expect(take).not.toHaveBeenCalled();
     });
   });
 

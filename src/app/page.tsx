@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, ArrowRight, UploadCloud, Users, ListChecks, DollarSign } from "lucide-react";
 
 import { ReceiptUploader } from "@/components/receipt-uploader";
+import { SHARE_TARGET_PARAM, takeSharedFiles } from "@/lib/share-target";
 import { ParsedReceiptsList } from "@/components/parsed-receipts-list";
 import { PeopleManager } from "@/components/people-manager";
 import { GroupManager } from "@/components/group-manager";
@@ -236,6 +237,26 @@ export default function Home() {
       setHasSession(false);
     }
   }, []);
+
+  // Receipts shared to the installed app (Web Share Target): the service worker
+  // stashed them and redirected here. Runs after the restore effect above, and
+  // the async read means the restored session is committed before the uploader
+  // processes them.
+  const [sharedFiles, setSharedFiles] = useState<File[]>([]);
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has(SHARE_TARGET_PARAM)) {
+      return;
+    }
+    window.history.replaceState(null, "", window.location.pathname);
+    takeSharedFiles()
+      .then((files) => {
+        if (files.length === 0) return;
+        setActiveTab("upload");
+        setSharedFiles(files);
+      })
+      .catch((error) => console.error("Failed to read shared files:", error));
+  }, []);
+  const clearSharedFiles = useCallback(() => setSharedFiles([]), []);
 
   // Save session to localStorage on state or tab change
   useEffect(() => {
@@ -641,6 +662,8 @@ export default function Home() {
             resetImageTrigger={resetImageTrigger}
             maxRemaining={MAX_RECEIPTS_PER_SESSION - state.receipts.length}
             hasReceipts={hasReceipt}
+            incomingFiles={sharedFiles}
+            onIncomingFilesHandled={clearSharedFiles}
           />
 
           <ParsedReceiptsList

@@ -288,6 +288,9 @@ The icon set is generated from `assets/app-icon.png` (1024px, rounded square wit
 ### Manifest and theme color
 `src/app/manifest.ts` is the typed web app manifest (served at `/manifest.webmanifest`, linked automatically). Don't set `orientation`; the app works in landscape. Manifest colors and `viewport.themeColor` come from `src/lib/pwa.ts`, which mirrors `--background` in `globals.css` (the manifest has no dark variant, so the browser UI color follows the color scheme via `viewport.themeColor`; it does not follow the in-app theme toggle). Don't set `viewportFit: "cover"` without handling safe-area insets: the `min-h-screen` wrappers would add scroll inside a padded body, and fixed elements (dialogs, toasts) ignore body padding. `public/screenshots/` feeds the manifest's `screenshots` (Chrome's richer install dialog); retake them with the screenshot harness' mock data when the UI changes noticeably.
 
+### Share target
+The manifest's `share_target` lets the installed Android/Chromium app receive receipt photos and PDFs from the system share sheet. The multipart POST to `/share-target` is answered by the service worker (`registerCapture` in `src/app/sw.ts`), which stashes the files in the Cache API (`src/lib/share-target.ts`) and redirects to `/?share-target=1`. `Home` takes the files out, clears the param and passes them to `ReceiptUploader` through `incomingFiles`, which processes them like a drop. `src/app/share-target/route.ts` is only a fallback that redirects to `/` if the POST reaches the server. Next types `share_target.params.files` as `File | File[]`, so `manifest.ts` casts the spec's `{ name, accept }` shape. Like the rest of the worker, this only works in production builds.
+
 ## Multi-Currency Support
 
 Receipt Splitter supports 20 international currencies with automatic AI detection and manual override.

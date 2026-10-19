@@ -34,6 +34,10 @@ interface ReceiptUploaderProps {
   maxRemaining?: number;
   /** When true, show the compact "add another" dropzone instead of the empty-state prompt. */
   hasReceipts?: boolean;
+  /** Files delivered from outside the dropzone (the Web Share Target). Processed like a drop. */
+  incomingFiles?: File[];
+  /** Called as soon as `incomingFiles` is picked up, so the parent can clear it. */
+  onIncomingFilesHandled?: () => void;
 }
 
 const MAX_COMPRESSION_FILE_SIZE_MB = 50;
@@ -155,6 +159,8 @@ export function ReceiptUploader({
   resetImageTrigger,
   maxRemaining = MAX_RECEIPTS_PER_SESSION,
   hasReceipts = false,
+  incomingFiles,
+  onIncomingFilesHandled,
 }: ReceiptUploaderProps) {
   const isOnline = useOnlineStatus();
   const [isCompressing, setIsCompressing] = useState(false);
@@ -242,6 +248,17 @@ export function ReceiptUploader({
     },
     [onReceiptParsed, setIsLoading, maxRemaining]
   );
+
+  // Guard against re-processing the same files (React strict mode re-runs
+  // effects on mount).
+  const handledIncomingFiles = useRef<File[] | undefined>(undefined);
+  useEffect(() => {
+    if (!incomingFiles || incomingFiles.length === 0) return;
+    if (handledIncomingFiles.current === incomingFiles) return;
+    handledIncomingFiles.current = incomingFiles;
+    onIncomingFilesHandled?.();
+    void onDrop(incomingFiles);
+  }, [incomingFiles, onIncomingFilesHandled, onDrop]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,

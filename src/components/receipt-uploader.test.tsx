@@ -94,6 +94,45 @@ describe("ReceiptUploader", () => {
     });
   });
 
+  describe("incomingFiles (Web Share Target)", () => {
+    function renderWithIncoming(files: File[], onHandled = jest.fn()) {
+      render(
+        <ReceiptUploader
+          onReceiptParsed={mockOnReceiptParsed}
+          isLoading={false}
+          setIsLoading={mockSetIsLoading}
+          resetImageTrigger={0}
+          incomingFiles={files}
+          onIncomingFilesHandled={onHandled}
+        />
+      );
+      return onHandled;
+    }
+
+    it("parses shared files like a drop and reports them handled once", async () => {
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: async () => ({ restaurant: "Shared Cafe", total: 10, items: [] }),
+      });
+
+      const onHandled = renderWithIncoming([
+        new File(["a"], "shared.pdf", { type: "application/pdf" }),
+      ]);
+
+      await waitFor(() => {
+        expect(mockOnReceiptParsed).toHaveBeenCalledTimes(1);
+      });
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(onHandled).toHaveBeenCalledTimes(1);
+    });
+
+    it("does nothing for an empty list", () => {
+      const onHandled = renderWithIncoming([]);
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(onHandled).not.toHaveBeenCalled();
+    });
+  });
+
   it("accepts PDF files", async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
