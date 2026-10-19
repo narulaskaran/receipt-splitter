@@ -19,8 +19,30 @@ export const SHARE_TARGET_ERROR = "error"; // the files were lost
 const CACHE_NAME = "share-target";
 const FILE_KEY_PREFIX = "/share-target/files/";
 
-function isReceiptFile(file: File) {
-  return file.type.startsWith("image/") || file.type === "application/pdf";
+const EXTENSION_TYPES: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  heic: "image/heic",
+  heif: "image/heif",
+  pdf: "application/pdf",
+};
+
+/**
+ * The MIME type to treat a shared file as, or null if it isn't a receipt.
+ * Some Android share sources send an empty or generic type for photos and
+ * PDFs, so those fall back to the file extension.
+ */
+function receiptType(file: File): string | null {
+  if (file.type.startsWith("image/") || file.type === "application/pdf") {
+    return file.type;
+  }
+  if (file.type === "" || file.type === "application/octet-stream") {
+    const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+    return EXTENSION_TYPES[extension] ?? null;
+  }
+  return null;
 }
 
 /** Replace any previously stashed files with `files`. */
@@ -55,14 +77,22 @@ export async function receiveSharedFiles(
   ownOrigin: string
 ): Promise<string> {
   const origin = request.headers.get("Origin");
-  if (origin && origin !== "null" && origin !== ownOrigin) return "/";
+  if (origin && origin !== "null" && origin !== ownOrigin) {
+    console.warn(`Ignored a share POST from another origin: ${origin}`);
+    return "/";
+  }
 
   try {
     const formData = await request.formData();
     const files = formData
       .getAll(SHARE_TARGET_FIELD)
       .filter((value): value is File => value instanceof File)
-      .filter(isReceiptFile)
+      .flatMap((file) => {
+        const type = receiptType(file);
+        if (!type) return [];
+        // Store the inferred type so the uploader sees a real image/PDF.
+        return [type === file.type ? file : new File([file], file.name, { type })];
+      })
       .slice(0, MAX_RECEIPTS_PER_SESSION);
     if (files.length === 0) return `/?${SHARE_TARGET_PARAM}=${SHARE_TARGET_EMPTY}`;
 
@@ -82,8 +112,8 @@ export async function receiveSharedFiles(
  */
 export async function takeSharedFiles(): Promise<File[]> {
   if (typeof caches === "undefined") return [];
-  const cache = await caches.open(CACHE_NAME);
   try {
+    const cache = await caches.open(CACHE_NAME);
     const requests = [...(await cache.keys())].sort((a, b) =>
       a.url.localeCompare(b.url)
     );

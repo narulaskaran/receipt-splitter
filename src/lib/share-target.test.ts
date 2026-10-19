@@ -160,6 +160,43 @@ describe("receiveSharedFiles", () => {
     expect((await takeSharedFiles()).map((f) => f.name)).toEqual(["a.png", "b.pdf"]);
   });
 
+  it("infers the type from the extension when the share source sends none", async () => {
+    const path = await receiveSharedFiles(
+      sharePost([
+        new File(["x"], "IMG_0001.JPG", { type: "" }),
+        new File(["x"], "scan.pdf", { type: "application/octet-stream" }),
+      ]),
+      "https://example.com"
+    );
+    expect(path).toBe("/?share-target=1");
+
+    const taken = await takeSharedFiles();
+    expect(taken.map((f) => [f.name, f.type])).toEqual([
+      ["IMG_0001.JPG", "image/jpeg"],
+      ["scan.pdf", "application/pdf"],
+    ]);
+  });
+
+  it("drops untyped files with an unknown extension and files with a non-receipt type", async () => {
+    const path = await receiveSharedFiles(
+      sharePost([
+        new File(["x"], "data.bin", { type: "" }),
+        new File(["x"], "fake.png", { type: "text/plain" }),
+      ]),
+      "https://example.com"
+    );
+    expect(path).toBe("/?share-target=empty");
+  });
+
+  it("warns about a blocked cross-origin share", async () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    await receiveSharedFiles(
+      sharePost([png("a.png")], { Origin: "https://evil.example" }),
+      "https://example.com"
+    );
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("https://evil.example"));
+  });
+
   it("reports when nothing usable was shared", async () => {
     const path = await receiveSharedFiles(
       sharePost([new File(["x"], "notes.txt", { type: "text/plain" })]),
