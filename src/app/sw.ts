@@ -3,6 +3,7 @@
 import { defaultCache } from "@serwist/turbopack/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
 import { NetworkOnly, Serwist } from "serwist";
+import { deleteLegacyCaches } from "../lib/legacy-caches";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -32,18 +33,8 @@ serwist.addEventListeners();
 
 // Visitors of the previous (@ducanh2912/next-pwa, /sw.js) service worker get
 // this one in its place, because it registers for the same scope. Drop the
-// caches only that worker used: its Workbox precache and its start-url cache.
-// This listener is additive: Serwist's own activate handler keeps running.
+// caches only that worker used (see src/lib/legacy-caches.ts). This listener is
+// additive: Serwist's own activate handler keeps running.
 self.addEventListener("activate", (event) => {
-  event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((key) => key.startsWith("workbox-") || key === "start-url")
-            .map((key) => caches.delete(key)),
-        ),
-      ),
-  );
+  event.waitUntil(deleteLegacyCaches(caches));
 });
