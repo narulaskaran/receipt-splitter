@@ -118,10 +118,6 @@
   }
   body {
     @apply bg-background text-foreground;
-    /* viewport-fit=cover lets the page extend under notches and the home
-       indicator; keep content inside them. All insets are 0 elsewhere. */
-    padding: env(safe-area-inset-top) env(safe-area-inset-right)
-      env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
 }
 

@@ -4,7 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { getThemeInitScript, type Theme } from "@/lib/theme";
-import { PWA_BACKGROUND_DARK, PWA_BACKGROUND_LIGHT } from "@/lib/pwa";
+import { PWA_THEME_COLORS } from "@/lib/pwa";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
@@ -41,13 +41,7 @@ const DEFAULT_THEME: Theme = "system";
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  // Lets the page extend under the notch / home indicator in standalone
-  // mode; globals.css pads the body by the safe-area insets.
-  viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: PWA_BACKGROUND_LIGHT },
-    { media: "(prefers-color-scheme: dark)", color: PWA_BACKGROUND_DARK },
-  ],
+  themeColor: PWA_THEME_COLORS,
 };
 
 export default function RootLayout({
