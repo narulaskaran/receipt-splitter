@@ -51,6 +51,6 @@ describe("InstallAppLink", () => {
     expect(
       await screen.findByRole("dialog", { name: /add to home screen/i })
     ).toBeInTheDocument();
-    expect(screen.getByText(/tap the share button/i)).toBeInTheDocument();
+    expect(screen.getByText(/share menu/i)).toBeInTheDocument();
   });
 });

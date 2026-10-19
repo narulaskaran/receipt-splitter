@@ -1,13 +1,17 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { isIOSDevice, useInstallPrompt } from "./use-install-prompt";
 
-function fireBeforeInstallPrompt() {
+function fireBeforeInstallPrompt(
+  options: { outcome?: string; promptError?: Error } = {}
+) {
   const event = new Event("beforeinstallprompt", { cancelable: true }) as Event & {
     prompt: jest.Mock;
     userChoice: Promise<{ outcome: string }>;
   };
-  event.prompt = jest.fn().mockResolvedValue(undefined);
-  event.userChoice = Promise.resolve({ outcome: "accepted" });
+  event.prompt = options.promptError
+    ? jest.fn().mockRejectedValue(options.promptError)
+    : jest.fn().mockResolvedValue(undefined);
+  event.userChoice = Promise.resolve({ outcome: options.outcome ?? "accepted" });
   act(() => {
     window.dispatchEvent(event);
   });
@@ -29,6 +33,7 @@ function mockDisplayMode(standalone: boolean) {
 
 describe("useInstallPrompt", () => {
   afterEach(() => {
+    // Module state outlives each test; appinstalled clears the captured event.
     act(() => {
       window.dispatchEvent(new Event("appinstalled"));
     });
@@ -61,6 +66,78 @@ describe("useInstallPrompt", () => {
     });
 
     expect(event.prompt).toHaveBeenCalledTimes(1);
+    expect(result.current.method).toBeNull();
+  });
+
+  it("stops offering the prompt after the user dismisses it", async () => {
+    mockDisplayMode(false);
+    const { result } = renderHook(() => useInstallPrompt());
+    const event = fireBeforeInstallPrompt({ outcome: "dismissed" });
+    await waitFor(() => expect(result.current.method).toBe("prompt"));
+
+    await act(async () => {
+      await result.current.promptInstall();
+    });
+
+    expect(event.prompt).toHaveBeenCalledTimes(1);
+    expect(result.current.method).toBeNull();
+  });
+
+  it("does not throw when the browser prompt rejects", async () => {
+    mockDisplayMode(false);
+    const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
+    const { result } = renderHook(() => useInstallPrompt());
+    fireBeforeInstallPrompt({ promptError: new Error("not allowed") });
+    await waitFor(() => expect(result.current.method).toBe("prompt"));
+
+    await act(async () => {
+      await expect(result.current.promptInstall()).resolves.toBeUndefined();
+    });
+
+    expect(consoleError).toHaveBeenCalledWith(
+      "Install prompt failed:",
+      expect.any(Error)
+    );
+    expect(result.current.method).toBeNull();
+  });
+
+  it("offers nothing when iOS reports standalone via navigator.standalone", async () => {
+    mockDisplayMode(false);
+    jest
+      .spyOn(window.navigator, "userAgent", "get")
+      .mockReturnValue("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)");
+    Object.defineProperty(window.navigator, "standalone", {
+      value: true,
+      configurable: true,
+    });
+    try {
+      const { result } = renderHook(() => useInstallPrompt());
+      await waitFor(() => expect(result.current.method).toBeNull());
+    } finally {
+      delete (window.navigator as { standalone?: boolean }).standalone;
+    }
+  });
+
+  it("hides the offer when the window switches to standalone", async () => {
+    let onChange: () => void = () => {};
+    let standalone = false;
+    (window.matchMedia as jest.Mock).mockImplementation((query: string) => ({
+      get matches() {
+        return standalone && query === "(display-mode: standalone)";
+      },
+      media: query,
+      addEventListener: (_: string, handler: () => void) => {
+        onChange = handler;
+      },
+      removeEventListener: jest.fn(),
+    }));
+    const { result } = renderHook(() => useInstallPrompt());
+    fireBeforeInstallPrompt();
+    await waitFor(() => expect(result.current.method).toBe("prompt"));
+
+    standalone = true;
+    act(() => onChange());
+
     expect(result.current.method).toBeNull();
   });
 

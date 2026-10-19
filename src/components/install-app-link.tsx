@@ -37,9 +37,9 @@ export function InstallAppLink() {
           <DialogHeader>
             <DialogTitle>Add to Home Screen</DialogTitle>
             <DialogDescription>
-              Tap the Share button in your browser&apos;s toolbar, then choose
-              &quot;Add to Home Screen&quot;. Receipt Splitter will open like
-              an app and work offline.
+              Open your browser&apos;s Share menu, then choose &quot;Add to
+              Home Screen&quot;. Receipt Splitter will open like an app and
+              work offline.
             </DialogDescription>
           </DialogHeader>
         </DialogContent>

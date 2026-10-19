@@ -69,14 +69,28 @@ export function useInstallPrompt(): {
   // Browser-only facts, read after mount so server and client markup match.
   const [env, setEnv] = useState({ standalone: false, ios: false });
   useEffect(() => {
-    setEnv({ standalone: isStandalone(), ios: isIOSDevice(navigator) });
+    const update = () =>
+      setEnv({ standalone: isStandalone(), ios: isIOSDevice(navigator) });
+    update();
+    // Installing from the browser menu switches the window to standalone
+    // without necessarily firing appinstalled in this tab.
+    const standaloneQuery = window.matchMedia("(display-mode: standalone)");
+    standaloneQuery.addEventListener?.("change", update);
+    return () => standaloneQuery.removeEventListener?.("change", update);
   }, []);
 
   const promptInstall = async () => {
     if (!deferred) return;
+    // The event can only be used once, so the link goes away now, even if the
+    // user dismisses the dialog. Chromium fires beforeinstallprompt again
+    // later, though not necessarily in this session.
     setDeferredPrompt(null);
-    await deferred.prompt();
-    await deferred.userChoice;
+    try {
+      await deferred.prompt();
+      await deferred.userChoice;
+    } catch (error) {
+      console.error("Install prompt failed:", error);
+    }
   };
 
   let method: InstallMethod | null = null;
