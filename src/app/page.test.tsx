@@ -86,6 +86,85 @@ describe("Home Page", () => {
       expect((await screen.findAllByText("Shared Cafe")).length).toBeGreaterThan(0);
     });
 
+    it.each([
+      ["error", /couldn't receive the shared receipt/i],
+      ["empty", /wasn't a receipt image or pdf/i],
+    ])("tells the user what went wrong for share-target=%s", async (status, message) => {
+      const take = jest.spyOn(shareTarget, "takeSharedFiles");
+      window.history.replaceState(null, "", `/?share-target=${status}`);
+
+      render(<Home />);
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith(expect.stringMatching(message));
+      });
+      expect(take).not.toHaveBeenCalled();
+      expect(window.location.search).toBe("");
+    });
+
+    it("tells the user when no shared files were waiting", async () => {
+      jest.spyOn(console, "warn").mockImplementation(() => {});
+      jest.spyOn(shareTarget, "takeSharedFiles").mockResolvedValue([]);
+      window.history.replaceState(null, "", "/?share-target=1");
+
+      render(<Home />);
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith(
+          expect.stringMatching(/couldn't find the shared receipt/i)
+        );
+      });
+    });
+
+    it("tells the user when reading the shared files fails", async () => {
+      jest.spyOn(console, "error").mockImplementation(() => {});
+      jest.spyOn(shareTarget, "takeSharedFiles").mockRejectedValue(new Error("boom"));
+      window.history.replaceState(null, "", "/?share-target=1");
+
+      render(<Home />);
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith(
+          expect.stringMatching(/couldn't read the shared receipt/i)
+        );
+      });
+    });
+
+    it("enforces the per-split limit against the restored session", async () => {
+      const receipts = Array.from({ length: 10 }, (_, i) => ({
+        id: `r${i}`,
+        receipt: mockReceipt,
+      }));
+      localStorage.setItem(
+        "receiptSplitterSession",
+        JSON.stringify({
+          version: 2,
+          state: {
+            receipts,
+            people: [],
+            assignedItems: receipts.map((r) => [r.id, []]),
+            groups: [],
+            isLoading: false,
+            error: null,
+          },
+          activeTab: "people",
+        })
+      );
+      jest
+        .spyOn(shareTarget, "takeSharedFiles")
+        .mockResolvedValue([new File(["x"], "shared.png", { type: "image/png" })]);
+      window.history.replaceState(null, "", "/?share-target=1");
+
+      render(<Home />);
+
+      await waitFor(() => {
+        expect(toast.error).toHaveBeenCalledWith(
+          expect.stringMatching(/already has 10 receipts/i)
+        );
+      });
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
     it("ignores the page when it wasn't opened by a share", async () => {
       const take = jest.spyOn(shareTarget, "takeSharedFiles");
       render(<Home />);

@@ -254,11 +254,25 @@ export function ReceiptUploader({
   const handledIncomingFiles = useRef<File[] | undefined>(undefined);
   useEffect(() => {
     if (!incomingFiles || incomingFiles.length === 0) return;
+    // Wait for any parse in flight instead of interleaving with it; the effect
+    // re-runs when the uploader goes idle.
+    if (isLoading || isCompressing) return;
     if (handledIncomingFiles.current === incomingFiles) return;
     handledIncomingFiles.current = incomingFiles;
     onIncomingFilesHandled?.();
+    if (!isOnline) {
+      toast.error("You're offline. Reconnect, then share the receipt again.");
+      return;
+    }
     void onDrop(incomingFiles);
-  }, [incomingFiles, onIncomingFilesHandled, onDrop]);
+  }, [
+    incomingFiles,
+    onIncomingFilesHandled,
+    onDrop,
+    isLoading,
+    isCompressing,
+    isOnline,
+  ]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,

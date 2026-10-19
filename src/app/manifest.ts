@@ -68,7 +68,7 @@ export default function manifest(): MetadataRoute.Manifest {
       enctype: "multipart/form-data",
       params: {
         // Next types `files` as File | File[], but the spec wants
-        // { name, accept } objects.
+        // { name, accept } objects. TODO: drop the cast if Next fixes the type.
         files: [
           { name: SHARE_TARGET_FIELD, accept: ["image/*", "application/pdf"] },
         ],

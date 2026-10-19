@@ -8,7 +8,12 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, ArrowRight, UploadCloud, Users, ListChecks, DollarSign } from "lucide-react";
 
 import { ReceiptUploader } from "@/components/receipt-uploader";
-import { SHARE_TARGET_PARAM, takeSharedFiles } from "@/lib/share-target";
+import {
+  SHARE_TARGET_EMPTY,
+  SHARE_TARGET_OK,
+  SHARE_TARGET_PARAM,
+  takeSharedFiles,
+} from "@/lib/share-target";
 import { ParsedReceiptsList } from "@/components/parsed-receipts-list";
 import { PeopleManager } from "@/components/people-manager";
 import { GroupManager } from "@/components/group-manager";
@@ -239,22 +244,40 @@ export default function Home() {
   }, []);
 
   // Receipts shared to the installed app (Web Share Target): the service worker
-  // stashed them and redirected here. Runs after the restore effect above, and
-  // the async read means the restored session is committed before the uploader
-  // processes them.
+  // stashed them and redirected here with a SHARE_TARGET_PARAM value. State
+  // updates are applied in order, so the uploader never sees the shared files
+  // before the restored session above (it needs the restored receipt count to
+  // enforce the per-split limit).
   const [sharedFiles, setSharedFiles] = useState<File[]>([]);
   useEffect(() => {
-    if (!new URLSearchParams(window.location.search).has(SHARE_TARGET_PARAM)) {
+    const status = new URLSearchParams(window.location.search).get(
+      SHARE_TARGET_PARAM
+    );
+    if (status === null) return;
+    window.history.replaceState(null, "", window.location.pathname);
+
+    if (status !== SHARE_TARGET_OK) {
+      toast.error(
+        status === SHARE_TARGET_EMPTY
+          ? "That wasn't a receipt image or PDF. Please choose a photo or PDF of a receipt."
+          : "Couldn't receive the shared receipt. Please choose it again."
+      );
       return;
     }
-    window.history.replaceState(null, "", window.location.pathname);
     takeSharedFiles()
       .then((files) => {
-        if (files.length === 0) return;
+        if (files.length === 0) {
+          console.warn("Share target: no shared files were waiting");
+          toast.error("Couldn't find the shared receipt. Please choose it again.");
+          return;
+        }
         setActiveTab("upload");
         setSharedFiles(files);
       })
-      .catch((error) => console.error("Failed to read shared files:", error));
+      .catch((error) => {
+        console.error("Failed to read shared files:", error);
+        toast.error("Couldn't read the shared receipt. Please choose it again.");
+      });
   }, []);
   const clearSharedFiles = useCallback(() => setSharedFiles([]), []);
 

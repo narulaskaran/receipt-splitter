@@ -126,6 +126,46 @@ describe("ReceiptUploader", () => {
       expect(onHandled).toHaveBeenCalledTimes(1);
     });
 
+    it("waits for a parse in flight, then processes the shared files", async () => {
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: async () => ({ restaurant: "Shared Cafe", total: 10, items: [] }),
+      });
+      const files = [new File(["a"], "shared.pdf", { type: "application/pdf" })];
+      const props = {
+        onReceiptParsed: mockOnReceiptParsed,
+        setIsLoading: mockSetIsLoading,
+        resetImageTrigger: 0,
+        incomingFiles: files,
+        onIncomingFilesHandled: jest.fn(),
+      };
+      const { rerender } = render(<ReceiptUploader {...props} isLoading />);
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(props.onIncomingFilesHandled).not.toHaveBeenCalled();
+
+      rerender(<ReceiptUploader {...props} isLoading={false} />);
+
+      await waitFor(() => expect(mockOnReceiptParsed).toHaveBeenCalledTimes(1));
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(props.onIncomingFilesHandled).toHaveBeenCalledTimes(1);
+    });
+
+    it("tells the user to share again instead of uploading when offline", async () => {
+      const onLine = jest
+        .spyOn(window.navigator, "onLine", "get")
+        .mockReturnValue(false);
+      const onHandled = renderWithIncoming([
+        new File(["a"], "shared.pdf", { type: "application/pdf" }),
+      ]);
+
+      await waitFor(() => expect(onHandled).toHaveBeenCalledTimes(1));
+      expect(toast.error).toHaveBeenCalledWith(
+        "You're offline. Reconnect, then share the receipt again."
+      );
+      expect(global.fetch).not.toHaveBeenCalled();
+      onLine.mockRestore();
+    });
+
     it("does nothing for an empty list", () => {
       const onHandled = renderWithIncoming([]);
       expect(global.fetch).not.toHaveBeenCalled();
