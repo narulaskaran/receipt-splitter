@@ -35,6 +35,10 @@ const css = fs.readFileSync(
   "utf8",
 );
 
+// Deliberately strict: it expects the `:root` and `.dark` blocks to start at
+// column 0, contain no nested braces, and define --background as a plain
+// `oklch(L C H)`. If globals.css changes shape it throws, rather than letting
+// the check silently pass.
 function cssBackground(selector: ":root" | ".dark"): string {
   const block = css.match(new RegExp(`^${selector.replace(".", "\\.")}\\s*{([^}]*)}`, "m"));
   const value = block?.[1].match(/--background:\s*oklch\(([^)]+)\)/)?.[1];
