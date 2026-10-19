@@ -90,7 +90,9 @@ describe("share target file hand-off", () => {
   it("clears the cache even when a stashed file can't be read", async () => {
     await storeSharedFiles([png("a.png")]);
     const cache = await caches.open("share-target");
-    const broken = new Response("x");
+    const broken = new Response("x", {
+      headers: { "X-Stored-At": String(Date.now()) },
+    });
     jest.spyOn(broken, "blob").mockRejectedValue(new Error("unreadable"));
     jest.spyOn(broken, "clone").mockReturnValue(broken);
     (cache as unknown as MemoryCache).entries.set(
@@ -186,6 +188,51 @@ describe("receiveSharedFiles", () => {
       "https://example.com"
     );
     expect(path).toBe("/?share-target=empty");
+  });
+
+  it.each([
+    ["image/svg+xml", "logo.svg"],
+    ["image/gif", "meme.gif"],
+    ["image/tiff", "scan.tiff"],
+    ["", "scan.gif"],
+  ])("drops %s files the uploader can't read (%s)", async (type, name) => {
+    const path = await receiveSharedFiles(
+      sharePost([new File(["x"], name, { type })]),
+      "https://example.com"
+    );
+    expect(path).toBe("/?share-target=empty");
+  });
+
+  it.each(["image/heic", "image/heif", "image/webp", "image/jpeg"])(
+    "keeps %s files",
+    async (type) => {
+      const path = await receiveSharedFiles(
+        sharePost([new File(["x"], "r", { type })]),
+        "https://example.com"
+      );
+      expect(path).toBe("/?share-target=1");
+    }
+  );
+
+  it("ignores and purges shared files nobody picked up in time", async () => {
+    const now = jest.spyOn(Date, "now");
+    now.mockReturnValue(1_000_000);
+    await storeSharedFiles([png("old.png")]);
+
+    now.mockReturnValue(1_000_000 + 11 * 60 * 1000);
+    expect(await takeSharedFiles()).toEqual([]);
+    expect(
+      await (globalThis as unknown as { caches: MemoryCacheStorage }).caches.has("share-target")
+    ).toBe(false);
+  });
+
+  it("still returns files that are only a few minutes old", async () => {
+    const now = jest.spyOn(Date, "now");
+    now.mockReturnValue(1_000_000);
+    await storeSharedFiles([png("fresh.png")]);
+
+    now.mockReturnValue(1_000_000 + 2 * 60 * 1000);
+    expect((await takeSharedFiles()).map((f) => f.name)).toEqual(["fresh.png"]);
   });
 
   it("warns about a blocked cross-origin share", async () => {

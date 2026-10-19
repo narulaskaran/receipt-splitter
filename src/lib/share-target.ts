@@ -16,8 +16,24 @@ export const SHARE_TARGET_OK = "1"; // files are waiting in the cache
 export const SHARE_TARGET_EMPTY = "empty"; // nothing usable was shared
 export const SHARE_TARGET_ERROR = "error"; // the files were lost
 
+// Shared files left in the cache longer than this are ignored and purged:
+// receipts can contain names and partial card numbers, and a share that was
+// never picked up shouldn't linger.
+const MAX_AGE_MS = 10 * 60 * 1000;
+
 const CACHE_NAME = "share-target";
 const FILE_KEY_PREFIX = "/share-target/files/";
+
+// The types the uploader can read (the same set its dropzone lists). A share
+// bypasses the dropzone's filter, so it is applied here.
+const RECEIPT_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+  "application/pdf",
+]);
 
 const EXTENSION_TYPES: Record<string, string> = {
   jpg: "image/jpeg",
@@ -30,14 +46,12 @@ const EXTENSION_TYPES: Record<string, string> = {
 };
 
 /**
- * The MIME type to treat a shared file as, or null if it isn't a receipt.
- * Some Android share sources send an empty or generic type for photos and
+ * The MIME type to treat a shared file as, or null if it isn't a receipt the
+ * uploader can read (so not SVG, GIF, etc.). Some Android share sources send an empty or generic type for photos and
  * PDFs, so those fall back to the file extension.
  */
 function receiptType(file: File): string | null {
-  if (file.type.startsWith("image/") || file.type === "application/pdf") {
-    return file.type;
-  }
+  if (RECEIPT_TYPES.has(file.type)) return file.type;
   if (file.type === "" || file.type === "application/octet-stream") {
     const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
     return EXTENSION_TYPES[extension] ?? null;
@@ -58,6 +72,7 @@ export async function storeSharedFiles(files: File[]): Promise<void> {
           headers: {
             "Content-Type": file.type,
             "X-File-Name": encodeURIComponent(file.name),
+            "X-Stored-At": String(Date.now()),
           },
         })
       )
@@ -114,14 +129,17 @@ export async function takeSharedFiles(): Promise<File[]> {
   if (typeof caches === "undefined") return [];
   try {
     const cache = await caches.open(CACHE_NAME);
+    // Keys are zero-padded, so a plain string comparison keeps share order.
     const requests = [...(await cache.keys())].sort((a, b) =>
-      a.url.localeCompare(b.url)
+      a.url < b.url ? -1 : a.url > b.url ? 1 : 0
     );
 
     const files: File[] = [];
     for (const request of requests) {
       const response = await cache.match(request);
       if (!response) continue;
+      const storedAt = Number(response.headers.get("X-Stored-At"));
+      if (!storedAt || Date.now() - storedAt > MAX_AGE_MS) continue;
       const blob = await response.blob();
       const name = decodeURIComponent(
         response.headers.get("X-File-Name") ?? "receipt"
