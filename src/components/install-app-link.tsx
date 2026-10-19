@@ -28,7 +28,7 @@ export function InstallAppLink() {
         }
         className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors"
       >
-        <Download className="h-3.5 w-3.5" />
+        <Download className="h-3.5 w-3.5" aria-hidden="true" />
         Install app
       </button>
 

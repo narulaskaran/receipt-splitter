@@ -4,7 +4,6 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 // lib.dom.d.ts.
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
 // Captured at module scope so an event that fires before React mounts is not
@@ -42,7 +41,7 @@ export function isIOSDevice(nav: Pick<Navigator, "userAgent" | "maxTouchPoints">
 
 function isStandalone() {
   return (
-    window.matchMedia("(display-mode: standalone)").matches ||
+    window.matchMedia?.("(display-mode: standalone)")?.matches ||
     (navigator as Navigator & { standalone?: boolean }).standalone === true
   );
 }
@@ -74,9 +73,9 @@ export function useInstallPrompt(): {
     update();
     // Installing from the browser menu switches the window to standalone
     // without necessarily firing appinstalled in this tab.
-    const standaloneQuery = window.matchMedia("(display-mode: standalone)");
-    standaloneQuery.addEventListener?.("change", update);
-    return () => standaloneQuery.removeEventListener?.("change", update);
+    const standaloneQuery = window.matchMedia?.("(display-mode: standalone)");
+    standaloneQuery?.addEventListener?.("change", update);
+    return () => standaloneQuery?.removeEventListener?.("change", update);
   }, []);
 
   const promptInstall = async () => {
@@ -87,7 +86,6 @@ export function useInstallPrompt(): {
     setDeferredPrompt(null);
     try {
       await deferred.prompt();
-      await deferred.userChoice;
     } catch (error) {
       console.error("Install prompt failed:", error);
     }
