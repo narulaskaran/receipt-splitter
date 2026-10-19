@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { UploadCloud, Loader2 } from "lucide-react";
+import { UploadCloud, Loader2, WifiOff } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { type Receipt } from "@/types";
@@ -11,6 +11,7 @@ import {
 } from "@/lib/constants";
 import imageCompression from "browser-image-compression";
 import { getSessionId } from "@/lib/session";
+import { useOnlineStatus } from "@/lib/use-online-status";
 import { RECEIPT_IMAGE_STORAGE_KEY, safeRemoveItem } from "@/lib/storage";
 import { clearThumbnails } from "@/lib/receipt-thumbnails";
 import {
@@ -101,10 +102,21 @@ async function parseReceiptFile(file: File): Promise<Receipt> {
   formData.append("file", file);
   formData.append("sessionId", getSessionId());
 
-  const response = await fetch("/api/parse-receipt", {
-    method: "POST",
-    body: formData,
-  });
+  let response: Response;
+  try {
+    response = await fetch("/api/parse-receipt", {
+      method: "POST",
+      body: formData,
+    });
+  } catch (error) {
+    // fetch rejects with a TypeError when the request never reached the server
+    if (error instanceof TypeError) {
+      throw new Error(
+        "Couldn't reach the server. Check your connection and try again."
+      );
+    }
+    throw error;
+  }
 
   if (!response.ok) {
     if (response.status === 413) {
@@ -143,6 +155,7 @@ export function ReceiptUploader({
   maxRemaining = MAX_RECEIPTS_PER_SESSION,
   hasReceipts = false,
 }: ReceiptUploaderProps) {
+  const isOnline = useOnlineStatus();
   const [isCompressing, setIsCompressing] = useState(false);
   const [parseProgress, setParseProgress] = useState<{
     current: number;
@@ -236,10 +249,11 @@ export function ReceiptUploader({
       "application/pdf": [".pdf"],
     },
     multiple: true,
-    disabled: isLoading || isCompressing,
+    disabled: isLoading || isCompressing || !isOnline,
   });
 
   const isBusy = isLoading || isCompressing;
+  const isDisabled = isBusy || !isOnline;
   const compact = hasReceipts;
   const parsingLabel =
     parseProgress && parseProgress.total > 1
@@ -255,9 +269,9 @@ export function ReceiptUploader({
             compact ? "px-4 py-3" : "p-8"
           } ${
             isDragActive ? "border-primary bg-primary/5" : "border-input"
-          } ${isBusy ? "opacity-60 cursor-not-allowed" : ""}`}
+          } ${isDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
         >
-          <input {...getInputProps()} disabled={isBusy} />
+          <input {...getInputProps()} disabled={isDisabled} />
 
           {isCompressing ? (
             <div
@@ -302,6 +316,22 @@ export function ReceiptUploader({
                 {parsingLabel}
               </p>
             </div>
+          ) : !isOnline ? (
+            compact ? (
+              <div className="flex items-center justify-center gap-2">
+                <WifiOff className="h-5 w-5 shrink-0 text-muted-foreground" />
+                <p>You&apos;re offline. Reconnect to add another receipt.</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center">
+                <WifiOff className="h-12 w-12 mb-4 text-muted-foreground" />
+                <p className="mb-1 font-medium">You&apos;re offline</p>
+                <p className="text-sm text-muted-foreground">
+                  Reading a receipt needs a connection. Reconnect to upload one.
+                  Your split so far is saved on this device.
+                </p>
+              </div>
+            )
           ) : compact ? (
             <div className="flex items-center justify-center gap-2">
               <UploadCloud className="h-5 w-5 shrink-0 text-muted-foreground" />

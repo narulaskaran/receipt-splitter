@@ -27,6 +27,23 @@ const serwist = new Serwist({
     },
     ...defaultCache,
   ],
+  // Used when a page isn't cached and the network is down. A shared split link
+  // carries its data in the query string, so the precached /split shell can
+  // render it (the page reads the query client-side).
+  fallbacks: {
+    entries: [
+      {
+        url: "/split",
+        matcher: ({ request }) =>
+          request.destination === "document" &&
+          new URL(request.url).pathname === "/split",
+      },
+      {
+        url: "/offline",
+        matcher: ({ request }) => request.destination === "document",
+      },
+    ],
+  },
 });
 
 serwist.addEventListeners();

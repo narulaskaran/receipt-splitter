@@ -272,7 +272,11 @@ There is no default per-endpoint rate limit. Platform DDoS mitigation is always 
 ## PWA
 
 ### Service worker
-Built with Serwist's Turbopack integration (`@serwist/turbopack`), so `next dev` and `next build` both run on Turbopack. `src/app/sw.ts` is the worker source; the route handler in `src/app/serwist/[path]/route.ts` bundles it with esbuild at build time and injects the precache manifest, and `SerwistProvider` in `layout.tsx` registers `/serwist/sw.js` with scope `/` (the route sends `Service-Worker-Allowed: /`). Only `.next/static` JS/CSS/fonts are precached (`globPatterns` in the route); pages are cached at runtime by Serwist's `defaultCache`.
+Built with Serwist's Turbopack integration (`@serwist/turbopack`), so `next dev` and `next build` both run on Turbopack. `src/app/sw.ts` is the worker source; the route handler in `src/app/serwist/[path]/route.ts` bundles it with esbuild at build time and injects the precache manifest, and `SerwistProvider` in `layout.tsx` registers `/serwist/sw.js` with scope `/` (the route sends `Service-Worker-Allowed: /`). Precached: `.next/static` JS/CSS/fonts (`globPatterns` in the route) plus the `/`, `/split` and `/offline` HTML (`additionalPrecacheEntries`, versioned by commit SHA); everything else is cached at runtime by Serwist's `defaultCache`.
+
+### Offline behavior
+- Uncached navigations fall back (see `fallbacks` in `sw.ts`) to the precached `/split` shell for `/split?...` links, which carry their data in the query string and render client-side, or to `/offline` (`src/app/offline/page.tsx`) for anything else.
+- `/api/parse-receipt` needs the network. `ReceiptUploader` shows an offline notice and disables upload via `useOnlineStatus` (`src/lib/use-online-status.ts`), and a request that never reaches the server shows a connection error.
 
 - The worker is **not registered in development**, so test service worker changes with `npm run build && npm start`.
 - `reloadOnOnline` is off on purpose: reloading when the connection returns would discard unsaved edits.

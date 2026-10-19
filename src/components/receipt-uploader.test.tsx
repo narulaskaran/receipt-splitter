@@ -37,6 +37,63 @@ describe("ReceiptUploader", () => {
     expect(screen.getByText(/upload your receipts/i)).toBeInTheDocument();
   });
 
+  describe("when offline", () => {
+    let onLine: jest.SpyInstance;
+
+    beforeEach(() => {
+      onLine = jest
+        .spyOn(window.navigator, "onLine", "get")
+        .mockReturnValue(false);
+    });
+
+    afterEach(() => {
+      onLine.mockRestore();
+    });
+
+    it("explains that a connection is needed instead of the upload prompt", () => {
+      renderUploader();
+      expect(screen.getByText("You're offline")).toBeInTheDocument();
+      expect(screen.getByText(/reconnect to upload one/i)).toBeInTheDocument();
+      expect(screen.queryByText(/upload your receipts/i)).not.toBeInTheDocument();
+    });
+
+    it("shows a compact message when receipts already exist", () => {
+      render(
+        <ReceiptUploader
+          onReceiptParsed={mockOnReceiptParsed}
+          isLoading={false}
+          setIsLoading={mockSetIsLoading}
+          resetImageTrigger={0}
+          hasReceipts
+        />
+      );
+      expect(
+        screen.getByText(/reconnect to add another receipt/i)
+      ).toBeInTheDocument();
+    });
+
+    it("disables the file input", () => {
+      renderUploader();
+      expect(getFileInput()).toBeDisabled();
+    });
+  });
+
+  it("shows a connection message when the request never reaches the server", async () => {
+    (global.fetch as jest.Mock).mockRejectedValueOnce(
+      new TypeError("Failed to fetch")
+    );
+
+    renderUploader();
+    const file = new File(["x"], "receipt.png", { type: "image/png" });
+    await userEvent.upload(getFileInput(), file);
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        "Couldn't reach the server. Check your connection and try again."
+      );
+    });
+  });
+
   it("accepts PDF files", async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
