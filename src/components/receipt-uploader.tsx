@@ -111,6 +111,7 @@ async function parseReceiptFile(file: File): Promise<Receipt> {
   } catch (error) {
     // fetch rejects with a TypeError when the request never reached the server
     if (error instanceof TypeError) {
+      console.error("Receipt upload request failed:", error);
       throw new Error(
         "Couldn't reach the server. Check your connection and try again."
       );

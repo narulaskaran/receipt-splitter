@@ -4,6 +4,7 @@ import { defaultCache } from "@serwist/turbopack/worker";
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
 import { NetworkOnly, Serwist } from "serwist";
 import { deleteLegacyCaches } from "../lib/legacy-caches";
+import { OFFLINE_FALLBACKS } from "../lib/offline-fallbacks";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -27,23 +28,7 @@ const serwist = new Serwist({
     },
     ...defaultCache,
   ],
-  // Used when a page isn't cached and the network is down. A shared split link
-  // carries its data in the query string, so the precached /split shell can
-  // render it (the page reads the query client-side).
-  fallbacks: {
-    entries: [
-      {
-        url: "/split",
-        matcher: ({ request }) =>
-          request.destination === "document" &&
-          new URL(request.url).pathname === "/split",
-      },
-      {
-        url: "/offline",
-        matcher: ({ request }) => request.destination === "document",
-      },
-    ],
-  },
+  fallbacks: { entries: OFFLINE_FALLBACKS },
 });
 
 serwist.addEventListeners();
