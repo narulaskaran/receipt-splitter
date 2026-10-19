@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { getThemeInitScript, type Theme } from "@/lib/theme";
 import { PWA_THEME_COLORS } from "@/lib/pwa";
+import { SerwistProvider } from "@serwist/turbopack/react";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
@@ -57,15 +58,23 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme={DEFAULT_THEME}
-          enableSystem
-          disableTransitionOnChange
+        {/* The service worker is only registered in production builds. Don't
+            reload when the connection returns: it would discard unsaved edits. */}
+        <SerwistProvider
+          swUrl="/serwist/sw.js"
+          disable={process.env.NODE_ENV === "development"}
+          reloadOnOnline={false}
         >
-          {children}
-          <Toaster />
-        </ThemeProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme={DEFAULT_THEME}
+            enableSystem
+            disableTransitionOnChange
+          >
+            {children}
+            <Toaster />
+          </ThemeProvider>
+        </SerwistProvider>
         <Analytics />
         <SpeedInsights />
       </body>

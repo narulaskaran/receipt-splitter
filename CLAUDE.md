@@ -271,6 +271,13 @@ There is no default per-endpoint rate limit. Platform DDoS mitigation is always 
 
 ## PWA
 
+### Service worker
+Built with Serwist's Turbopack integration (`@serwist/turbopack`), so `next dev` and `next build` both run on Turbopack. `src/app/sw.ts` is the worker source; the route handler in `src/app/serwist/[path]/route.ts` bundles it with esbuild at build time and injects the precache manifest, and `SerwistProvider` in `layout.tsx` registers `/serwist/sw.js` with scope `/` (the route sends `Service-Worker-Allowed: /`). Only `.next/static` JS/CSS/fonts are precached (`globPatterns` in the route); pages are cached at runtime by Serwist's `defaultCache`.
+
+- The worker is **not registered in development**, so test service worker changes with `npm run build && npm start`.
+- `reloadOnOnline` is off on purpose: reloading when the connection returns would discard unsaved edits.
+- Old `/sw.js` and `workbox-*.js` files from the previous `@ducanh2912/next-pwa` setup are no longer produced.
+
 ### Icons
 The icon set is generated from `assets/app-icon.png` (1024px, rounded square with transparent corners) by `npm run generate-icons`. It writes `public/icon-{192,512}.png` (purpose `any`, transparent corners), `public/icon-maskable-{192,512}.png` and `public/apple-touch-icon.png` (opaque, full-bleed), and `src/app/favicon.ico` (16/32/48). The output is committed; generation is **not** part of the build, so rerun the script and commit after changing the source image. `src/lib/pwa-assets.test.ts` checks sizes and opacity.
 
