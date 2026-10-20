@@ -1,17 +1,22 @@
 import type { NextConfig } from "next";
-import withPWA from "@ducanh2912/next-pwa";
+import { withSerwist } from "@serwist/turbopack";
 
-// next-pwa injects a webpack config. Next.js 16 defaults to Turbopack, so
-// production builds use `next build --webpack` to keep PWA generation working.
-
+// The service worker is built by the route handler in
+// src/app/serwist/[path]/route.ts (from src/app/sw.ts), so both `next dev`
+// and `next build` run on Turbopack.
 const nextConfig: NextConfig = {
-  // Empty turbopack config lets `next dev` use Turbopack while next-pwa's
-  // webpack plugin still runs for production builds (`next build --webpack`).
-  turbopack: {},
+  async headers() {
+    return [
+      {
+        // Browsers must always revalidate the worker script so a new
+        // deployment's precache manifest is picked up.
+        source: "/serwist/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=0, must-revalidate" },
+        ],
+      },
+    ];
+  },
 };
 
-export default withPWA({
-  dest: "public",
-  disable: process.env.NODE_ENV === "development",
-  register: true,
-})(nextConfig);
+export default withSerwist(nextConfig);

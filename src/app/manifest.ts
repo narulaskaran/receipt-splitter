@@ -1,5 +1,8 @@
 import type { MetadataRoute } from "next";
 import { PWA_BACKGROUND_LIGHT } from "@/lib/pwa";
+import { SHARE_TARGET_FIELD, SHARE_TARGET_PATH } from "@/lib/share-target";
+
+type ShareTarget = NonNullable<MetadataRoute.Manifest["share_target"]>;
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
@@ -57,6 +60,20 @@ export default function manifest(): MetadataRoute.Manifest {
         label: "See what everyone owes",
       },
     ],
+    // Receive receipt photos/PDFs shared from the gallery or camera (Chromium on
+    // Android). The service worker handles the POST; see src/lib/share-target.ts.
+    share_target: {
+      action: SHARE_TARGET_PATH,
+      method: "POST",
+      enctype: "multipart/form-data",
+      params: {
+        // Next types `files` as File | File[], but the spec wants
+        // { name, accept } objects. TODO: drop the cast if Next fixes the type.
+        files: [
+          { name: SHARE_TARGET_FIELD, accept: ["image/*", "application/pdf"] },
+        ],
+      } as unknown as ShareTarget["params"],
+    },
     categories: ["finance", "utilities", "productivity"],
   };
 }

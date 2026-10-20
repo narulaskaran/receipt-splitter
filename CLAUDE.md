@@ -271,11 +271,25 @@ There is no default per-endpoint rate limit. Platform DDoS mitigation is always 
 
 ## PWA
 
+### Service worker
+Built with Serwist's Turbopack integration (`@serwist/turbopack`), so `next dev` and `next build` both run on Turbopack. `src/app/sw.ts` is the worker source; the route handler in `src/app/serwist/[path]/route.ts` bundles it with esbuild at build time and injects the precache manifest, and `SerwistProvider` in `layout.tsx` registers `/serwist/sw.js` with scope `/` (the route sends `Service-Worker-Allowed: /`). Precached: `.next/static` JS/CSS/fonts (`globPatterns` in the route) plus the `/`, `/split` and `/offline` HTML (`additionalPrecacheEntries`, versioned by commit SHA); everything else is cached at runtime by Serwist's `defaultCache`.
+
+### Offline behavior
+- Uncached navigations fall back (see `fallbacks` in `sw.ts`) to the precached `/split` shell for `/split?...` links, which carry their data in the query string and render client-side, to the precached `/` shell for `/?...` (e.g. the share-target redirect), or to `/offline` (`src/app/offline/page.tsx`) for anything else. The list is in `src/lib/offline-fallbacks.ts`; the first match wins, so keep the specific entries first.
+- `/api/parse-receipt` needs the network. `ReceiptUploader` shows an offline notice and disables upload via `useOnlineStatus` (`src/lib/use-online-status.ts`), and a request that never reaches the server shows a connection error.
+
+- The worker is **not registered in development**, so test service worker changes with `npm run build && npm start`.
+- `reloadOnOnline` is off on purpose: reloading when the connection returns would discard unsaved edits.
+- Old `/sw.js` and `workbox-*.js` files from the previous `@ducanh2912/next-pwa` setup are no longer produced.
+
 ### Icons
 The icon set is generated from `assets/app-icon.png` (1024px, rounded square with transparent corners) by `npm run generate-icons`. It writes `public/icon-{192,512}.png` (purpose `any`, transparent corners), `public/icon-maskable-{192,512}.png` and `public/apple-touch-icon.png` (opaque, full-bleed), and `src/app/favicon.ico` (16/32/48). The output is committed; generation is **not** part of the build, so rerun the script and commit after changing the source image. `src/lib/pwa-assets.test.ts` checks sizes and opacity.
 
 ### Manifest and theme color
 `src/app/manifest.ts` is the typed web app manifest (served at `/manifest.webmanifest`, linked automatically). Don't set `orientation`; the app works in landscape. Manifest colors and `viewport.themeColor` come from `src/lib/pwa.ts`, which mirrors `--background` in `globals.css` (the manifest has no dark variant, so the browser UI color follows the color scheme via `viewport.themeColor`; it does not follow the in-app theme toggle). Don't set `viewportFit: "cover"` without handling safe-area insets: the `min-h-screen` wrappers would add scroll inside a padded body, and fixed elements (dialogs, toasts) ignore body padding. `public/screenshots/` feeds the manifest's `screenshots` (Chrome's richer install dialog); retake them with the screenshot harness' mock data when the UI changes noticeably.
+
+### Share target
+The manifest's `share_target` lets the installed Android/Chromium app receive receipt photos and PDFs from the system share sheet. The multipart POST to `/share-target` is answered by the service worker (`registerCapture` in `src/app/sw.ts`, logic in `receiveSharedFiles` in `src/lib/share-target.ts`). It ignores POSTs whose `Origin` is another site (the OS share sheet sends none or `null`; this blocks other sites' forms, not every cross-site submission), keeps only the types the uploader reads (JPEG, PNG, WebP, HEIC/HEIF, PDF; the file extension is used when the source sends no usable MIME type; at most one split's worth), stashes them in the Cache API and redirects to `/?share-target=<status>`: `1` (files waiting), `empty` (nothing usable) or `error` (storing failed, or the POST reached the server). `Home` clears the param, shows a toast for `empty`/`error`, and for `1` takes the files out (`takeSharedFiles` clears the cache even if reading fails, and ignores files stashed more than 10 minutes ago) and passes them to `ReceiptUploader` through `incomingFiles`. The uploader waits until it is idle, then processes them like a drop (or asks the user to share again if offline). `src/app/share-target/route.ts` only redirects with `error` if the POST reaches the server. Next types `share_target.params.files` as `File | File[]`, so `manifest.ts` casts the spec's `{ name, accept }` shape. Like the rest of the worker, this only works in production builds.
 
 ## Multi-Currency Support
 

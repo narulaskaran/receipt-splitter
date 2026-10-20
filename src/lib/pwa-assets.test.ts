@@ -79,6 +79,17 @@ describe("manifest", () => {
     });
   });
 
+  it("accepts shared images and PDFs through a multipart POST", () => {
+    expect(manifest.share_target).toMatchObject({
+      action: "/share-target",
+      method: "POST",
+      enctype: "multipart/form-data",
+      params: {
+        files: [{ name: "receipts", accept: ["image/*", "application/pdf"] }],
+      },
+    });
+  });
+
   it("does not lock the installed app to one orientation", () => {
     expect(manifest.orientation).toBeUndefined();
   });
