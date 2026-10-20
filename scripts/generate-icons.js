@@ -16,7 +16,10 @@ const sourceIcon = path.join(root, 'assets', 'app-icon.png');
 const publicDir = path.join(root, 'public');
 const faviconPath = path.join(root, 'src', 'app', 'favicon.ico');
 
-// Fraction of the canvas the rounded square occupies in the "any" icons.
+// Fraction of the canvas the rounded square occupies in the "any" icons: the
+// square is ~805px of the 1024px source (the rest is transparent margin). The
+// full-bleed icons keep the same artwork scale, which leaves the glyph well
+// inside the maskable safe zone (a circle of 80% of the canvas).
 const ANY_SCALE = 0.79;
 // Fraction of the rounded square's side the white underlay is inset by. It
 // sits between the corner radius' inset and the glyph's edge.
@@ -55,12 +58,28 @@ async function solidSource() {
     .toBuffer();
 }
 
+let trimmedSquarePng;
+
+// The rounded square alone, without the transparent margin, as a PNG buffer.
 async function trimmedSquare() {
-  const { data, info } = await sharp(await solidSource())
-    .trim()
-    .toBuffer({ resolveWithObject: true });
-  const side = Math.min(info.width, info.height);
-  return sharp(data).extract({ left: 0, top: 0, width: side, height: side });
+  if (!trimmedSquarePng) {
+    const { data, info } = await sharp(await solidSource())
+      .trim()
+      .toBuffer({ resolveWithObject: true });
+    // trim() can be a pixel off on antialiased edges; more than that means
+    // the source isn't a square icon and cropping would distort it.
+    if (Math.abs(info.width - info.height) > 2) {
+      throw new Error(
+        `Expected a square icon after trimming, got ${info.width}x${info.height}`
+      );
+    }
+    const side = Math.min(info.width, info.height);
+    trimmedSquarePng = await sharp(data)
+      .extract({ left: 0, top: 0, width: side, height: side })
+      .png()
+      .toBuffer();
+  }
+  return sharp(trimmedSquarePng);
 }
 
 // Transparent-cornered icon for purpose "any".
@@ -75,7 +94,7 @@ async function anyIcon(size) {
 async function fullBleedIcon(size) {
   const square = await trimmedSquare();
   const inner = Math.round(size * ANY_SCALE);
-  const resized = await square.resize(inner, inner).png().toBuffer();
+  const resized = await square.clone().resize(inner, inner).png().toBuffer();
   const inset = Math.round(inner * FULL_BLEED_INSET);
   const cropped = await sharp(resized)
     .extract({

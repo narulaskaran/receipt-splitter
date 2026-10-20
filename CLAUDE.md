@@ -274,6 +274,9 @@ There is no default per-endpoint rate limit. Platform DDoS mitigation is always 
 ### Icons
 The icon set is generated from `assets/app-icon.png` (1024px, rounded square with transparent corners) by `npm run generate-icons`. It writes `public/icon-{192,512}.png` (purpose `any`, transparent corners), `public/icon-maskable-{192,512}.png` and `public/apple-touch-icon.png` (opaque, full-bleed), and `src/app/favicon.ico` (16/32/48). The output is committed; generation is **not** part of the build, so rerun the script and commit after changing the source image. `src/lib/pwa-assets.test.ts` checks sizes and opacity.
 
+### Manifest and theme color
+`src/app/manifest.ts` is the typed web app manifest (served at `/manifest.webmanifest`, linked automatically). Don't set `orientation`; the app works in landscape. Manifest colors and `viewport.themeColor` come from `src/lib/pwa.ts`, which mirrors `--background` in `globals.css` (the manifest has no dark variant, so the browser UI color follows the color scheme via `viewport.themeColor`; it does not follow the in-app theme toggle). Don't set `viewportFit: "cover"` without handling safe-area insets: the `min-h-screen` wrappers would add scroll inside a padded body, and fixed elements (dialogs, toasts) ignore body padding. `public/screenshots/` feeds the manifest's `screenshots` (Chrome's richer install dialog); retake them with the screenshot harness' mock data when the UI changes noticeably.
+
 ## Multi-Currency Support
 
 Receipt Splitter supports 20 international currencies with automatic AI detection and manual override.

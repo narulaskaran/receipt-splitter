@@ -1,9 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { getThemeInitScript, type Theme } from "@/lib/theme";
+import { PWA_THEME_COLORS } from "@/lib/pwa";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
@@ -20,7 +21,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Receipt Splitter",
   description: "Upload a receipt, add people, and easily split items. No downloads or account creation required.",
-  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -38,9 +38,10 @@ export const metadata: Metadata = {
 // enableSystem props change.
 const DEFAULT_THEME: Theme = "system";
 
-export const viewport = {
+export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  themeColor: PWA_THEME_COLORS,
 };
 
 export default function RootLayout({
