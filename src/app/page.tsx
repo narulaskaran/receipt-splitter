@@ -20,7 +20,7 @@ import { GroupManager } from "@/components/group-manager";
 import { ItemAssignment } from "@/components/item-assignment";
 import { ResultsSummary } from "@/components/results-summary";
 import { PersonItems } from "@/components/person-items";
-import { SupportFooter, SupportCard } from "@/components/support-links";
+import { SupportFooter, SupportBanner } from "@/components/support-links";
 import { ValidationErrors } from "@/components/validation-errors";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -747,6 +747,10 @@ export default function Home() {
         </TabsContent>
 
         <TabsContent value="results" className="space-y-6">
+          <SupportBanner>
+            Saved you some math? A coffee helps cover our costs.
+          </SupportBanner>
+
           <ValidationErrors errors={validationResult.errors} currencyCode={currency} />
 
           <ResultsSummary
@@ -759,8 +763,6 @@ export default function Home() {
           />
 
           <PersonItems people={state.people} currencyCode={currency} />
-
-          <SupportCard />
         </TabsContent>
       </Tabs>
 

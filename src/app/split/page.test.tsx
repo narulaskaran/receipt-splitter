@@ -30,6 +30,16 @@ describe("/split route (client) with query params", () => {
     }
   });
 
+  it("shows the Ko-fi support banner on a valid split", async () => {
+    renderWithQuery(
+      "names=Jon%2CJane&amounts=10.00%2C20.00&total=30.00&note=Lunch&phone=5551234567"
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("link", { name: /tip/i })).toBeInTheDocument();
+    });
+  });
+
   it("shows error UI for obviously invalid params", async () => {
     const bad =
       "names=A%2CB&amounts=10.00%2C20.00&total=99.99&note=Bad&phone=5551234567";

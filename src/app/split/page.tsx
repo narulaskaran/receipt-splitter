@@ -11,6 +11,7 @@ import {
 } from "@/lib/split-sharing";
 
 import { SplitSummary } from "@/components/split-summary";
+import { SupportBanner } from "@/components/support-links";
 import Link from "next/link";
 
 interface SplitPageState {
@@ -146,6 +147,7 @@ function SplitPageContent() {
             Back
           </Link>
         </Button>
+        <SupportBanner />
         <SplitSummary splitData={splitData} phoneNumber={splitData.phone} />
       </div>
     </div>
