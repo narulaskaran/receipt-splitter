@@ -1,13 +1,11 @@
 import { render, screen } from "@testing-library/react";
-import { SupportFooter, SupportCard, KOFI_URL } from "./support-links";
+import { SupportFooter, SupportBanner, KOFI_URL } from "./support-links";
 
 describe("SupportFooter", () => {
-  it("renders a Ko-fi link that opens in a new tab", () => {
+  it("renders the tagline without a Ko-fi link", () => {
     render(<SupportFooter />);
-    const link = screen.getByRole("link", { name: /support on ko-fi/i });
-    expect(link).toHaveAttribute("href", KOFI_URL);
-    expect(link).toHaveAttribute("target", "_blank");
-    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(screen.getByText("Free to use. No sign-up.")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
   it("renders children alongside the support text", () => {
@@ -20,12 +18,20 @@ describe("SupportFooter", () => {
   });
 });
 
-describe("SupportCard", () => {
-  it("renders the prompt and a Ko-fi button link", () => {
-    render(<SupportCard />);
-    expect(screen.getByText(/saved you some math/i)).toBeInTheDocument();
-    const link = screen.getByRole("link", { name: /buy me a coffee/i });
+describe("SupportBanner", () => {
+  it("renders the default one-line prompt and a Ko-fi link", () => {
+    render(<SupportBanner />);
+    expect(
+      screen.getByText("Free to use. A coffee helps cover our costs.")
+    ).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: /tip/i });
     expect(link).toHaveAttribute("href", KOFI_URL);
     expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("renders custom text", () => {
+    render(<SupportBanner>Saved you some math?</SupportBanner>);
+    expect(screen.getByText("Saved you some math?")).toBeInTheDocument();
   });
 });

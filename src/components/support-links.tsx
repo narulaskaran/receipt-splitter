@@ -6,37 +6,23 @@ export const KOFI_URL = "https://ko-fi.com/Y8Y21CC8IA";
 
 export const SupportFooter: React.FC<{ children?: React.ReactNode }> = ({ children }) => (
   <footer className="w-full mt-12 pt-6 border-t border-border/60 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-muted-foreground">
-    <div className="flex flex-col items-center sm:items-start gap-2">
-      <span>Free to use. No sign-up.</span>
-      <a
-        href={KOFI_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors"
-      >
-        <Coffee className="h-3.5 w-3.5" />
-        Support on Ko-fi
-      </a>
-    </div>
+    <span>Free to use. No sign-up.</span>
     {children}
   </footer>
 );
 
-export const SupportCard: React.FC = () => (
-  <div className="rounded-2xl bg-card p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-    <div className="flex items-start gap-3">
-      <Heart className="h-5 w-5 mt-0.5 text-muted-foreground flex-shrink-0" />
-      <div>
-        <p className="text-sm font-medium">Saved you some math?</p>
-        <p className="text-sm text-muted-foreground">
-          Receipt Splitter is free. A coffee helps cover the AI costs.
-        </p>
-      </div>
+export const SupportBanner: React.FC<{ children?: React.ReactNode }> = ({
+  children = "Free to use. A coffee helps cover our costs.",
+}) => (
+  <div className="rounded-2xl bg-card px-4 py-3 flex items-center justify-between gap-3">
+    <div className="flex items-center gap-2.5 min-w-0">
+      <Heart className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+      <p className="text-sm text-muted-foreground">{children}</p>
     </div>
-    <Button variant="outline" size="sm" asChild>
+    <Button variant="outline" size="sm" asChild className="flex-shrink-0">
       <a href={KOFI_URL} target="_blank" rel="noopener noreferrer">
         <Coffee className="h-4 w-4" />
-        Buy me a coffee
+        Tip
       </a>
     </Button>
   </div>
