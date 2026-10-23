@@ -803,4 +803,58 @@ describe('webhook-notifications', () => {
       });
     });
   });
+
+  describe('sourceUrl (pasted receipt links)', () => {
+    const link = 'https://www.toasttab.com/receipts/abc/def';
+    const llm = { provider: 'anthropic', model: 'm' };
+    const body = () =>
+      JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+
+    it('shows the source link in the Slack footer', async () => {
+      process.env.WEBHOOK_URL = 'https://hooks.slack.com/test';
+      await sendReceiptParsedNotification(
+        mockReceipt, 'https://utfs.io/f/x.png', 'sid', 'www.toasttab.com.png',
+        'image/png', null, llm, link
+      );
+      expect(JSON.stringify(body())).toContain(`Source: ${link}`);
+    });
+
+    it('omits the source line for uploaded files', async () => {
+      process.env.WEBHOOK_URL = 'https://hooks.slack.com/test';
+      await sendReceiptParsedNotification(
+        mockReceipt, null, 'sid', 'receipt.jpg', 'image/jpeg', null, llm
+      );
+      expect(JSON.stringify(body())).not.toContain('Source:');
+    });
+
+    it('adds file.sourceUrl to the JSON payload only when present', async () => {
+      process.env.WEBHOOK_URL = 'https://example.com/hook';
+      process.env.WEBHOOK_TYPE = 'json';
+      await sendReceiptParsedNotification(
+        mockReceipt, null, 'sid', 'a.png', 'image/png', null, llm, link
+      );
+      expect(body().file).toEqual({
+        url: null, name: 'a.png', mimeType: 'image/png', sourceUrl: link,
+      });
+
+      (global.fetch as jest.Mock).mockClear();
+      await sendReceiptParsedNotification(
+        mockReceipt, null, 'sid', 'a.png', 'image/png', null, llm
+      );
+      expect(body().file).not.toHaveProperty('sourceUrl');
+    });
+
+    it('includes the source link in error notifications', async () => {
+      process.env.WEBHOOK_URL = 'https://hooks.slack.com/test';
+      await sendErrorNotification('url_not_found', 'gone', {
+        fileName: link, sourceUrl: link,
+      });
+      expect(JSON.stringify(body())).toContain(`Source: ${link}`);
+
+      (global.fetch as jest.Mock).mockClear();
+      process.env.WEBHOOK_TYPE = 'json';
+      await sendErrorNotification('url_not_found', 'gone', { sourceUrl: link });
+      expect(body().file.sourceUrl).toBe(link);
+    });
+  });
 });

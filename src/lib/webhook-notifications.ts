@@ -25,6 +25,8 @@ export interface ErrorNotificationContext {
   fileUrl?: string | null;
   geolocation?: GeolocationData | null;
   llm?: LLMInfo | null;
+  /** The pasted link the receipt came from, when it wasn't an uploaded file */
+  sourceUrl?: string | null;
 }
 
 /**
@@ -38,6 +40,7 @@ export interface ReceiptWebhookData {
   mimeType: string;
   geolocation: GeolocationData | null;
   llm: LLMInfo | null;
+  sourceUrl?: string | null;
 }
 
 /**
@@ -220,7 +223,7 @@ class SlackFormatter implements WebhookPayloadFormatter {
       elements: [
         {
           type: 'mrkdwn',
-          text: `File: ${fileName} (${mimeType})${data.llm ? ` · Model: ${data.llm.provider}/${data.llm.model}` : ''}`,
+          text: `File: ${fileName} (${mimeType})${data.llm ? ` · Model: ${data.llm.provider}/${data.llm.model}` : ''}${data.sourceUrl ? `\nSource: ${data.sourceUrl}` : ''}`,
         },
       ],
     });
@@ -238,7 +241,7 @@ class SlackFormatter implements WebhookPayloadFormatter {
  */
 class GenericJsonFormatter implements WebhookPayloadFormatter {
   format(data: ReceiptWebhookData): Record<string, unknown> {
-    const { receipt, fileUrl, sessionId, fileName, mimeType, geolocation, llm } = data;
+    const { receipt, fileUrl, sessionId, fileName, mimeType, geolocation, llm, sourceUrl } = data;
 
     return {
       event: 'receipt_parsed',
@@ -250,6 +253,7 @@ class GenericJsonFormatter implements WebhookPayloadFormatter {
         url: fileUrl,
         name: fileName,
         mimeType,
+        ...(sourceUrl ? { sourceUrl } : {}),
       },
       receipt: {
         restaurant: receipt.restaurant,
@@ -360,7 +364,7 @@ class SlackErrorFormatter implements ErrorPayloadFormatter {
         elements: [
           {
             type: 'mrkdwn',
-            text: `File: ${context.fileName || 'unknown'} (${context.mimeType || 'unknown'})`,
+            text: `File: ${context.fileName || 'unknown'} (${context.mimeType || 'unknown'})${context.sourceUrl ? `\nSource: ${context.sourceUrl}` : ''}`,
           },
         ],
       });
@@ -387,6 +391,7 @@ class GenericJsonErrorFormatter implements ErrorPayloadFormatter {
         url: context.fileUrl || null,
         name: context.fileName || null,
         mimeType: context.mimeType || null,
+        ...(context.sourceUrl ? { sourceUrl: context.sourceUrl } : {}),
       },
     };
   }
@@ -454,6 +459,7 @@ async function postWebhook(url: string, payload: unknown, onTimeout?: () => void
  * @param mimeType - File MIME type
  * @param geolocation - Geolocation data from Vercel headers (or null if not available)
  * @param llm - Provider/model that parsed the receipt (or null if unknown)
+ * @param sourceUrl - The pasted link the receipt came from (null for uploaded files)
  */
 export async function sendReceiptParsedNotification(
   receipt: Receipt,
@@ -462,7 +468,8 @@ export async function sendReceiptParsedNotification(
   fileName: string,
   mimeType: string,
   geolocation: GeolocationData | null,
-  llm: LLMInfo | null = null
+  llm: LLMInfo | null = null,
+  sourceUrl: string | null = null
 ): Promise<void> {
   try {
     const webhookUrl = process.env.WEBHOOK_URL;
@@ -489,6 +496,7 @@ export async function sendReceiptParsedNotification(
       mimeType,
       geolocation,
       llm,
+      sourceUrl,
     };
     await postWebhook(webhookUrl, formatter.format(data), () =>
       console.error('[Webhook] Request timed out after 5 seconds')
