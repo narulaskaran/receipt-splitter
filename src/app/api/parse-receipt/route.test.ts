@@ -21,6 +21,10 @@ jest.mock("@/lib/webhook-notifications", () => ({
 jest.mock("@/lib/uploadthing-storage", () => ({
   uploadReceiptFile: jest.fn(),
 }));
+jest.mock("@/lib/receipt-screenshot", () => ({
+  ...jest.requireActual("@/lib/receipt-screenshot"),
+  screenshotReceiptUrl: jest.fn(),
+}));
 jest.mock("@/lib/llm", () => ({
   ...jest.requireActual("@/lib/llm"),
   getReceiptExtractor: jest.fn(),
@@ -36,6 +40,8 @@ import {
   LLMError,
   RECEIPT_PROMPT,
 } from "@/lib/llm";
+import { uploadReceiptFile } from "@/lib/uploadthing-storage";
+import { screenshotReceiptUrl, ReceiptUrlError } from "@/lib/receipt-screenshot";
 import { POST } from "@/app/api/parse-receipt/route";
 
 // Helper function that mirrors the normalization logic in route.ts
@@ -564,6 +570,16 @@ function makeRequestWithFile(type = "image/png") {
   } as unknown as Parameters<typeof POST>[0];
 }
 
+function makeRequestWithUrl(url: string) {
+  const fd = new FormData();
+  fd.append("url", url);
+  fd.append("sessionId", "test-session");
+  return {
+    formData: async () => fd,
+    headers: new Headers(),
+  } as unknown as Parameters<typeof POST>[0];
+}
+
 function modelResponse(overrides: Record<string, unknown> = {}) {
   return {
     restaurant: "Cafe de Paris",
@@ -619,7 +635,8 @@ describe("currency flows through the parse response", () => {
       "receipt.png",
       "image/png",
       null,
-      { provider: "anthropic", model: "test-model" }
+      { provider: "anthropic", model: "test-model" },
+      null
     );
   });
 
@@ -699,7 +716,7 @@ describe("provider selection and file validation", () => {
   });
 
   it("rejects file types the provider does not support", async () => {
-    const res = await POST(makeRequestWithFile("text/plain"));
+    const res = await POST(makeRequestWithFile("application/zip"));
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/Unsupported file format/);
     expect(mockExtract).not.toHaveBeenCalled();
@@ -781,5 +798,127 @@ describe("LLM error handling", () => {
       expect.any(String),
       expect.anything()
     );
+  });
+});
+
+describe("pasted receipt links", () => {
+  const mockScreenshot = screenshotReceiptUrl as jest.Mock;
+  const link = "https://www.toasttab.com/receipts/abc/def";
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+
+  beforeEach(() => mockScreenshot.mockReset());
+
+  it("sends the page screenshot through the normal pipeline", async () => {
+    mockScreenshot.mockResolvedValue({ data: png, mimeType: "image/png" });
+    mockExtract.mockResolvedValue(modelResponse({ currency: "USD" }));
+
+    const res = await POST(makeRequestWithUrl(link));
+
+    expect(res.status).toBe(200);
+    expect(mockScreenshot).toHaveBeenCalledWith(link);
+    expect(mockExtract).toHaveBeenCalledWith({
+      data: png,
+      mimeType: "image/png",
+      prompt: RECEIPT_PROMPT,
+      jsonSchema: receiptJsonSchema,
+    });
+    expect((await res.json()).restaurant).toBe("Cafe de Paris");
+  });
+
+  it("uploads the screenshot to UploadThing like any receipt image", async () => {
+    process.env.UPLOADTHING_TOKEN = "token";
+    (uploadReceiptFile as jest.Mock).mockResolvedValue({
+      success: true,
+      url: "https://utfs.io/f/shot.png",
+      key: "k",
+    });
+    mockScreenshot.mockResolvedValue({ data: png, mimeType: "image/png" });
+    mockExtract.mockResolvedValue(modelResponse());
+
+    await POST(makeRequestWithUrl(link));
+
+    expect(uploadReceiptFile).toHaveBeenCalledWith(
+      png,
+      "www.toasttab.com.png",
+      "image/png",
+      "test-session"
+    );
+  });
+
+  it("tells the success webhook where the receipt came from", async () => {
+    process.env.WEBHOOK_URL = "https://example.com/hook";
+    mockScreenshot.mockResolvedValue({ data: png, mimeType: "image/png" });
+    mockExtract.mockResolvedValue(modelResponse());
+
+    await POST(makeRequestWithUrl(` ${link} `));
+
+    expect(sendReceiptParsedNotification).toHaveBeenCalledWith(
+      expect.anything(),
+      null,
+      "test-session",
+      "www.toasttab.com.png",
+      "image/png",
+      null,
+      { provider: "anthropic", model: "test-model" },
+      link
+    );
+  });
+
+  it("includes the link in later error webhooks (e.g. the model fails)", async () => {
+    mockScreenshot.mockResolvedValue({ data: png, mimeType: "image/png" });
+    mockExtract.mockRejectedValue(new LLMError("rate_limit", "anthropic", "slow down"));
+
+    await POST(makeRequestWithUrl(link));
+
+    expect(mockSendErrorNotification).toHaveBeenCalledWith(
+      "llm_rate_limit",
+      expect.any(String),
+      expect.objectContaining({ sourceUrl: link })
+    );
+  });
+
+  it("answers with the link error's message and status; the webhook gets the private detail", async () => {
+    mockScreenshot.mockRejectedValue(
+      new ReceiptUrlError(
+        "service_unavailable",
+        "Reading links is unavailable right now.",
+        503,
+        "Firecrawl is out of credits (402)"
+      )
+    );
+
+    const res = await POST(makeRequestWithUrl(link));
+
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: "Reading links is unavailable right now." });
+    expect(mockExtract).not.toHaveBeenCalled();
+    expect(mockSendErrorNotification).toHaveBeenCalledWith(
+      "url_service_unavailable",
+      "Firecrawl is out of credits (402)",
+      expect.objectContaining({ sessionId: "test-session", sourceUrl: link })
+    );
+  });
+
+  it("prefers an uploaded file over a link", async () => {
+    const fd = new FormData();
+    fd.append("file", new File(["fake-image-bytes"], "receipt.png", { type: "image/png" }));
+    fd.append("url", link);
+    mockExtract.mockResolvedValue(modelResponse());
+
+    const res = await POST({
+      formData: async () => fd,
+      headers: new Headers(),
+    } as unknown as Parameters<typeof POST>[0]);
+
+    expect(res.status).toBe(200);
+    expect(mockScreenshot).not.toHaveBeenCalled();
+  });
+
+  it("rejects a request with neither a file nor a link", async () => {
+    const res = await POST({
+      formData: async () => new FormData(),
+      headers: new Headers(),
+    } as unknown as Parameters<typeof POST>[0]);
+    expect(res.status).toBe(400);
   });
 });

@@ -8,6 +8,8 @@ import { uploadReceiptFile } from "@/lib/uploadthing-storage";
 import { MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_MB } from "@/lib/constants";
 import { type GeolocationData } from "@/types";
 import { fixMultiQuantityPrices } from "@/lib/receipt-utils";
+import { screenshotReceiptUrl, ReceiptUrlError } from "@/lib/receipt-screenshot";
+import { normalizeReceiptUrl } from "@/lib/receipt-url";
 import { DEFAULT_CURRENCY, isSupportedCurrency } from "@/lib/currency";
 import {
   receiptSchema,
@@ -20,6 +22,9 @@ import {
   RECEIPT_PROMPT,
   type ReceiptExtractor,
 } from "@/lib/llm";
+
+// A pasted link adds a Firecrawl screenshot (up to ~45s) before the LLM call
+export const maxDuration = 60;
 
 // Extract geolocation data from Vercel headers
 function extractGeolocation(request: NextRequest): GeolocationData | null {
@@ -115,6 +120,15 @@ function handleExtractError(
   );
 }
 
+// Screenshot a pasted link as a File the rest of the route can treat like an upload
+async function fileFromReceiptUrl(rawUrl: string): Promise<File> {
+  const { data, mimeType } = await screenshotReceiptUrl(rawUrl);
+  const host = new URL(normalizeReceiptUrl(rawUrl) ?? "https://link").hostname;
+  return new File([new Uint8Array(data)], `${host}.${mimeType.split("/")[1]}`, {
+    type: mimeType,
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Extract geolocation data from request headers
@@ -136,12 +150,34 @@ export async function POST(request: NextRequest) {
 
     // Get receipt image data
     const formData = await request.formData();
-    const file = formData.get("file") as File | null;
+    let file = formData.get("file") as File | null;
     const sessionId = (formData.get("sessionId") as string | null) || crypto.randomUUID();
+
+    // A pasted receipt link stands in for an uploaded file: a screenshot of the
+    // page goes through the same pipeline from here on.
+    const receiptUrl = formData.get("url");
+    let sourceUrl: string | null = null;
+    if (!file && typeof receiptUrl === "string" && receiptUrl.trim()) {
+      sourceUrl = normalizeReceiptUrl(receiptUrl) ?? receiptUrl.trim().slice(0, 500);
+      try {
+        file = await fileFromReceiptUrl(receiptUrl);
+      } catch (error) {
+        if (!(error instanceof ReceiptUrlError)) throw error;
+        console.warn(`Receipt link failed (${error.code}): ${error.detail ?? error.message}`);
+        sendErrorNotification(`url_${error.code}`, error.detail ?? error.message, {
+          sessionId,
+          fileName: sourceUrl,
+          sourceUrl,
+          geolocation,
+          llm: { provider: extractor.provider, model: extractor.model },
+        }).catch(() => {});
+        return NextResponse.json({ error: error.message }, { status: error.status });
+      }
+    }
 
     if (!file) {
       return NextResponse.json(
-        { error: "No file provided in the request" },
+        { error: "No file or link provided in the request" },
         { status: 400 }
       );
     }
@@ -180,7 +216,7 @@ export async function POST(request: NextRequest) {
 
     // Error notification context — shared across error paths
     const llm = { provider: extractor.provider, model: extractor.model };
-    const errorContext = { sessionId, fileName: file.name, mimeType, fileUrl: null as string | null, geolocation, llm };
+    const errorContext = { sessionId, fileName: file.name, mimeType, fileUrl: null as string | null, geolocation, llm, sourceUrl };
 
     // Upload file to UploadThing storage BEFORE parsing
     // This ensures the file URL is available for both success and error notifications
@@ -315,7 +351,8 @@ export async function POST(request: NextRequest) {
             file.name,
             file.type,
             geolocation,
-            llm
+            llm,
+            sourceUrl
           );
         } catch (error) {
           // Webhook errors are already logged in the function, this is a safety catch

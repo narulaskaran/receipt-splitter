@@ -205,9 +205,8 @@ describe("ReceiptUploader", () => {
         hasReceipts
       />
     );
-    expect(
-      screen.getByText("Click or drag to add another receipt")
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add file" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Paste link" })).toBeInTheDocument();
     expect(screen.queryByText(/upload your receipts/i)).not.toBeInTheDocument();
     expect(screen.queryByAltText("Receipt preview")).not.toBeInTheDocument();
   });
@@ -631,5 +630,266 @@ describe("ReceiptUploader", () => {
     // Give any (incorrect) async thumbnail write a chance to land.
     await new Promise((r) => setTimeout(r, 25));
     expect(localStorage.getItem("receiptSplitterThumbnails")).toBeNull();
+  });
+
+  describe("pasting a receipt link", () => {
+    const LINK = "https://www.toasttab.com/receipts/abc/def";
+    const parsed = { restaurant: "Viand Cafe", total: 253.82, items: [] };
+    const readText = () => navigator.clipboard.readText as jest.Mock;
+
+    function mockParseOk() {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => parsed,
+      });
+    }
+
+    function lastRequestBody(): FormData {
+      const calls = (global.fetch as jest.Mock).mock.calls;
+      return calls[calls.length - 1][1].body as FormData;
+    }
+
+    function firePaste(text: string, target: Element = document.body) {
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", {
+        value: { getData: () => text },
+      });
+      target.dispatchEvent(event);
+      return event;
+    }
+
+    beforeEach(() => {
+      (global.fetch as jest.Mock).mockClear();
+      readText().mockReset().mockResolvedValue("");
+    });
+
+    it("reads a link from the clipboard when the button is tapped", async () => {
+      readText().mockResolvedValue(`  ${LINK}\n`);
+      mockParseOk();
+      renderUploader();
+
+      await userEvent.click(screen.getByRole("button", { name: /paste receipt link/i }));
+
+      await waitFor(() => expect(mockOnReceiptParsed).toHaveBeenCalledWith(parsed));
+      expect(lastRequestBody().get("url")).toBe(LINK);
+      expect(lastRequestBody().get("file")).toBeNull();
+    });
+
+    it("shows what it is reading while the link loads", async () => {
+      readText().mockResolvedValue(LINK);
+      let finish: (value: unknown) => void = () => {};
+      (global.fetch as jest.Mock).mockReturnValueOnce(new Promise((r) => (finish = r)));
+      const { rerender } = renderUploader();
+
+      await userEvent.click(screen.getByRole("button", { name: /paste receipt link/i }));
+      expect(mockSetIsLoading).toHaveBeenCalledWith(true);
+
+      rerender(
+        <ReceiptUploader
+          onReceiptParsed={mockOnReceiptParsed}
+          isLoading
+          setIsLoading={mockSetIsLoading}
+          resetImageTrigger={0}
+        />
+      );
+      expect(screen.getByText("Reading toasttab.com...")).toBeInTheDocument();
+      finish({ ok: true, json: async () => parsed });
+      await waitFor(() => expect(mockOnReceiptParsed).toHaveBeenCalled());
+    });
+
+    it("falls back to a focused field when the clipboard can't be read", async () => {
+      readText().mockRejectedValue(new DOMException("denied", "NotAllowedError"));
+      renderUploader();
+
+      await userEvent.click(screen.getByRole("button", { name: /paste receipt link/i }));
+
+      const field = await screen.findByRole("textbox", { name: "Receipt link" });
+      expect(field).toHaveFocus();
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it("explains when the clipboard holds something that isn't a link", async () => {
+      readText().mockResolvedValue("see you at 7");
+      renderUploader();
+
+      await userEvent.click(screen.getByRole("button", { name: /paste receipt link/i }));
+
+      expect(await screen.findByRole("status")).toHaveTextContent(
+        /clipboard doesn't have a link/i
+      );
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it("keeps the submit arrow disabled until the text is a valid link", async () => {
+      readText().mockRejectedValue(new Error("unsupported"));
+      mockParseOk();
+      renderUploader();
+      await userEvent.click(screen.getByRole("button", { name: /paste receipt link/i }));
+
+      const field = await screen.findByRole("textbox", { name: "Receipt link" });
+      const submit = screen.getByRole("button", { name: "Read receipt from link" });
+      expect(submit).toBeDisabled();
+
+      await userEvent.type(field, "my receipt");
+      expect(submit).toBeDisabled();
+      expect(await screen.findByText("That doesn't look like a link")).toBeInTheDocument();
+
+      await userEvent.clear(field);
+      await userEvent.type(field, LINK);
+      expect(submit).toBeEnabled();
+      expect(screen.queryByText("That doesn't look like a link")).not.toBeInTheDocument();
+
+      await userEvent.click(submit);
+      await waitFor(() => expect(mockOnReceiptParsed).toHaveBeenCalledWith(parsed));
+      expect(lastRequestBody().get("url")).toBe(LINK);
+    });
+
+    it("submits with Enter and fills in a missing scheme", async () => {
+      readText().mockRejectedValue(new Error("unsupported"));
+      mockParseOk();
+      renderUploader();
+      await userEvent.click(screen.getByRole("button", { name: /paste receipt link/i }));
+
+      await userEvent.type(
+        await screen.findByRole("textbox", { name: "Receipt link" }),
+        "toasttab.com/receipts/abc{Enter}"
+      );
+
+      await waitFor(() => expect(mockOnReceiptParsed).toHaveBeenCalled());
+      expect(lastRequestBody().get("url")).toBe("https://toasttab.com/receipts/abc");
+    });
+
+    it("does not open the file picker when the link controls are clicked", async () => {
+      readText().mockRejectedValue(new Error("unsupported"));
+      renderUploader();
+      const clickSpy = jest.spyOn(getFileInput(), "click");
+
+      await userEvent.click(screen.getByRole("button", { name: /paste receipt link/i }));
+      await userEvent.click(await screen.findByRole("textbox", { name: "Receipt link" }));
+
+      expect(clickSpy).not.toHaveBeenCalled();
+    });
+
+    it("keeps a failed link in the field and shows the server's reason", async () => {
+      readText().mockResolvedValue(LINK);
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: false,
+        status: 422,
+        json: async () => ({ error: "That link needs a login." }),
+      });
+      renderUploader();
+
+      await userEvent.click(screen.getByRole("button", { name: /paste receipt link/i }));
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith("That link needs a login.")
+      );
+      expect(mockOnReceiptParsed).not.toHaveBeenCalled();
+      expect(await screen.findByRole("textbox", { name: "Receipt link" })).toHaveValue(LINK);
+    });
+
+    it("explains a connection failure", async () => {
+      readText().mockResolvedValue(LINK);
+      (global.fetch as jest.Mock).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+      renderUploader();
+
+      await userEvent.click(screen.getByRole("button", { name: /paste receipt link/i }));
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith(
+          "Couldn't reach the server. Check your connection and try again."
+        )
+      );
+    });
+
+    it("refuses a link once the split is full", async () => {
+      readText().mockResolvedValue(LINK);
+      render(
+        <ReceiptUploader
+          onReceiptParsed={mockOnReceiptParsed}
+          isLoading={false}
+          setIsLoading={mockSetIsLoading}
+          resetImageTrigger={0}
+          maxRemaining={0}
+          hasReceipts
+        />
+      );
+
+      await userEvent.click(screen.getByRole("button", { name: "Paste link" }));
+
+      await waitFor(() => expect(toast.error).toHaveBeenCalled());
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it("reads a link pasted anywhere on the page", async () => {
+      mockParseOk();
+      renderUploader();
+
+      const event = firePaste(LINK);
+
+      await waitFor(() => expect(mockOnReceiptParsed).toHaveBeenCalledWith(parsed));
+      expect(event.defaultPrevented).toBe(true);
+      expect(lastRequestBody().get("url")).toBe(LINK);
+    });
+
+    it("ignores pasted text that isn't a link with a scheme", () => {
+      renderUploader();
+      for (const text of ["notes.txt", "dinner at 7", "ftp://example.com/x", ""]) {
+        expect(firePaste(text).defaultPrevented).toBe(false);
+      }
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it("leaves pastes into text fields alone", () => {
+      renderUploader();
+      const input = document.createElement("input");
+      document.body.appendChild(input);
+
+      firePaste(LINK, input);
+
+      expect(global.fetch).not.toHaveBeenCalled();
+      input.remove();
+    });
+
+    it("does not read pasted links while another parse is running", () => {
+      render(
+        <ReceiptUploader
+          onReceiptParsed={mockOnReceiptParsed}
+          isLoading
+          setIsLoading={mockSetIsLoading}
+          resetImageTrigger={0}
+        />
+      );
+
+      firePaste(LINK);
+
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it("offers the link button in the compact row next to Add file", async () => {
+      readText().mockResolvedValue(LINK);
+      mockParseOk();
+      render(
+        <ReceiptUploader
+          onReceiptParsed={mockOnReceiptParsed}
+          isLoading={false}
+          setIsLoading={mockSetIsLoading}
+          resetImageTrigger={0}
+          hasReceipts
+        />
+      );
+
+      await userEvent.click(screen.getByRole("button", { name: "Paste link" }));
+
+      await waitFor(() => expect(mockOnReceiptParsed).toHaveBeenCalledWith(parsed));
+    });
+
+    it("hides link controls when offline", () => {
+      const onLine = jest.spyOn(window.navigator, "onLine", "get").mockReturnValue(false);
+      renderUploader();
+      expect(screen.queryByRole("button", { name: /paste receipt link/i })).not.toBeInTheDocument();
+      expect(firePaste(LINK).defaultPrevented).toBe(false);
+      onLine.mockRestore();
+    });
   });
 });

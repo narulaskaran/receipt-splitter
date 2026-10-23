@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { UploadCloud, Loader2, WifiOff } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { ReceiptLinkPaste } from "@/components/receipt-link-paste";
 import { toast } from "sonner";
 import { type Receipt } from "@/types";
 import {
@@ -12,6 +13,7 @@ import {
 import imageCompression from "browser-image-compression";
 import { getSessionId } from "@/lib/session";
 import { useOnlineStatus } from "@/lib/use-online-status";
+import { normalizeReceiptUrl } from "@/lib/receipt-url";
 import { RECEIPT_IMAGE_STORAGE_KEY, safeRemoveItem } from "@/lib/storage";
 import { clearThumbnails } from "@/lib/receipt-thumbnails";
 import {
@@ -101,9 +103,7 @@ async function prepareReceiptFile(
   return file;
 }
 
-async function parseReceiptFile(file: File): Promise<Receipt> {
-  const formData = new FormData();
-  formData.append("file", file);
+async function postReceipt(formData: FormData): Promise<Receipt> {
   formData.append("sessionId", getSessionId());
 
   let response: Response;
@@ -134,6 +134,18 @@ async function parseReceiptFile(file: File): Promise<Receipt> {
   }
 
   return response.json();
+}
+
+function parseReceiptFile(file: File): Promise<Receipt> {
+  const formData = new FormData();
+  formData.append("file", file);
+  return postReceipt(formData);
+}
+
+function parseReceiptUrl(url: string): Promise<Receipt> {
+  const formData = new FormData();
+  formData.append("url", url);
+  return postReceipt(formData);
 }
 
 /**
@@ -168,6 +180,12 @@ export function ReceiptUploader({
     current: number;
     total: number;
   } | null>(null);
+  // Pasted-link UI state lives here, not in ReceiptLinkPaste, because that
+  // component unmounts while a parse is in flight and a failed link should stay
+  // in the field for the user to fix.
+  const [linkFieldOpen, setLinkFieldOpen] = useState(false);
+  const [linkValue, setLinkValue] = useState("");
+  const [linkHost, setLinkHost] = useState<string | null>(null);
 
   // Reset persisted thumbnails when resetImageTrigger changes (not on initial mount).
   // NOTE: this component must NOT touch the legacy singular image key here.
@@ -249,6 +267,42 @@ export function ReceiptUploader({
     [onReceiptParsed, setIsLoading, maxRemaining]
   );
 
+  const processUrl = useCallback(
+    async (url: string) => {
+      if (maxRemaining <= 0) {
+        toast.error(
+          `This split already has ${MAX_RECEIPTS_PER_SESSION} receipts. Remove one to add another.`
+        );
+        return;
+      }
+
+      setLinkHost(new URL(url).hostname.replace(/^www\./, ""));
+      setIsLoading(true);
+      try {
+        const receipt = await parseReceiptUrl(url);
+        const acceptedId = onReceiptParsed(receipt);
+        if (acceptedId !== false && acceptedId !== undefined) {
+          setLinkValue("");
+          setLinkFieldOpen(false);
+        }
+      } catch (error) {
+        console.error("Receipt link error:", error);
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Failed to read that link. Please try again."
+        );
+        // Leave the link in the field so it can be fixed or retried
+        setLinkValue(url);
+        setLinkFieldOpen(true);
+      } finally {
+        setLinkHost(null);
+        setIsLoading(false);
+      }
+    },
+    [onReceiptParsed, setIsLoading, maxRemaining]
+  );
+
   // Guard against re-processing the same files (React strict mode re-runs
   // effects on mount).
   const handledIncomingFiles = useRef<File[] | undefined>(undefined);
@@ -274,8 +328,12 @@ export function ReceiptUploader({
     isOnline,
   ]);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
+    // The compact row has its own buttons (Add file / Paste link); the row
+    // itself only accepts drops.
+    noClick: hasReceipts,
+    noKeyboard: hasReceipts,
     accept: {
       "image/*": [".jpeg", ".jpg", ".png", ".heif", ".heic", ".webp"],
       "application/pdf": [".pdf"],
@@ -286,11 +344,46 @@ export function ReceiptUploader({
 
   const isBusy = isLoading || isCompressing;
   const isDisabled = isBusy || !isOnline;
+
+  // Pasting a link anywhere on the page (not into a text field) reads it
+  // straight away. Requires an explicit scheme so stray pasted text like
+  // "notes.txt" isn't mistaken for a link.
+  useEffect(() => {
+    if (isDisabled) return;
+    const onPaste = (event: ClipboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable]")) return;
+      const text = event.clipboardData?.getData("text").trim() ?? "";
+      if (!/^https?:\/\//i.test(text)) return;
+      const url = normalizeReceiptUrl(text);
+      if (!url) return;
+      event.preventDefault();
+      void processUrl(url);
+    };
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+  }, [isDisabled, processUrl]);
   const compact = hasReceipts;
-  const parsingLabel =
-    parseProgress && parseProgress.total > 1
+  const parsingLabel = linkHost
+    ? `Reading ${linkHost}...`
+    : parseProgress && parseProgress.total > 1
       ? `Parsing receipt ${parseProgress.current} of ${parseProgress.total}...`
       : "Parsing receipt...";
+
+  // Clicks on the link controls must not reach the dropzone and open the picker
+  const stopPropagation = (event: { stopPropagation: () => void }) =>
+    event.stopPropagation();
+  const linkPaste = (
+    <ReceiptLinkPaste
+      compact={compact}
+      open={linkFieldOpen}
+      onOpenChange={setLinkFieldOpen}
+      value={linkValue}
+      onValueChange={setLinkValue}
+      onSubmitUrl={(url) => void processUrl(url)}
+      onAddFile={open}
+    />
+  );
 
   return (
     <Card className={`w-full ${compact ? "py-3" : ""}`}>
@@ -365,10 +458,7 @@ export function ReceiptUploader({
               </div>
             )
           ) : compact ? (
-            <div className="flex items-center justify-center gap-2">
-              <UploadCloud className="h-5 w-5 shrink-0 text-muted-foreground" />
-              <p>Click or drag to add another receipt</p>
-            </div>
+            <div onClick={stopPropagation}>{linkPaste}</div>
           ) : (
             <div className="flex flex-col items-center">
               <UploadCloud className="h-12 w-12 mb-4 text-muted-foreground" />
@@ -376,6 +466,19 @@ export function ReceiptUploader({
               <p className="text-sm text-muted-foreground">
                 Drag and drop or click to select one or more files
               </p>
+              <div
+                className="mt-4 flex w-full max-w-sm flex-col items-center gap-3"
+                onClick={stopPropagation}
+              >
+                {!linkFieldOpen && (
+                  <div className="flex w-full items-center gap-3 text-xs text-muted-foreground">
+                    <span className="h-px flex-1 bg-border" />
+                    or
+                    <span className="h-px flex-1 bg-border" />
+                  </div>
+                )}
+                {linkPaste}
+              </div>
             </div>
           )}
         </div>

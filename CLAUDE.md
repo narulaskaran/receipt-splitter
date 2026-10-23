@@ -32,6 +32,7 @@ src/
 ├── components/             # React components
 │   ├── ui/                 # shadcn/ui base components
 │   ├── receipt-uploader.tsx    # Drag & drop receipt upload
+│   ├── receipt-link-paste.tsx  # "Paste receipt link" button / URL field
 │   ├── people-manager.tsx      # Add/remove people
 │   ├── group-manager.tsx       # Create groups with emoji
 │   ├── item-assignment.tsx     # Assign items to people
@@ -42,6 +43,8 @@ src/
 │   ├── currency.ts          # Multi-currency support (20 currencies)
 │   ├── receipt-utils.ts     # Tax/tip calculations
 │   ├── split-sharing.ts     # URL serialization/deserialization
+│   ├── receipt-url.ts       # Pasted receipt links: URL validation (client + server)
+│   ├── receipt-screenshot.ts # Pasted receipt links: Firecrawl screenshot of the page
 │   ├── llm/                 # Provider-agnostic receipt parsing (adapters + registry)
 │   ├── venmo-utils.ts       # Payment link generation (USD only)
 │   ├── emoji-utils.ts       # Group emoji management
@@ -203,6 +206,12 @@ OPENROUTER_API_KEY=...                  # Required when provider is openrouter
 
 `ANTHROPIC_API_KEY` is only required when the provider is `anthropic`.
 
+Optional (pasted receipt links, see "Pasted Receipt Links"):
+```
+FIRECRAWL_API_KEY=fc-...                # Firecrawl screenshots; keyless requests have lower limits
+FIRECRAWL_API_URL=...                   # Override https://api.firecrawl.dev (self-hosted, tests)
+```
+
 Optional (for observability features):
 ```
 UPLOADTHING_TOKEN=your_token_here      # File storage for receipts
@@ -237,6 +246,16 @@ The application includes optional observability features that are designed to fa
 3. Success or error webhook is sent with the file URL
 4. If upload fails, parsing continues and webhooks send with `fileUrl: null`
 
+### Pasted Receipt Links
+`POST /api/parse-receipt` also accepts a `url` form field in place of `file` (an uploaded file wins if both are sent). The server asks Firecrawl for a full-page screenshot of the link, then everything downstream is identical to an uploaded image: LLM parse, UploadThing, webhooks, rate limit. The route sets `maxDuration = 60` because the Firecrawl call can take a while.
+
+- `src/lib/receipt-url.ts`: `normalizeReceiptUrl()`, shared by the client (arrow enable/disable) and the server. Typed links may omit the scheme; the paste-anywhere shortcut requires `http(s)://`.
+- `src/lib/receipt-screenshot.ts`: `screenshotReceiptUrl()` calls Firecrawl `POST /v2/scrape` with `formats: [{ type: "screenshot", fullPage: true, quality: 80 }]`, then downloads the returned image (Firecrawl's URL expires after 24h, so it is fetched immediately, https only, image types only, capped at `MAX_FILE_SIZE_BYTES`). Firecrawl's servers open the user's URL; this server never does, so there is no SSRF surface here. `FIRECRAWL_API_KEY` is sent when set (Firecrawl also answers keyless requests at lower limits); `FIRECRAWL_API_URL` overrides the base URL (self-hosted Firecrawl, tests).
+- Failures throw `ReceiptUrlError`: `message` is shown to users, `detail` (private: bad key, out of credits, Firecrawl error text) goes only to logs and the `url_<code>` error webhook. Key and credit problems surface to users as a generic "unavailable, upload a screenshot instead". The page's own status (`data.metadata.statusCode`) is checked, since Firecrawl answers 200 even when the target returned 404.
+- Webhooks carry `sourceUrl` (Slack footer `Source: ...`, JSON `file.sourceUrl`) for link receipts, on both success and error notifications. The screenshot is uploaded to UploadThing as `{host}.png`, so Slack inlines it like a photo.
+- Cost: each pasted link is one Firecrawl scrape (1 credit); the free tier is limited, and the WAF rate limit below is the guard. Pages needing a login, or very tall pages (the model rejects images over its size limits), won't work; the error tells the user to upload a screenshot.
+- UI: `ReceiptLinkPaste` has a "Paste receipt link" button (reads the clipboard; a phone has no shortcut) that falls back to a URL field when the clipboard is blocked or holds no link. The field's arrow is disabled until the text is a valid link. A `paste` listener on the page reads a pasted `http(s)` link (Ctrl/Cmd+V) unless the paste target is a text field. Link field state lives in `ReceiptUploader` because the component unmounts while parsing.
+
 ### Webhook Notifications
 - Triggered after successful receipt parsing, and on parse failures via `sendErrorNotification` (`webhook-notifications.ts`)
 - Supports Slack-formatted messages (detected via `hooks.slack.com` URL)
@@ -253,7 +272,7 @@ The application includes optional observability features that are designed to fa
 - Protected by optional `CRON_SECRET` authentication
 
 ### Rate Limiting (`/api/parse-receipt`)
-`POST /api/parse-receipt` is public and proxies a paid Anthropic call. Inbound limiting is a **Vercel WAF custom rule**, not application code:
+`POST /api/parse-receipt` is public and proxies a paid Anthropic call (pasted links use the same path, so the rule covers them too). Inbound limiting is a **Vercel WAF custom rule**, not application code:
 
 - **Rule name:** Rate limit parse-receipt
 - **Match:** path equals `/api/parse-receipt` AND method is `POST`
