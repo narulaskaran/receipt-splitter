@@ -46,3 +46,6 @@ yarn-error.log*
 next-env.d.ts
 
 browsers/
+
+# Local iOS toolchain experiments
+/.local/xtool-probe/
