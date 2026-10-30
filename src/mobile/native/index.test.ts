@@ -37,10 +37,12 @@ jest.mock("@capacitor/browser", () => ({
 
 jest.mock("@capacitor/app", () => ({
   App: {
-    canOpenUrl: jest.fn(),
-    openUrl: jest.fn(),
     addListener: jest.fn(),
   },
+}));
+
+jest.mock("@capacitor/app-launcher", () => ({
+  AppLauncher: { canOpenUrl: jest.fn(), openUrl: jest.fn() },
 }));
 
 jest.mock("@capacitor/status-bar", () => ({

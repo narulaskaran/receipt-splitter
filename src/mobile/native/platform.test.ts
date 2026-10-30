@@ -1,4 +1,4 @@
-import { App } from "@capacitor/app";
+import { AppLauncher } from "@capacitor/app-launcher";
 import { Browser } from "@capacitor/browser";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { Clipboard } from "@capacitor/clipboard";
@@ -48,16 +48,14 @@ jest.mock("@capacitor/browser", () => ({
   },
 }));
 
-jest.mock("@capacitor/app", () => ({
-  App: {
+jest.mock("@capacitor/app-launcher", () => ({
+  AppLauncher: {
     canOpenUrl: jest.fn(),
     openUrl: jest.fn(),
-    addListener: jest.fn(),
   },
 }));
 
-// `@capacitor/app` 8.1.2's types omit canOpenUrl/openUrl. The mock provides them.
-const AppUrls = App as typeof App & {
+const AppUrls = AppLauncher as unknown as {
   canOpenUrl: jest.Mock;
   openUrl: jest.Mock;
 };

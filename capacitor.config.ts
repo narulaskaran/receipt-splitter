@@ -1,4 +1,5 @@
 import type { CapacitorConfig } from "@capacitor/cli";
+import { KeyboardResize } from "@capacitor/keyboard";
 
 /**
  * Capacitor configuration for the bundled iOS client.
@@ -21,7 +22,7 @@ const config: CapacitorConfig = {
   },
   plugins: {
     Keyboard: {
-      resize: "native",
+      resize: KeyboardResize.Native,
       resizeOnFullScreen: true,
     },
     StatusBar: {

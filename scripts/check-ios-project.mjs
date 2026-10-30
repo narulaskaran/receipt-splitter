@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 
 const EXPECTED_PLUGINS = [
   "CapacitorApp",
+  "CapacitorAppLauncher",
   "CapacitorBrowser",
   "CapacitorCamera",
   "CapacitorClipboard",

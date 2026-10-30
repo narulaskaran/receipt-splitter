@@ -1,4 +1,4 @@
-import { App } from "@capacitor/app";
+import { AppLauncher } from "@capacitor/app-launcher";
 import { Browser } from "@capacitor/browser";
 import {
   Camera,
@@ -17,16 +17,6 @@ import {
 } from "@/lib/platform";
 
 import { createNativeTipJar } from "./tip-jar";
-
-/**
- * Installed `@capacitor/app` 8.1.2 does not declare these methods (they live
- * on `@capacitor/app-launcher`). The native-bridge brief calls them on App.
- * A missing implementation rejects and becomes "unavailable".
- */
-interface AppUrlOpener {
-  canOpenUrl(options: { url: string }): Promise<{ value: boolean }>;
-  openUrl(options: { url: string }): Promise<{ completed: boolean }>;
-}
 
 function errorText(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -157,10 +147,11 @@ async function readClipboardText(): Promise<string | null> {
 }
 
 async function openCustomScheme(url: string): Promise<OpenUrlOutcome> {
-  const opener = App as unknown as AppUrlOpener;
-  const can = await opener.canOpenUrl({ url });
+  // canOpenUrl only answers for schemes listed in LSApplicationQueriesSchemes
+  // (Info.plist declares venmo).
+  const can = await AppLauncher.canOpenUrl({ url });
   if (!can?.value) return "unavailable";
-  const opened = await opener.openUrl({ url });
+  const opened = await AppLauncher.openUrl({ url });
   return opened?.completed ? "opened" : "unavailable";
 }
 

@@ -97,6 +97,15 @@ describe("checkIosProject", () => {
       fs.mkdirSync(path.join(dir, "packages/capacitor-tip-jar"), {
         recursive: true,
       });
+      const spmPath = path.join(dir, "ios/App/CapApp-SPM/Package.swift");
+      fs.writeFileSync(
+        spmPath,
+        fs
+          .readFileSync(spmPath, "utf8")
+          .split("\n")
+          .filter((line) => !line.includes("CapacitorTipJar"))
+          .join("\n"),
+      );
       const { errors } = checkIosProject(dir);
       expect(errors).toEqual([
         expect.stringContaining("must list CapacitorTipJar"),
