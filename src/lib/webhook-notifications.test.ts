@@ -1,4 +1,9 @@
-import { sendReceiptParsedNotification, sendErrorNotification } from './webhook-notifications';
+import {
+  sendReceiptParsedNotification,
+  sendErrorNotification,
+  summarizeZodValidationForWebhook,
+} from './webhook-notifications';
+import { z } from 'zod';
 import { type Receipt } from '@/types';
 
 // Note: global.fetch is mocked in jest.setup.ts
@@ -166,6 +171,28 @@ describe('webhook-notifications', () => {
         expect(bodyString).not.toContain('Fees');
       });
 
+      it('includes client platform and version in the Slack footer', async () => {
+        await sendReceiptParsedNotification(
+          mockReceipt,
+          null,
+          'test-session-id',
+          'receipt.jpg',
+          'image/jpeg',
+          null,
+          { provider: 'anthropic', model: 'm' },
+          null,
+          'ios',
+          '2.1.0'
+        );
+
+        const callBody = JSON.parse(
+          (global.fetch as jest.Mock).mock.calls[0][1].body
+        );
+        const footer = callBody.blocks.find((b: { type: string }) => b.type === 'context');
+        expect(footer.elements[0].text).toContain('Platform: ios');
+        expect(footer.elements[0].text).toContain('Version: 2.1.0');
+      });
+
       it('shows the LLM provider and model in the Slack footer', async () => {
         await sendReceiptParsedNotification(
           mockReceipt,
@@ -270,6 +297,27 @@ describe('webhook-notifications', () => {
           (global.fetch as jest.Mock).mock.calls[0][1].body
         );
         expect(callBody.llm).toEqual({ provider: 'openrouter', model: 'openai/gpt-6-luna' });
+      });
+
+      it('includes client metadata in JSON format', async () => {
+        await sendReceiptParsedNotification(
+          mockReceipt,
+          null,
+          'test-session-id',
+          'receipt.jpg',
+          'image/jpeg',
+          null,
+          null,
+          null,
+          'web',
+          '1.2.3'
+        );
+
+        const callBody = JSON.parse(
+          (global.fetch as jest.Mock).mock.calls[0][1].body
+        );
+        expect(callBody.clientPlatform).toBe('web');
+        expect(callBody.clientVersion).toBe('1.2.3');
       });
 
       it('sends llm as null when not provided', async () => {
@@ -801,6 +849,21 @@ describe('webhook-notifications', () => {
           sendErrorNotification('test_error', 'test message')
         ).resolves.toBeUndefined();
       });
+    });
+  });
+
+  describe('summarizeZodValidationForWebhook', () => {
+    it('summarizes paths and codes without issue values', () => {
+      const schema = z.object({
+        items: z.array(z.object({ price: z.number() })),
+      });
+      const result = schema.safeParse({ items: [{ price: 'not-a-number' }] });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const summary = summarizeZodValidationForWebhook(result.error);
+        expect(summary).toContain('items.0.price');
+        expect(summary).not.toContain('not-a-number');
+      }
     });
   });
 

@@ -210,8 +210,8 @@ A Vercel Cron job runs daily at 3 AM UTC to delete files older than 90 days:
 - Endpoint: `/api/cron/cleanup-old-receipts`
 - Schedule: `0 3 * * *` (configured in `vercel.json`)
 
-**Optional Security:**
-Add `CRON_SECRET` to your Vercel environment variables to protect the endpoint from unauthorized manual invocations. Vercel automatically includes this in the Authorization header for scheduled cron runs.
+**Security:**
+`CRON_SECRET` is **required in production** (the job returns 500 if it is missing). In development it remains optional. Vercel automatically includes the secret in the `Authorization` header for scheduled cron runs. The job paginates through all UploadThing files before deleting entries older than 90 days.
 
 ### Environment Variables Summary
 
@@ -224,7 +224,8 @@ Add `CRON_SECRET` to your Vercel environment variables to protect the endpoint f
 | `OPENROUTER_API_KEY` | If provider is `openrouter` | OpenRouter API key |
 | `UPLOADTHING_TOKEN` | No | UploadThing API token for file storage |
 | `WEBHOOK_URL` | No | Slack or generic webhook URL for notifications |
-| `CRON_SECRET` | No | Secret for cron job authentication |
+| `CRON_SECRET` | Yes (production) | Secret for cron job authentication |
+| `NATIVE_APP_ORIGINS` | No | Comma-separated extra CORS origins for `POST /api/v1/parse-receipt` |
 
 ## License
 
