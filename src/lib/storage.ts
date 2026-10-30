@@ -1,5 +1,34 @@
 export const RECEIPT_IMAGE_STORAGE_KEY = "receiptSplitterImage";
 
+/** Keys with this prefix are copied to the native Preferences mirror when one is installed. */
+export const STORAGE_MIRROR_PREFIX = "receiptSplitter";
+
+/**
+ * Optional write-through used by the iOS shell. Web never installs one.
+ * `set` / `remove` run after the localStorage attempt, including when that
+ * attempt throws, so Preferences can keep a copy the WebView evicted.
+ */
+export interface StorageMirror {
+  set(key: string, value: string): void;
+  remove(key: string): void;
+}
+
+let storageMirror: StorageMirror | null = null;
+
+export function setStorageMirror(mirror: StorageMirror | null): void {
+  storageMirror = mirror;
+}
+
+function notifyMirror(key: string, op: "set" | "remove", value?: string): void {
+  if (!storageMirror || !key.startsWith(STORAGE_MIRROR_PREFIX)) return;
+  try {
+    if (op === "set") storageMirror.set(key, value ?? "");
+    else storageMirror.remove(key);
+  } catch (err) {
+    console.warn(`Storage mirror ${op} failed for key "${key}"`, err);
+  }
+}
+
 /**
  * Safe localStorage wrapper that handles QuotaExceededError.
  * Returns true on success, false on failure (logs the error to console).
@@ -19,9 +48,10 @@ export const RECEIPT_IMAGE_STORAGE_KEY = "receiptSplitterImage";
  * to evicting the image cache.
  */
 export function safeSetItem(key: string, value: string): boolean {
+  let stored = false;
   try {
     localStorage.setItem(key, value);
-    return true;
+    stored = true;
   } catch (err) {
     const usage = measureStorageUsage();
     console.warn(
@@ -29,8 +59,10 @@ export function safeSetItem(key: string, value: string): boolean {
         ` (current usage: ~${formatBytes(usage)})`,
       err,
     );
-    return false;
+    stored = false;
   }
+  notifyMirror(key, "set", value);
+  return stored;
 }
 
 /**
@@ -46,12 +78,15 @@ export function safeGetItem(key: string): string | null {
 }
 
 export function safeRemoveItem(key: string): boolean {
+  let removed = false;
   try {
     localStorage.removeItem(key);
-    return true;
+    removed = true;
   } catch {
-    return false;
+    removed = false;
   }
+  notifyMirror(key, "remove");
+  return removed;
 }
 
 /**
