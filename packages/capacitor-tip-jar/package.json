@@ -1,0 +1,26 @@
+{
+  "name": "capacitor-tip-jar",
+  "version": "0.1.0",
+  "private": true,
+  "description": "StoreKit 2 consumable tip jar for the Receipt Splitter iOS app. Swift sources are uncompiled until an Xcode build.",
+  "license": "UNLICENSED",
+  "files": [
+    "ios/Sources",
+    "Package.swift",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "@capacitor/core": ">=8.6.0"
+  },
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    }
+  },
+  "keywords": [
+    "capacitor",
+    "plugin",
+    "storekit",
+    "ios"
+  ]
+}

@@ -38,6 +38,7 @@
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "browser-image-compression": "^2.0.2",
+    "capacitor-tip-jar": "file:packages/capacitor-tip-jar",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "decimal.js": "^10.5.0",
