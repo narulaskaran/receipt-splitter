@@ -154,6 +154,27 @@ npm run screenshots -- --mock-data --output ./my-screenshots
 - **Venmo Utils**: Payment link generation and validation
 - **Emoji Utils**: Group emoji management system
 
+## iOS app
+
+The iPhone app (iOS 26 and later) is a Capacitor project that bundles the same splitting UI and calls this site's API. Building, signing, and uploading need a Mac and an Apple Developer account. Those steps are documented in [docs/ios/README.md](docs/ios/README.md) and have not been run here.
+
+On Linux you can check the committed native project:
+
+```bash
+npm run ios:check
+```
+
+The asset build and Xcode sync, on a machine that has the mobile scripts, are:
+
+```bash
+npm run mobile:build
+npx cap sync ios
+```
+
+Then open `ios/App/App.xcodeproj` on a Mac. Do not commit a `server.url` development setting.
+
+Public privacy and support pages, also used as the App Store links, are `/privacy` and `/support`.
+
 ## Deployment
 
 The application is configured for automatic deployment on Vercel. Just connect your GitHub repository to Vercel and it will automatically deploy when changes are pushed to the main branch.
@@ -224,7 +245,13 @@ Add `CRON_SECRET` to your Vercel environment variables to protect the endpoint f
 | `OPENROUTER_API_KEY` | If provider is `openrouter` | OpenRouter API key |
 | `UPLOADTHING_TOKEN` | No | UploadThing API token for file storage |
 | `WEBHOOK_URL` | No | Slack or generic webhook URL for notifications |
-| `CRON_SECRET` | No | Secret for cron job authentication |
+| `CRON_SECRET` | No | Secret for cron job authentication. Production should set it; the cleanup route only checks the secret when this variable is present |
+| `NEXT_PUBLIC_SHARE_ORIGIN` | No | Canonical public origin for `/split` links on the web. Overrides the page origin. If unset, web links use the page origin, then `https://receipt-splitter.app` |
+| `NEXT_PUBLIC_SUPPORT_EMAIL` | No | Contact address on `/privacy` and `/support`. Unset pages say to use the address in the App Store listing |
+| `VITE_API_ORIGIN` | Mobile build | HTTPS origin of the API the iOS app calls |
+| `VITE_PUBLIC_ORIGIN` | Mobile build | Public website origin used in share links from the iOS app. Never a `capacitor://` origin |
+| `VITE_APP_VERSION` | Mobile build | Marketing version sent as `X-Client-Version` |
+| `VITE_TIP_PRODUCT_IDS` | No | Comma-separated StoreKit tip product IDs. Overrides the defaults in `src/lib/tip-products.ts` |
 
 ## License
 

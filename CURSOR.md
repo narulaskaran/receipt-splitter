@@ -431,3 +431,7 @@ Comprehensive test coverage including:
 - **Performance**: Optimized rendering and efficient state management
 - **Accessibility**: Screen reader support and keyboard navigation
 - **Progressive Enhancement**: Core functionality works on all devices
+
+## iOS app
+
+The iPhone app is a Capacitor project under `ios/` (iOS 26, iPhone only) that bundles a static build of the shared React UI and calls the hosted API. Store and release notes are in `docs/ios/`. Public `/privacy` and `/support` pages are the App Store privacy and support URLs. `npm run ios:check` validates the committed native project on Linux. Signing, TestFlight, and submission are manual Mac steps and are not verified in this environment.
