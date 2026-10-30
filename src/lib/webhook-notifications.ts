@@ -1,5 +1,32 @@
 import { type Receipt, type GeolocationData } from '@/types';
 import { getCurrencyInfo } from '@/lib/currency';
+import { type ClientPlatform } from '@/lib/client-metadata';
+
+export { summarizeZodValidationForWebhook } from '@/lib/error-webhook-summary';
+
+/**
+ * Error webhooks intentionally omit receipt contents (item names/prices, raw model
+ * output, and Zod issue values). They may still include: uploaded file URL,
+ * session id, IP-derived geolocation, LLM provider/model, pasted source URL,
+ * file name/MIME type, and client platform/version metadata.
+ *
+ * Success webhooks include full parsed receipt fields by design (same retention
+ * policy as file URLs — see product docs).
+ */
+
+function clientMetadataSuffix(context: {
+  clientPlatform?: ClientPlatform | null;
+  clientVersion?: string | null;
+}): string {
+  const bits: string[] = [];
+  if (context.clientPlatform) {
+    bits.push(`Platform: ${context.clientPlatform}`);
+  }
+  if (context.clientVersion) {
+    bits.push(`Version: ${context.clientVersion}`);
+  }
+  return bits.length > 0 ? ` · ${bits.join(' · ')}` : '';
+}
 
 /**
  * Currency symbol for a receipt's currency (USD default), used to format
@@ -27,6 +54,8 @@ export interface ErrorNotificationContext {
   llm?: LLMInfo | null;
   /** The pasted link the receipt came from, when it wasn't an uploaded file */
   sourceUrl?: string | null;
+  clientPlatform?: ClientPlatform | null;
+  clientVersion?: string | null;
 }
 
 /**
@@ -41,6 +70,8 @@ export interface ReceiptWebhookData {
   geolocation: GeolocationData | null;
   llm: LLMInfo | null;
   sourceUrl?: string | null;
+  clientPlatform?: ClientPlatform | null;
+  clientVersion?: string | null;
 }
 
 /**
@@ -223,7 +254,7 @@ class SlackFormatter implements WebhookPayloadFormatter {
       elements: [
         {
           type: 'mrkdwn',
-          text: `File: ${fileName} (${mimeType})${data.llm ? ` · Model: ${data.llm.provider}/${data.llm.model}` : ''}${data.sourceUrl ? `\nSource: ${data.sourceUrl}` : ''}`,
+          text: `File: ${fileName} (${mimeType})${data.llm ? ` · Model: ${data.llm.provider}/${data.llm.model}` : ''}${data.sourceUrl ? `\nSource: ${data.sourceUrl}` : ''}${clientMetadataSuffix(data)}`,
         },
       ],
     });
@@ -241,7 +272,18 @@ class SlackFormatter implements WebhookPayloadFormatter {
  */
 class GenericJsonFormatter implements WebhookPayloadFormatter {
   format(data: ReceiptWebhookData): Record<string, unknown> {
-    const { receipt, fileUrl, sessionId, fileName, mimeType, geolocation, llm, sourceUrl } = data;
+    const {
+      receipt,
+      fileUrl,
+      sessionId,
+      fileName,
+      mimeType,
+      geolocation,
+      llm,
+      sourceUrl,
+      clientPlatform,
+      clientVersion,
+    } = data;
 
     return {
       event: 'receipt_parsed',
@@ -249,6 +291,8 @@ class GenericJsonFormatter implements WebhookPayloadFormatter {
       sessionId,
       geolocation,
       llm,
+      clientPlatform: clientPlatform ?? null,
+      clientVersion: clientVersion ?? null,
       file: {
         url: fileUrl,
         name: fileName,
@@ -364,7 +408,7 @@ class SlackErrorFormatter implements ErrorPayloadFormatter {
         elements: [
           {
             type: 'mrkdwn',
-            text: `File: ${context.fileName || 'unknown'} (${context.mimeType || 'unknown'})${context.sourceUrl ? `\nSource: ${context.sourceUrl}` : ''}`,
+            text: `File: ${context.fileName || 'unknown'} (${context.mimeType || 'unknown'})${context.sourceUrl ? `\nSource: ${context.sourceUrl}` : ''}${clientMetadataSuffix(context)}`,
           },
         ],
       });
@@ -387,6 +431,8 @@ class GenericJsonErrorFormatter implements ErrorPayloadFormatter {
       sessionId: context.sessionId || null,
       geolocation: context.geolocation || null,
       llm: context.llm || null,
+      clientPlatform: context.clientPlatform ?? null,
+      clientVersion: context.clientVersion ?? null,
       file: {
         url: context.fileUrl || null,
         name: context.fileName || null,
@@ -469,7 +515,9 @@ export async function sendReceiptParsedNotification(
   mimeType: string,
   geolocation: GeolocationData | null,
   llm: LLMInfo | null = null,
-  sourceUrl: string | null = null
+  sourceUrl: string | null = null,
+  clientPlatform: ClientPlatform | null = null,
+  clientVersion: string | null = null
 ): Promise<void> {
   try {
     const webhookUrl = process.env.WEBHOOK_URL;
@@ -497,6 +545,8 @@ export async function sendReceiptParsedNotification(
       geolocation,
       llm,
       sourceUrl,
+      clientPlatform,
+      clientVersion,
     };
     await postWebhook(webhookUrl, formatter.format(data), () =>
       console.error('[Webhook] Request timed out after 5 seconds')

@@ -216,7 +216,8 @@ Optional (for observability features):
 ```
 UPLOADTHING_TOKEN=your_token_here      # File storage for receipts
 WEBHOOK_URL=https://hooks.slack.com/...  # Slack/webhook notifications
-CRON_SECRET=your_secret_here            # Cron job authentication
+CRON_SECRET=your_secret_here            # Cron job authentication (required in production)
+NATIVE_APP_ORIGINS=                       # Extra CORS origins for POST /api/v1/parse-receipt (comma-separated)
 ```
 
 ## LLM Providers
@@ -266,16 +267,17 @@ The application includes optional observability features that are designed to fa
 - PDF receipts are handled differently than images in Slack webhooks (linked vs. inlined)
 
 ### Cron Job (File Cleanup)
-- Endpoint: `/api/cron/cleanup-old-receipts`
+- Endpoint: `/api/cron/cleanup-old-receipts` (`maxDuration = 300`)
 - Runs daily at 3 AM UTC (configured in `vercel.json`)
-- Deletes files older than 90 days from UploadThing
-- Protected by optional `CRON_SECRET` authentication
+- Paginates UploadThing `listFiles` (500/page), collects keys older than 90 days, then deletes in batches of 100
+- `CRON_SECRET` is **required** in production (`VERCEL_ENV` or `NODE_ENV`); optional in dev/test
+- Response JSON includes `pages` and `partial` when listing guards stop early
 
-### Rate Limiting (`/api/parse-receipt`)
-`POST /api/parse-receipt` is public and proxies a paid Anthropic call (pasted links use the same path, so the rule covers them too). Inbound limiting is a **Vercel WAF custom rule**, not application code:
+### Rate Limiting (parse-receipt)
+`POST /api/parse-receipt` and `POST /api/v1/parse-receipt` are public and proxy paid LLM calls. Inbound limiting is a **Vercel WAF custom rule**, not application code — extend the rule to **both** paths (see `docs/api/parse-receipt-v1.md`):
 
 - **Rule name:** Rate limit parse-receipt
-- **Match:** path equals `/api/parse-receipt` AND method is `POST`
+- **Match:** path equals `/api/parse-receipt` OR `/api/v1/parse-receipt` AND method is `POST`
 - **Limit:** 10 requests / 10 minutes per IP (fixed window)
 - **Exceeded action:** HTTP 429 (blocked at the edge, before the function or Anthropic runs)
 - **Config:** Vercel dashboard Firewall, or `npx vercel@latest firewall` (global CLI 48.x does not include this command)
