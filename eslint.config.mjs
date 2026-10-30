@@ -24,6 +24,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "dist-mobile/**",
+    // Native project, including web assets copied in by `cap sync`.
+    "ios/**",
     "next-env.d.ts",
     "coverage/**",
     "scripts/**",
