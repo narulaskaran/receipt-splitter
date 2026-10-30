@@ -14,7 +14,8 @@
     "test:watch": "jest --watch",
     "test:e2e": "playwright test --project=chromium",
     "generate-icons": "node scripts/generate-icons.js",
-    "screenshots": "node scripts/screenshot-harness.js"
+    "screenshots": "node scripts/screenshot-harness.js",
+    "ios:check": "node scripts/check-ios-project.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.127.0",
