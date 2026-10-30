@@ -39,7 +39,18 @@ export const TINY_PNG = Buffer.from(
   "base64",
 );
 
+/** Pre-accept AI processing so upload specs exercise parsing, not the consent dialog. */
+export async function grantAiConsent(page: Page) {
+  await page.evaluate(() => {
+    window.localStorage.setItem(
+      "receiptSplitterAiConsent",
+      JSON.stringify({ version: 1 }),
+    );
+  });
+}
+
 export async function uploadTinyReceipt(page: Page) {
+  await grantAiConsent(page);
   await page.locator('input[type="file"]').setInputFiles({
     name: "receipt.png",
     mimeType: "image/png",

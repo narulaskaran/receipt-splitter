@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import path from "path";
+import { grantAiConsent } from "./helpers";
 
 const SAMPLE_RECEIPT = path.join(__dirname, "fixtures", "sample-receipt.png");
 
@@ -21,7 +22,7 @@ test.describe("upload another receipt affordance", () => {
   test("empty dropzone is large; after parse it shrinks and the image moves to details", async ({
     page,
   }) => {
-    await page.route("**/api/parse-receipt", (route) =>
+    await page.route("**/api/v1/parse-receipt", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -37,6 +38,7 @@ test.describe("upload another receipt affordance", () => {
       page.getByText("Click or drag to add another receipt"),
     ).toHaveCount(0);
 
+    await grantAiConsent(page);
     await page.locator('input[type="file"]').setInputFiles(SAMPLE_RECEIPT);
 
     await expect(
