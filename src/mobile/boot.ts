@@ -22,7 +22,6 @@ export function iosAppConfig(env: MobileViteEnv): AppConfig {
 /**
  * Install the native platform adapter and hydrate the storage mirror.
  * A failure leaves the shared UI on localStorage and must not block startup.
- * src/mobile/main.tsx inlines this same try/catch around `import("./native")`.
  */
 export async function bootNativeShell(): Promise<void> {
   try {

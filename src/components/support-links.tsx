@@ -36,10 +36,12 @@ function AboutLinks() {
 
   return (
     <>
-      <a className={className} href={privacy}>
+      {/* Root-relative on web: same origin as the page (previews, offline
+          shell) and identical on server and client, unlike the public origin. */}
+      <a className={className} href="/privacy">
         Privacy
       </a>
-      <a className={className} href={support}>
+      <a className={className} href="/support">
         Support
       </a>
     </>

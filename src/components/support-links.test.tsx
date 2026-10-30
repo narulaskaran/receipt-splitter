@@ -22,11 +22,11 @@ describe("SupportFooter", () => {
     render(<SupportFooter />);
     expect(screen.getByRole("link", { name: "Privacy" })).toHaveAttribute(
       "href",
-      `${getPublicShareOrigin()}/privacy`,
+      "/privacy",
     );
     expect(screen.getByRole("link", { name: "Support" })).toHaveAttribute(
       "href",
-      `${getPublicShareOrigin()}/support`,
+      "/support",
     );
   });
 

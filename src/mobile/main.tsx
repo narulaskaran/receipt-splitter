@@ -1,7 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import { createRoot } from "react-dom/client";
 import { App } from "@/mobile/App";
-import { configureMobileApp } from "@/mobile/boot";
+import { bootNativeShell, configureMobileApp } from "@/mobile/boot";
 import "@/app/globals.css";
 import "@/mobile/mobile.css";
 
@@ -16,15 +16,7 @@ void (async () => {
   });
 
   if (Capacitor.isNativePlatform()) {
-    try {
-      const { bootNative } = await import("./native");
-      await bootNative();
-    } catch (error) {
-      console.error(
-        "Native boot failed; continuing with on-device storage only.",
-        error
-      );
-    }
+    await bootNativeShell();
   }
 
   const rootElement = document.getElementById("root");

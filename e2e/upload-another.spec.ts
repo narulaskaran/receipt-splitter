@@ -35,14 +35,14 @@ test.describe("upload another receipt affordance", () => {
       timeout: 10000,
     });
     await expect(
-      page.getByText("Click or drag to add another receipt"),
+      page.getByRole("button", { name: "Add file" }),
     ).toHaveCount(0);
 
     await grantAiConsent(page);
     await page.locator('input[type="file"]').setInputFiles(SAMPLE_RECEIPT);
 
     await expect(
-      page.getByText("Click or drag to add another receipt"),
+      page.getByRole("button", { name: "Add file" }),
     ).toBeVisible({ timeout: 15000 });
     await expect(page.getByText("Upload your receipts")).toHaveCount(0);
     await expect(page.getByText("Receipts (1/10)")).toBeVisible();

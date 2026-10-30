@@ -39,14 +39,27 @@ export const TINY_PNG = Buffer.from(
   "base64",
 );
 
-/** Pre-accept AI processing so upload specs exercise parsing, not the consent dialog. */
+const AI_CONSENT_KEY = "receiptSplitterAiConsent";
+const AI_CONSENT_VALUE = JSON.stringify({ version: 1 });
+
+/**
+ * Pre-accept AI processing so upload specs exercise parsing, not the consent
+ * dialog. Applies to later navigations (init script) and, when the page is
+ * already loaded, to the current document too.
+ */
 export async function grantAiConsent(page: Page) {
-  await page.evaluate(() => {
-    window.localStorage.setItem(
-      "receiptSplitterAiConsent",
-      JSON.stringify({ version: 1 }),
+  await page.addInitScript(
+    ([key, value]) => window.localStorage.setItem(key, value),
+    [AI_CONSENT_KEY, AI_CONSENT_VALUE],
+  );
+  try {
+    await page.evaluate(
+      ([key, value]) => window.localStorage.setItem(key, value),
+      [AI_CONSENT_KEY, AI_CONSENT_VALUE],
     );
-  });
+  } catch {
+    // Not on a document yet (about:blank / mid-navigation): the init script covers it.
+  }
 }
 
 export async function uploadTinyReceipt(page: Page) {
