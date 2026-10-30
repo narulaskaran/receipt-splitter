@@ -109,12 +109,13 @@ describe("serializeSplitData", () => {
     );
   });
 
-  it("should throw error for empty phone", () => {
-    expect(() => serializeSplitData(mockPeople, "Test Note", "")).toThrow(
-      "Invalid split data: Phone number is required for split sharing"
-    );
-    expect(() => serializeSplitData(mockPeople, "Test Note", "   ")).toThrow(
-      "Invalid split data: Phone number is required for split sharing"
+  it("should omit a blank phone and reject an invalid one", () => {
+    for (const phone of ["", "   ", null, undefined] as const) {
+      const params = serializeSplitData(mockPeople, "Test Note", phone);
+      expect(params.has("phone")).toBe(false);
+    }
+    expect(() => serializeSplitData(mockPeople, "Test Note", "123")).toThrow(
+      "Phone number '123' format is invalid"
     );
   });
 
@@ -289,12 +290,6 @@ describe("deserializeSplitData", () => {
         total: "30.00",
         phone: "5551234567",
       }), // missing note
-      new URLSearchParams({
-        names: "Alice",
-        amounts: "30.00",
-        total: "30.00",
-        note: "Test",
-      }), // missing phone
       new URLSearchParams({}), // missing everything
     ];
 
@@ -381,10 +376,29 @@ describe("deserializeSplitData", () => {
       amounts: "30.00,20.00",
       total: "50.00",
       note: "Test",
-      phone: "", // empty phone
+      phone: "", // blank phone is treated as omitted
     });
 
-    expect(deserializeSplitData(params2)).toBeNull();
+    const withoutPhone = deserializeSplitData(params2);
+    expect(withoutPhone).not.toBeNull();
+    expect(withoutPhone!.phone).toBeUndefined();
+    expect(withoutPhone!.names).toEqual(["Alice", "Bob"]);
+  });
+
+  it("should accept a link that omits the phone parameter", () => {
+    const params = new URLSearchParams({
+      names: "Alice",
+      amounts: "30.00",
+      total: "30.00",
+      note: "Test",
+    });
+
+    const result = deserializeSplitData(params);
+    expect(result).not.toBeNull();
+    expect(result!.phone).toBeUndefined();
+    expect(result!.amounts).toEqual([30]);
+    expect(result!.currency).toBe("USD");
+    expect(validateSplitDataDetailed(result!).isValid).toBe(true);
   });
 
   it("should handle special characters correctly", () => {
@@ -614,13 +628,13 @@ describe("validateSplitData", () => {
     expect(validateSplitDataDetailed(invalidData).isValid).toBe(false);
   });
 
-  it("should reject data missing required phone field", () => {
-    const invalidData: SharedSplitData = {
-      ...validSplitData,
-      phone: "",
-    };
-
-    expect(validateSplitDataDetailed(invalidData).isValid).toBe(false);
+  it("should accept data with no phone number", () => {
+    const withoutPhone: SharedSplitData = { ...validSplitData };
+    delete withoutPhone.phone;
+    expect(validateSplitDataDetailed(withoutPhone).isValid).toBe(true);
+    expect(
+      validateSplitDataDetailed({ ...validSplitData, phone: "" }).isValid
+    ).toBe(true);
   });
 
   it("should reject mismatched array lengths", () => {
@@ -890,16 +904,13 @@ describe("validateSplitDataDetailed", () => {
     expect(result.errorMessages[0]).toContain("Note/memo is required");
   });
 
-  it("should detect missing required phone field", () => {
-    const invalidData: SharedSplitData = {
-      ...validSplitData,
-      phone: "",
-    };
-
-    const result = validateSplitDataDetailed(invalidData);
-    expect(result.isValid).toBe(false);
-    expect(result.errors).toContain(SplitDataError.INVALID_PHONE_NUMBER);
-    expect(result.errorMessages[0]).toContain("Phone number is required");
+  it("should accept a missing or blank phone", () => {
+    const withoutPhone: SharedSplitData = { ...validSplitData };
+    delete withoutPhone.phone;
+    expect(validateSplitDataDetailed(withoutPhone).isValid).toBe(true);
+    const blank = validateSplitDataDetailed({ ...validSplitData, phone: "   " });
+    expect(blank.isValid).toBe(true);
+    expect(blank.errors).not.toContain(SplitDataError.INVALID_PHONE_NUMBER);
   });
 
   it("should detect invalid phone numbers", () => {
@@ -978,12 +989,16 @@ describe("validateSerializationInput", () => {
     expect(result.errorMessages[0]).toContain("Note/memo is required");
   });
 
-  it("should detect empty phone", () => {
+  it("should accept an empty phone", () => {
     const result = validateSerializationInput(mockPeople, "Test", "");
 
-    expect(result.isValid).toBe(false);
-    expect(result.errors).toContain(SplitDataError.INVALID_PHONE_NUMBER);
-    expect(result.errorMessages[0]).toContain("Phone number is required");
+    expect(result.isValid).toBe(true);
+    expect(result.errors).not.toContain(SplitDataError.INVALID_PHONE_NUMBER);
+  });
+
+  it("should accept a null phone", () => {
+    const result = validateSerializationInput(mockPeople, "Test", null);
+    expect(result.isValid).toBe(true);
   });
 
   it("should detect invalid phone format", () => {
