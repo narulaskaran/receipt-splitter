@@ -14,7 +14,10 @@
     "test:watch": "jest --watch",
     "test:e2e": "playwright test --project=chromium",
     "generate-icons": "node scripts/generate-icons.js",
-    "screenshots": "node scripts/screenshot-harness.js"
+    "screenshots": "node scripts/screenshot-harness.js",
+    "mobile:dev": "vite --config mobile/vite.config.ts",
+    "mobile:build": "vite build --config mobile/vite.config.ts",
+    "ios:sync": "npm run mobile:build && cap sync ios"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.127.0",
