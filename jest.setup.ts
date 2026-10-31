@@ -147,6 +147,7 @@ afterAll(() => {
 // =============================================================================
 
 import { resetThumbnailsStore } from "@/lib/receipt-thumbnails";
+import { resetEphemeralStorageForTests } from "@/lib/storage";
 
 beforeEach(() => {
   // Clear all mock call history between tests
@@ -155,6 +156,7 @@ beforeEach(() => {
   // Reset localStorage between tests
   localStorageMock.clear();
   resetThumbnailsStore();
+  resetEphemeralStorageForTests();
 });
 
 // Note: Individual tests that modify navigator.share should restore it in their own afterEach

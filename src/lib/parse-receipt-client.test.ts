@@ -1,6 +1,8 @@
 import { configureApp, PARSE_RECEIPT_PATH } from "@/lib/app-config";
 import {
   PARSE_RECEIPT_TIMEOUT_MS,
+  ParseReceiptError,
+  isRetryableParseError,
   parseReceipt,
 } from "@/lib/parse-receipt-client";
 
@@ -68,11 +70,27 @@ describe("parseReceipt", () => {
     expect(headers["X-Client-Version"]).toBe("1.2.3");
   });
 
-  it("maps a network failure to a connection message", async () => {
+  it("maps a network failure to a retryable offline-like error", async () => {
     (global.fetch as jest.Mock).mockRejectedValueOnce(new TypeError("Failed to fetch"));
-    await expect(parseReceipt(new FormData())).rejects.toThrow(
+    const failure = parseReceipt(new FormData());
+    await expect(failure).rejects.toThrow(
       "Couldn't reach the server. Check your connection and try again."
     );
+    await expect(failure).rejects.toBeInstanceOf(ParseReceiptError);
+    await failure.catch((error: unknown) => {
+      expect(isRetryableParseError(error)).toBe(true);
+      expect(error).toMatchObject({ offlineLike: true, retryable: true });
+    });
+  });
+
+  it("treats a WKWebView load failure as offline-like even when it is not a TypeError", async () => {
+    (global.fetch as jest.Mock).mockRejectedValueOnce(
+      new Error("The internet connection appears to be offline.")
+    );
+    await expect(parseReceipt(new FormData())).rejects.toMatchObject({
+      offlineLike: true,
+      retryable: true,
+    });
   });
 
   it("maps 413 and 429 to friendly messages", async () => {
@@ -136,5 +154,8 @@ describe("parseReceipt", () => {
     );
     await jest.advanceTimersByTimeAsync(PARSE_RECEIPT_TIMEOUT_MS);
     await assertion;
+    await pending.catch((error: unknown) => {
+      expect(error).toMatchObject({ offlineLike: true, retryable: true });
+    });
   });
 });

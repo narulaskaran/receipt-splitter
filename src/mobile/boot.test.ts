@@ -36,10 +36,11 @@ describe("mobile boot", () => {
     });
   });
 
-  it("swallows a native boot failure", async () => {
+  it("logs a native boot failure instead of rejecting", async () => {
     bootNativeMock.mockRejectedValueOnce(new Error("plugin missing"));
     await expect(bootNativeShell()).resolves.toBeUndefined();
     expect(bootNativeMock).toHaveBeenCalledTimes(1);
+    expect(console.error).toHaveBeenCalled();
   });
 
   it("runs bootNative when the shell loads", async () => {

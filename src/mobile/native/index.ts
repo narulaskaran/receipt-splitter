@@ -64,6 +64,15 @@ function bindChromeUpdates(): void {
   });
 }
 
+function bindBackgroundFlush(): void {
+  const flushInBackground = () => {
+    void flush();
+  };
+  // WKWebView delivers these as well as Capacitor's appStateChange.
+  window.addEventListener("pagehide", flushInBackground);
+  document.addEventListener("pause", flushInBackground);
+}
+
 /**
  * Called once from the mobile entry before the first render. Hydration
  * finishes (or fails closed, without a mirror) before the platform adapter
@@ -75,6 +84,7 @@ export async function bootNative(): Promise<void> {
   await applyStatusBar();
   await applyKeyboard();
   bindChromeUpdates();
+  bindBackgroundFlush();
   try {
     await App.addListener("appStateChange", (state) => {
       if (!state.isActive) void flush();
