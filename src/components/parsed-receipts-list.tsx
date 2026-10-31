@@ -83,10 +83,10 @@ export function ParsedReceiptsList({
               key={stored.id}
               className="rounded-lg border"
             >
-              <div className="flex items-start gap-2 p-3">
+              <div className="flex flex-wrap items-start gap-2 p-3">
                 <button
                   type="button"
-                  className="flex flex-1 items-start gap-2 text-left min-w-0"
+                  className="flex min-h-11 min-w-0 flex-1 items-center gap-2 text-left"
                   onClick={() =>
                     setExpandedId(isExpanded ? null : stored.id)
                   }

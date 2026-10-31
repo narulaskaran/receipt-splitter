@@ -597,7 +597,7 @@ export function HomeScreen({ storageReady = true }: { storageReady?: boolean }) 
   if (!storageReady) return null;
 
   return (
-    <main className="container mx-auto px-4 py-8 max-w-4xl">
+        <main className="container mx-auto min-w-0 max-w-4xl px-[16px] py-8 sm:px-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
         <div className="w-full sm:w-auto">
           <h1 className="text-2xl font-semibold tracking-tight">Receipt Splitter</h1>
@@ -606,7 +606,7 @@ export function HomeScreen({ storageReady = true }: { storageReady?: boolean }) 
           </p>
         </div>
 
-        <div className="flex gap-2 w-full sm:w-auto justify-end">
+        <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto">
           <Button
             variant="outline"
             size="sm"
@@ -650,33 +650,33 @@ export function HomeScreen({ storageReady = true }: { storageReady?: boolean }) 
         className="space-y-6"
       >
         <div className="flex flex-col gap-4 mb-2">
-          <TabsList className="w-full overflow-x-auto scrollbar-hide">
-            <TabsTrigger value="upload" className="gap-1.5 sm:gap-2">
+          <TabsList className="h-auto min-w-0 w-full flex-wrap justify-start sm:flex-nowrap">
+            <TabsTrigger value="upload" className="gap-1.5 sm:flex-1 sm:gap-2">
               <UploadCloud className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden xs:inline sm:hidden">Upload</span>
+              <span className="sm:hidden">Upload</span>
               <span className="hidden sm:inline">Upload Receipts</span>
             </TabsTrigger>
-            <TabsTrigger value="people" disabled={!hasReceipt} className="gap-1.5 sm:gap-2">
+            <TabsTrigger value="people" disabled={!hasReceipt} className="gap-1.5 sm:flex-1 sm:gap-2">
               <Users className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden xs:inline sm:hidden">People</span>
+              <span className="sm:hidden">People</span>
               <span className="hidden sm:inline">Add People</span>
             </TabsTrigger>
             <TabsTrigger
               value="assign"
               disabled={!hasReceipt || state.people.length === 0}
-              className="gap-1.5 sm:gap-2"
+              className="gap-1.5 sm:flex-1 sm:gap-2"
             >
               <ListChecks className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden xs:inline sm:hidden">Items</span>
+              <span className="sm:hidden">Items</span>
               <span className="hidden sm:inline">Assign Items</span>
             </TabsTrigger>
             <TabsTrigger
               value="results"
               disabled={!canViewResults}
-              className="gap-1.5 sm:gap-2"
+              className="gap-1.5 sm:flex-1 sm:gap-2"
             >
               <DollarSign className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden xs:inline sm:hidden">Results</span>
+              <span className="sm:hidden">Results</span>
               <span className="hidden sm:inline">Results</span>
             </TabsTrigger>
           </TabsList>
@@ -685,6 +685,7 @@ export function HomeScreen({ storageReady = true }: { storageReady?: boolean }) 
             <div className="flex items-center gap-2 w-full sm:w-auto">
               <Progress
                 value={progress}
+                aria-label="Items assigned"
                 className="h-1 w-full sm:w-48"
               />
               <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap w-10 text-right">

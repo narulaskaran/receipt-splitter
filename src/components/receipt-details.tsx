@@ -137,7 +137,7 @@ export function ReceiptDetails({
             src={thumbnailUrl}
             alt={thumbnailAlt}
           />
-          <div className="grid grid-cols-2 gap-4 flex-1 min-w-0">
+          <div className="grid min-w-0 flex-1 grid-cols-2 gap-4 [&>div]:min-w-0 [&_p]:break-words">
             <div>
               <p className="text-sm text-muted-foreground">Restaurant</p>
               <p className="font-medium">{receipt.restaurant || "Unknown"}</p>
@@ -347,7 +347,7 @@ export function ReceiptDetails({
                       {" "}
                       <button
                         type="button"
-                        className="text-primary underline underline-offset-2 hover:no-underline"
+                        className="inline-flex min-h-11 min-w-11 items-center text-primary underline underline-offset-2 hover:no-underline"
                         onClick={resetTotalToAutoCalculated}
                       >
                         Reset total to auto-calculated

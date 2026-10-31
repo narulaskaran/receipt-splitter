@@ -13,6 +13,7 @@
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
     "test:e2e": "playwright test --project=chromium",
+    "test:e2e:mobile": "playwright test -c playwright.mobile.config.ts",
     "generate-icons": "node scripts/generate-icons.js",
     "screenshots": "node scripts/screenshot-harness.js",
     "ios:check": "node scripts/check-ios-project.mjs",
@@ -59,6 +60,7 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.0",
     "@babel/core": "^8.0.7",
     "@babel/preset-env": "^8.0.7",
     "@babel/preset-react": "^8.0.1",
