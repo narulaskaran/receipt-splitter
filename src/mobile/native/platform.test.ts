@@ -271,9 +271,9 @@ describe("createNativePlatform", () => {
 
   it("opens https and http links in the in-app browser", async () => {
     (Browser.open as jest.Mock).mockResolvedValue(undefined);
-    await expect(platform.openExternalUrl("https://receipt-splitter.app/privacy")).resolves.toBe("opened");
+    await expect(platform.openExternalUrl("https://split.narula.xyz/privacy")).resolves.toBe("opened");
     await expect(platform.openExternalUrl("http://example.test/support")).resolves.toBe("opened");
-    expect(Browser.open).toHaveBeenNthCalledWith(1, { url: "https://receipt-splitter.app/privacy" });
+    expect(Browser.open).toHaveBeenNthCalledWith(1, { url: "https://split.narula.xyz/privacy" });
     expect(Browser.open).toHaveBeenNthCalledWith(2, { url: "http://example.test/support" });
     expect(AppUrls.canOpenUrl).not.toHaveBeenCalled();
   });
@@ -301,7 +301,7 @@ describe("createNativePlatform", () => {
 
   it("returns unavailable when opening a link throws", async () => {
     (Browser.open as jest.Mock).mockRejectedValue(new Error("no browser"));
-    await expect(platform.openExternalUrl("https://receipt-splitter.app")).resolves.toBe("unavailable");
+    await expect(platform.openExternalUrl("https://split.narula.xyz")).resolves.toBe("unavailable");
     AppUrls.canOpenUrl.mockRejectedValue(new Error("not implemented"));
     await expect(platform.openExternalUrl("venmo://paycharge")).resolves.toBe("unavailable");
   });

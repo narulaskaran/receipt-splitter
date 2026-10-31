@@ -17,7 +17,7 @@ Configuration is `src/lib/app-config.ts`.
 | | Web | iOS |
 | --- | --- | --- |
 | API | Same origin as the page (`apiOrigin` empty) | `VITE_API_ORIGIN`, an HTTPS origin of this backend |
-| Share links | `NEXT_PUBLIC_SHARE_ORIGIN`, else the page origin, else `https://receipt-splitter.app` | `VITE_PUBLIC_ORIGIN` |
+| Share links | `NEXT_PUBLIC_SHARE_ORIGIN`, else the page origin, else `https://split.narula.xyz` | `VITE_PUBLIC_ORIGIN` |
 | Version header | none | `VITE_APP_VERSION`, sent as `X-Client-Version` |
 
 Share links must be ordinary `https://` URLs on the public site. They must not use `capacitor://localhost`. The API allows the Capacitor origin through CORS (`NATIVE_APP_ORIGINS` in [backend-setup.md](backend-setup.md)). CORS is not authentication.

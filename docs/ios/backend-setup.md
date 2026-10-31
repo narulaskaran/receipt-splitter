@@ -19,7 +19,7 @@ The iOS client uses `POST /api/v1/parse-receipt` (`PARSE_RECEIPT_PATH` in `src/l
 | --- | --- |
 | `CRON_SECRET` | Required. The cleanup route checks `Authorization: Bearer $CRON_SECRET` only when the variable is set. If it is unset, anyone who can reach the route can run a cleanup. Vercel Cron sends the header when the variable exists. |
 | `NATIVE_APP_ORIGINS` | Required for the app. Include `capacitor://localhost` (the origin the bundled WebView uses). Add any other native origin you actually ship. This is CORS, not a credential. |
-| `NEXT_PUBLIC_SHARE_ORIGIN` | The public website origin, such as `https://receipt-splitter.app`. Share links from the website use it in preference to the page origin. Preview deployments should leave it unset so links stay on the preview host. |
+| `NEXT_PUBLIC_SHARE_ORIGIN` | The public website origin, such as `https://split.narula.xyz`. Share links from the website use it in preference to the page origin. Preview deployments should leave it unset so links stay on the preview host. |
 | `VITE_API_ORIGIN` | Mobile build only, not a Vercel runtime variable. HTTPS origin of this deployment. |
 | `VITE_PUBLIC_ORIGIN` | Mobile build only. Same public origin as `NEXT_PUBLIC_SHARE_ORIGIN`. |
 | `UPLOADTHING_TOKEN` | Required if you want receipt copies stored and the 90-day deletion job to have anything to delete. Parsing continues when upload fails, and the webhook then has no file URL. |

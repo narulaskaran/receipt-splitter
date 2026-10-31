@@ -247,7 +247,7 @@ A Vercel Cron job runs daily at 3 AM UTC to delete files older than 90 days:
 | `WEBHOOK_URL` | No | Slack or generic webhook URL for notifications |
 | `CRON_SECRET` | Yes (production) | Secret for cron job authentication |
 | `NATIVE_APP_ORIGINS` | No | Comma-separated extra CORS origins for `POST /api/v1/parse-receipt` |
-| `NEXT_PUBLIC_SHARE_ORIGIN` | No | Canonical public origin for `/split` links on the web. Overrides the page origin. If unset, web links use the page origin, then `https://receipt-splitter.app` |
+| `NEXT_PUBLIC_SHARE_ORIGIN` | No | Canonical public origin for `/split` links on the web. Overrides the page origin. If unset, web links use the page origin, then `https://split.narula.xyz` |
 | `NEXT_PUBLIC_SUPPORT_EMAIL` | No | Contact address on `/privacy` and `/support`. Unset pages say to use the address in the App Store listing |
 | `VITE_API_ORIGIN` | Mobile build | HTTPS origin of the API the iOS app calls |
 | `VITE_PUBLIC_ORIGIN` | Mobile build | Public website origin used in share links from the iOS app. Never a `capacitor://` origin |

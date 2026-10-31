@@ -25,13 +25,13 @@ describe("mobile boot", () => {
 
     configureMobileApp({
       VITE_API_ORIGIN: "https://preview.example",
-      VITE_PUBLIC_ORIGIN: "https://receipt-splitter.app",
+      VITE_PUBLIC_ORIGIN: "https://split.narula.xyz",
       VITE_APP_VERSION: "1.0.0",
     });
     expect(getAppConfig()).toMatchObject({
       platform: "ios",
       apiOrigin: "https://preview.example",
-      publicOrigin: "https://receipt-splitter.app",
+      publicOrigin: "https://split.narula.xyz",
       appVersion: "1.0.0",
     });
   });

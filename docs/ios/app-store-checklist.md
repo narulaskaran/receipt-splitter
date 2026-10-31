@@ -18,7 +18,7 @@ The Xcode project sets `TARGETED_DEVICE_FAMILY = 1` and sets `SUPPORTS_MAC_DESIG
 - [ ] UNVERIFIED: Open China mainland compliance information. If a filing is required and you will not file, remove the China mainland storefront only. [China requirements](https://developer.apple.com/help/app-store-connect/manage-compliance-information/view-china-mainland-compliance-information/).
 - [ ] UNVERIFIED: Complete the age-rating questionnaire from the real behavior: no ads, no unrestricted in-app browser as the product, user-generated names only inside a share link the sender creates, optional web handoff to Venmo. Record the rating Connect assigns. Do not guess it here.
 - [ ] UNVERIFIED: Export compliance. `ITSAppUsesNonExemptEncryption` is `false` in `Info.plist` because the app uses HTTPS only (exempt encryption). Answer Connect's encryption question the same way. This does not cover a future custom crypto library.
-- [ ] UNVERIFIED: Set the privacy policy URL to `https://receipt-splitter.app/privacy` and the support URL to `https://receipt-splitter.app/support`, or the same paths on the production host if it is not `receipt-splitter.app`. Confirm both URLs load before you submit. `NEXT_PUBLIC_SUPPORT_EMAIL` should be set on that deployment so the pages show a real address.
+- [ ] UNVERIFIED: Set the privacy policy URL to `https://split.narula.xyz/privacy` and the support URL to `https://split.narula.xyz/support`; if the production host changes, update `DEFAULT_PUBLIC_ORIGIN`, `NEXT_PUBLIC_SHARE_ORIGIN` and `VITE_API_ORIGIN`/`VITE_PUBLIC_ORIGIN` together. Confirm both URLs load before you submit. `NEXT_PUBLIC_SUPPORT_EMAIL` should be set on that deployment so the pages show a real address.
 - [ ] UNVERIFIED: Recheck Apple's minimum Xcode and SDK for upload. Deployment target 26.0 is not that requirement. They move independently. [Submission guide](https://developer.apple.com/app-store/submitting/).
 
 ## Icon, launch screen, screenshots
@@ -39,7 +39,7 @@ Paste something in this shape, and attach a sample receipt image the reviewer ca
 4. Share again with a US Venmo test number and confirm the Venmo button. If Venmo is not installed, the app should explain that rather than failing silently.
 5. Turn on Airplane Mode, force-quit, reopen, and edit the tip. The split should still be there. Parsing a new photo should fail clearly.
 6. The tip buttons are optional and do not change the split. Decline a purchase and confirm the app still works.
-7. Privacy policy: `https://receipt-splitter.app/privacy`. Support: `https://receipt-splitter.app/support`.
+7. Privacy policy: `https://split.narula.xyz/privacy`. Support: `https://split.narula.xyz/support`.
 
 There is no demo account. The reviewer needs a network path to the production API, or a TestFlight build pointed at a backend you can keep up during review.
 

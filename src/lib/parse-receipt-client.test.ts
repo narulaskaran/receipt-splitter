@@ -46,7 +46,7 @@ describe("parseReceipt", () => {
   it("sends the iOS platform, version, and absolute API origin", async () => {
     configureApp({
       platform: "ios",
-      apiOrigin: "https://receipt-splitter.app",
+      apiOrigin: "https://split.narula.xyz",
       appVersion: "1.2.3",
     });
     (global.fetch as jest.Mock).mockResolvedValueOnce(
@@ -62,7 +62,7 @@ describe("parseReceipt", () => {
       string,
       RequestInit,
     ];
-    expect(url).toBe(`https://receipt-splitter.app${PARSE_RECEIPT_PATH}`);
+    expect(url).toBe(`https://split.narula.xyz${PARSE_RECEIPT_PATH}`);
     const headers = init.headers as Record<string, string>;
     expect(headers["X-Client-Platform"]).toBe("ios");
     expect(headers["X-Client-Version"]).toBe("1.2.3");

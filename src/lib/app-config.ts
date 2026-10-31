@@ -8,7 +8,7 @@ export type PlatformKind = "web" | "ios";
 
 export interface AppConfig {
   platform: PlatformKind;
-  /** Origin of the API, e.g. "https://receipt-splitter.app". "" = same origin. */
+  /** Origin of the API, e.g. "https://split.narula.xyz". "" = same origin. */
   apiOrigin: string;
   /** Origin used in links people share (`/split?...`). Never a native-app origin. */
   publicOrigin: string;
@@ -17,7 +17,7 @@ export interface AppConfig {
 }
 
 /** Documented default; override with NEXT_PUBLIC_SHARE_ORIGIN (web) or VITE_PUBLIC_ORIGIN (mobile). */
-export const DEFAULT_PUBLIC_ORIGIN = "https://receipt-splitter.app";
+export const DEFAULT_PUBLIC_ORIGIN = "https://split.narula.xyz";
 
 /** Versioned parse endpoint. The unversioned /api/parse-receipt stays for older clients. */
 export const PARSE_RECEIPT_PATH = "/api/v1/parse-receipt";
