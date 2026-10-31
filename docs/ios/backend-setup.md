@@ -17,7 +17,7 @@ The iOS client uses `POST /api/v1/parse-receipt` (`PARSE_RECEIPT_PATH` in `src/l
 
 | Variable | Production |
 | --- | --- |
-| `CRON_SECRET` | Required. The cleanup route checks `Authorization: Bearer $CRON_SECRET` only when the variable is set. If it is unset, anyone who can reach the route can run a cleanup. Vercel Cron sends the header when the variable exists. |
+| `CRON_SECRET` | Required in production. With it unset, the cleanup route returns 500 and deletes nothing (fail closed). When set, the route requires `Authorization: Bearer $CRON_SECRET`; Vercel Cron sends it automatically once the variable exists. It is optional only in local dev/test. |
 | `NATIVE_APP_ORIGINS` | Required for the app. Include `capacitor://localhost` (the origin the bundled WebView uses). Add any other native origin you actually ship. This is CORS, not a credential. |
 | `NEXT_PUBLIC_SHARE_ORIGIN` | The public website origin, such as `https://split.narula.xyz`. Share links from the website use it in preference to the page origin. Preview deployments should leave it unset so links stay on the preview host. |
 | `VITE_API_ORIGIN` | Mobile build only, not a Vercel runtime variable. HTTPS origin of this deployment. |
@@ -33,11 +33,11 @@ The iOS client uses `POST /api/v1/parse-receipt` (`PARSE_RECEIPT_PATH` in `src/l
 
 ## Retention
 
-The cron is `0 3 * * *` in `vercel.json`, hitting `/api/cron/cleanup-old-receipts`. Files older than 90 days are deleted. The route currently lists at most 500 files per run (`listReceiptFiles(500)`). If the bucket can hold more than that, older files past the page can survive. Treat pagination as a backend follow-up, and do not describe the job as complete until that is true.
+The cron is `0 3 * * *` in `vercel.json`, hitting `/api/cron/cleanup-old-receipts` (`maxDuration = 300`). Files older than 90 days are deleted. The route pages through the whole UploadThing listing (500 files per page, at most 50 pages or about four minutes), collects the old keys first, then deletes in batches of 100. If a guard stops it early the response has `partial: true` and the next run continues. A failed listing now fails the run instead of looking like success.
 
 - [ ] UNVERIFIED: Set `CRON_SECRET` and confirm a manual call without the bearer token returns 401.
 - [ ] UNVERIFIED: Confirm the scheduled run deletes a file older than 90 days and leaves a newer one.
-- [ ] UNVERIFIED: Confirm the 500-file listing is enough for the bucket, or that the route pages through every file.
+- [ ] UNVERIFIED: After the first production run, check the cron response/logs for `pages`, `deleted` and `partial` (expect `partial: false` once any backlog is cleared).
 
 ## Webhooks
 
