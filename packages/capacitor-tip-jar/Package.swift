@@ -1,8 +1,7 @@
 // swift-tools-version: 5.9
 import PackageDescription
 
-// UNCOMPILED. This package has not been built with Xcode, SwiftPM, or the
-// Apple SDK. It follows the Capacitor 8 SPM layout used by the official
+// It follows the Capacitor 8 SPM layout used by the official
 // plugins in node_modules (@capacitor/preferences and the others): product
 // library name matches what `cap sync` derives from the npm package name
 // (capacitor-tip-jar -> CapacitorTipJar), iOS 15 like those plugins, and

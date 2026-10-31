@@ -2,12 +2,12 @@
 
 Local Capacitor 8 plugin that sells **consumable** StoreKit 2 tips for Receipt Splitter. The JavaScript API lives in `src/mobile/native/tip-jar.ts` (`registerPlugin('TipJar')`). This package is the iOS implementation `npx cap sync ios` discovers from the `"capacitor"` field in `package.json`.
 
-**This Swift has not been compiled.** There is no Xcode, Apple SDK, or simulator in the environment that added it. Treat `ios/Sources/TipJarPlugin/TipJarPlugin.swift` as uncompiled source until the checks below pass on a Mac.
+`ios/Sources/TipJarPlugin/TipJarPlugin.swift` builds with Xcode 27.1 for the iOS Simulator and type-checks in the Swift 6 language mode. The checks below still need a person with a device and an Apple account.
 
 ## What to verify in Xcode
 
 1. From a checkout that has run `npm install`, run `npx cap sync ios`. Confirm `ios/App/CapApp-SPM/Package.swift` depends on the `CapacitorTipJar` product, and that the gitignored `ios/App/App/capacitor.config.json` `packageClassList` includes `TipJarPlugin` (the `@objc` name). Without that sync, `NSClassFromString` will not register the plugin.
-2. Open `ios/App/App.xcodeproj`, select a signing team, and build the App target for an iOS 26 simulator or device. Fix any StoreKit or Swift concurrency errors the Linux review could not see.
+2. Open `ios/App/App.xcodeproj`, select a signing team, and build the App target for an iOS 26 simulator or device.
 3. Add a StoreKit Configuration with the consumable product ids in `src/lib/tip-products.ts` (or `VITE_TIP_PRODUCT_IDS`). Products must be consumables. Confirm `getProducts` returns `displayName` and `displayPrice` in the requested id order and omits unknown ids.
 4. Purchase in the StoreKit test environment:
    - Success: the transaction is `.verified`, then `Transaction.finish()` runs, and the promise resolves `{ status: "success" }`. Repeat the same product; nothing is unlocked.

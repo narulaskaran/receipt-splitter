@@ -2,11 +2,10 @@ import Capacitor
 import Foundation
 import StoreKit
 
-// UNCOMPILED. This file has not been built with Xcode, the Apple SDK, or
-// SwiftPM. It is written against the Capacitor 8 CAPPlugin / CAPBridgedPlugin
-// pattern in node_modules/@capacitor/*/ios/Sources and StoreKit 2 as of the
-// iOS 26 SDK. Verify the checklist in packages/capacitor-tip-jar/README.md
-// before treating any of this as working.
+// Written against the Capacitor 8 CAPPlugin / CAPBridgedPlugin pattern in
+// node_modules/@capacitor/*/ios/Sources and StoreKit 2. Compiled with Xcode 27.1
+// for the simulator; purchases still need the checklist in
+// packages/capacitor-tip-jar/README.md.
 
 /// Serializes `Product.purchase()` so two tips cannot be in flight together.
 /// A lock plus unstructured tasks, not an actor: a `Task` created inside an
@@ -16,16 +15,21 @@ private final class PurchaseSerializer: @unchecked Sendable {
     private let lock = NSLock()
     private var tail: Task<Void, Never>?
 
-    func run<T: Sendable>(_ operation: @Sendable () async -> T) async -> T {
+    func run<T: Sendable>(_ operation: @escaping @Sendable () async -> T) async -> T {
+        await enqueue(operation).value
+    }
+
+    /// Synchronous because `NSLock` is unavailable from async contexts.
+    private func enqueue<T: Sendable>(_ operation: @escaping @Sendable () async -> T) -> Task<T, Never> {
         lock.lock()
+        defer { lock.unlock() }
         let previous = tail
         let ticket = Task { () -> T in
             await previous?.value
             return await operation()
         }
         tail = Task { _ = await ticket.value }
-        lock.unlock()
-        return await ticket.value
+        return ticket
     }
 }
 
@@ -121,6 +125,8 @@ private enum TipJarStore {
                 return ["status": "pending"]
             case .userCancelled:
                 return ["status": "cancelled"]
+            @unknown default:
+                return ["status": "failed", "message": "unknown purchase result"]
             }
         } catch {
             return ["status": "failed", "message": error.localizedDescription]
@@ -166,9 +172,7 @@ public class TipJarPlugin: CAPPlugin, CAPBridgedPlugin {
             return
         }
         // Capacitor invokes plugin methods on the main thread. Hop off it for
-        // StoreKit, then resolve back on the main actor. UNCOMPILED: confirm
-        // CAPPluginCall is safe to capture across that hop under the Swift 6
-        // language mode Xcode enables for iOS 26.
+        // StoreKit, then resolve back on the main actor.
         Task {
             do {
                 let products = try await TipJarStore.loadProducts(ids: ids)
@@ -202,26 +206,22 @@ public class TipJarPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     private static func observeUpdates(transactions: TipTransactionCenter, plugin: WeakPlugin) async {
-        do {
-            for await update in Transaction.updates {
-                guard case .verified(let transaction) = update else {
-                    continue
-                }
-                let shouldNotify = await transactions.finishFromUpdate(transaction)
-                guard shouldNotify else {
-                    continue
-                }
-                let productID = transaction.productID
-                await MainActor.run {
-                    plugin.value?.notifyListeners("tipCompleted", data: [
-                        "id": productID,
-                        "status": "success"
-                    ])
-                }
+        // Cancellation when the plugin is released ends this loop.
+        for await update in Transaction.updates {
+            guard case .verified(let transaction) = update else {
+                continue
             }
-        } catch {
-            // Cancellation when the plugin is released ends the listener.
-            // Any other failure needs an Xcode-side retry; it is not guessed here.
+            let shouldNotify = await transactions.finishFromUpdate(transaction)
+            guard shouldNotify else {
+                continue
+            }
+            let productID = transaction.productID
+            await MainActor.run {
+                plugin.value?.notifyListeners("tipCompleted", data: [
+                    "id": productID,
+                    "status": "success"
+                ])
+            }
         }
     }
 
