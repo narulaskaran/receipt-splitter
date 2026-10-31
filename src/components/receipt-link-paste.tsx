@@ -109,13 +109,13 @@ export function ReceiptLinkPaste({
                 onOpenChange(false);
               }
             }}
-            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            className="h-11 min-h-11 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
           />
           <button
             type="submit"
             disabled={!url}
             aria-label="Read receipt from link"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors disabled:bg-muted disabled:text-muted-foreground"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors disabled:bg-muted disabled:text-muted-foreground"
           >
             <ArrowRight className="h-4 w-4" />
           </button>

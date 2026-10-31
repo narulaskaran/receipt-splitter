@@ -67,22 +67,23 @@ function SplitPersonRow({
   };
 
   return (
-    <li className="flex items-center gap-3 px-5 py-3 sm:px-6">
-      <div
-        className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium"
-        aria-hidden="true"
-      >
-        {name.charAt(0).toUpperCase()}
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-[20px] py-3 sm:flex-nowrap sm:px-6">
+      <div className="flex min-w-[min(100%,8rem)] flex-1 items-center gap-3">
+        <div
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium"
+          aria-hidden="true"
+        >
+          {name.charAt(0).toUpperCase()}
+        </div>
+        <span className="min-w-0 break-words font-medium">{name}</span>
       </div>
-      <span className="min-w-0 flex-1 truncate font-medium">{name}</span>
-      <span className="shrink-0 tabular-nums font-medium">
-        {formattedAmount}
-      </span>
-      {venmoHref && (
+      <div className="flex shrink-0 items-center gap-3">
+        <span className="tabular-nums font-medium">{formattedAmount}</span>
+        {venmoHref && (
         <Button
           size="sm"
           asChild
-          className="shrink-0 bg-[#008CFF] px-3 text-white hover:bg-[#0074D9]"
+          className="shrink-0 bg-[#005A9E] px-3 text-white hover:bg-[#004E8C]"
         >
           <a
             href={venmoHref}
@@ -93,7 +94,8 @@ function SplitPersonRow({
             Pay
           </a>
         </Button>
-      )}
+        )}
+      </div>
     </li>
   );
 }

@@ -44,7 +44,7 @@ export function AiConsentDialog({
             href={`${origin}/privacy`}
             target="_blank"
             rel="noopener noreferrer"
-            className="underline underline-offset-4"
+            className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4"
           >
             Privacy policy
           </a>
@@ -53,7 +53,7 @@ export function AiConsentDialog({
             href={`${origin}/support`}
             target="_blank"
             rel="noopener noreferrer"
-            className="underline underline-offset-4"
+            className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4"
           >
             Support
           </a>

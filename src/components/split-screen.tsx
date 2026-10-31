@@ -162,7 +162,7 @@ export function SplitScreen({
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6 sm:py-10">
+      <div className="mx-auto flex w-full min-w-0 max-w-2xl flex-col gap-6 px-[16px] py-6 sm:px-4 sm:py-10">
         <Button variant="ghost" size="sm" asChild className="-ml-3 self-start">
           {homeLink(
             <>

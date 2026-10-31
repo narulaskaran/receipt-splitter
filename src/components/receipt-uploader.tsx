@@ -511,7 +511,11 @@ export function ReceiptUploader({
             isDragActive ? "border-primary bg-primary/5" : "border-input"
           } ${isDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
         >
-          <input {...getInputProps()} disabled={isDisabled} />
+          <input
+            {...getInputProps()}
+            aria-label="Receipt photos or PDFs"
+            disabled={isDisabled}
+          />
 
           {isCompressing ? (
             <div

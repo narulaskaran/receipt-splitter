@@ -308,11 +308,11 @@ export function ResultsSummary({
             ) : null}
 
           {/* Mobile-friendly responsive table */}
-          <div className="overflow-x-auto">
-            <Table>
+          <div className="w-full min-w-0 max-w-full overflow-x-auto">
+            <Table className="[&_td]:px-[8px] [&_th]:px-[8px] sm:[&_td]:px-2 sm:[&_th]:px-2">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="min-w-[100px]">Person</TableHead>
+                  <TableHead className="min-w-0 sm:min-w-[100px]">Person</TableHead>
                   <TableHead className="text-right min-w-[80px] hidden sm:table-cell">
                     Subtotal
                   </TableHead>
@@ -327,7 +327,7 @@ export function ResultsSummary({
                   <TableHead className="text-right min-w-[60px] hidden sm:table-cell">
                     Tip
                   </TableHead>
-                  <TableHead className="text-right min-w-[80px] font-semibold">
+                  <TableHead className="w-px whitespace-nowrap text-right font-semibold sm:w-auto sm:min-w-[80px]">
                     Total
                   </TableHead>
                 </TableRow>
@@ -336,20 +336,18 @@ export function ResultsSummary({
                 {sortedPeople.map((person) => (
                   <TableRow
                     key={person.id}
-                    className="group hover:bg-muted/50 transition-colors"
+                    className="group transition-colors hover:bg-muted/50"
                   >
-                    <TableCell className="font-medium py-4">
-                      <div className="flex flex-col">
-                        <span className="font-semibold">{person.name}</span>
-                        {/* Mobile-only breakdown */}
-                        <div className="text-xs text-muted-foreground mt-1 sm:hidden">
-                          Subtotal: {formatCurrency(person.totalBeforeTax, currencyCode)} •
-                          Tax: {formatCurrency(person.tax, currencyCode)} •
-                          {showFees && (
-                            <> Fees: {formatCurrency(person.fees ?? 0, currencyCode)} •</>
-                          )}{" "}
-                          Tip:{" "}
-                          {formatCurrency(person.tip, currencyCode)}
+                    <TableCell className="py-4 font-medium whitespace-normal sm:whitespace-nowrap">
+                      <div className="flex min-w-0 flex-col">
+                        <span className="break-words font-semibold">{person.name}</span>
+                        <div className="mt-1 space-y-0.5 text-xs leading-snug text-muted-foreground sm:hidden">
+                          <p className="break-words">Subtotal: {formatCurrency(person.totalBeforeTax, currencyCode)}</p>
+                          <p className="break-words">Tax: {formatCurrency(person.tax, currencyCode)}</p>
+                          {showFees ? (
+                            <p className="break-words">Fees: {formatCurrency(person.fees ?? 0, currencyCode)}</p>
+                          ) : null}
+                          <p className="break-words">Tip: {formatCurrency(person.tip, currencyCode)}</p>
                         </div>
                       </div>
                     </TableCell>
@@ -367,8 +365,8 @@ export function ResultsSummary({
                     <TableCell className="text-right py-4 hidden sm:table-cell">
                       {formatCurrency(person.tip, currencyCode)}
                     </TableCell>
-                    <TableCell className="text-right py-4">
-                      <span className="font-bold text-lg text-primary tabular-nums">
+                    <TableCell className="w-px py-4 text-right align-top whitespace-nowrap sm:w-auto sm:align-middle">
+                      <span className="text-lg font-bold tabular-nums text-primary">
                         {formatCurrency(person.finalTotal, currencyCode)}
                       </span>
                     </TableCell>
@@ -391,7 +389,7 @@ export function ResultsSummary({
                 );
                 return (
                   <div key={`${receipt.name}-${receipt.date ?? "no-date"}-${index}`} className="flex flex-col gap-2">
-                    <div className="font-medium text-sm sm:text-base">
+                    <div className="break-words text-sm font-medium sm:text-base">
                       <span>{receipt.name}</span>
                       {receipt.date ? (
                         <span className="text-muted-foreground font-normal">
@@ -399,12 +397,12 @@ export function ResultsSummary({
                         </span>
                       ) : null}
                     </div>
-                    <div className="overflow-x-auto">
-                      <Table>
+                    <div className="w-full min-w-0 max-w-full overflow-x-auto">
+                      <Table className="[&_td]:px-[8px] [&_th]:px-[8px] sm:[&_td]:px-2 sm:[&_th]:px-2">
                         <TableHeader>
                           <TableRow>
-                            <TableHead className="min-w-[100px]">Person</TableHead>
-                            <TableHead className="text-right min-w-[80px] font-semibold">
+                            <TableHead className="min-w-0 sm:min-w-[100px]">Person</TableHead>
+                            <TableHead className="w-px whitespace-nowrap text-right font-semibold sm:w-auto sm:min-w-[80px]">
                               Total
                             </TableHead>
                           </TableRow>
@@ -412,10 +410,10 @@ export function ResultsSummary({
                         <TableBody>
                           {sortedReceiptPeople.map((person) => (
                             <TableRow key={person.id}>
-                              <TableCell className="font-medium py-2">
+                              <TableCell className="py-2 font-medium whitespace-normal break-words">
                                 {person.name}
                               </TableCell>
-                              <TableCell className="text-right py-2 tabular-nums">
+                              <TableCell className="w-px py-2 text-right tabular-nums whitespace-nowrap sm:w-auto">
                                 {formatCurrency(person.finalTotal, currencyCode)}
                               </TableCell>
                             </TableRow>

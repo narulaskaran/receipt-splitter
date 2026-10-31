@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
   Table, 
@@ -87,30 +86,22 @@ export function PersonItems({ people, currencyCode }: PersonItemsProps) {
 
             return (
             <div key={person.id} className="border rounded-md">
-              <div 
-                className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted"
+              <button
+                type="button"
+                className="flex min-h-11 w-full flex-wrap items-center justify-between gap-x-3 gap-y-1 px-[16px] py-3 text-left hover:bg-muted"
+                aria-expanded={expandedPerson === person.id}
                 onClick={() => toggleExpand(person.id)}
               >
-                <div className="font-medium">{person.name}</div>
-                <div className="flex items-center gap-3">
-                  <span className="font-bold">{formatCurrency(person.finalTotal, currencyCode)}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="p-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleExpand(person.id);
-                    }}
-                  >
-                    {expandedPerson === person.id ? (
-                      <ChevronUp className="h-4 w-4" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4" />
-                    )}
-                  </Button>
+                <div className="min-w-[min(100%,6rem)] flex-1 break-words font-medium">{person.name}</div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <span className="font-bold tabular-nums">{formatCurrency(person.finalTotal, currencyCode)}</span>
+                  {expandedPerson === person.id ? (
+                    <ChevronUp className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                  )}
                 </div>
-              </div>
+              </button>
               
               {expandedPerson === person.id && (
                 <div className="px-4 pb-4">

@@ -11,7 +11,7 @@ function AboutLinks() {
   const privacy = `${getPublicShareOrigin()}/privacy`;
   const support = `${getPublicShareOrigin()}/support`;
   const native = getPlatform().isNative;
-  const className = "min-h-[44px] inline-flex items-center px-2";
+  const className = "inline-flex min-h-11 min-w-11 items-center px-2";
 
   if (native) {
     return (
@@ -63,10 +63,10 @@ export const SupportBanner: React.FC<{ children?: React.ReactNode }> = ({
 }) => {
   const showKofi = getPlatform().showKofi;
   return (
-    <div className="rounded-2xl bg-card px-4 py-3 flex items-center justify-between gap-3">
-      <div className="flex items-center gap-2.5 min-w-0">
-        <Heart className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-        <p className="text-sm text-muted-foreground">{children}</p>
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-card px-[16px] py-3">
+      <div className="flex min-w-[min(100%,10rem)] flex-1 items-start gap-2.5">
+        <Heart className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        <p className="min-w-0 break-words text-sm text-muted-foreground">{children}</p>
       </div>
       {showKofi ? (
         <Button variant="outline" size="sm" asChild className="flex-shrink-0">
