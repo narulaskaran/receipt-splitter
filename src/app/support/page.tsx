@@ -37,8 +37,9 @@ export default function SupportPage() {
       <LegalSection id="offline" title="Offline editing">
         <p>
           After a receipt has been read, the split stays on the device. You can
-          change people, assignments, tax, and tip without a connection, then
-          share when you are back online. Reading a new photo, PDF, or pasted
+          change people, assignments, tax, and tip without a connection, and
+          you can share the link without a connection. The person you send it
+          to needs a connection to open it. Reading a new photo, PDF, or pasted
           link needs the server. The app cannot parse a receipt on the device.
         </p>
       </LegalSection>
@@ -46,7 +47,8 @@ export default function SupportPage() {
       <LegalSection id="tips" title="Tips on iPhone">
         <p>
           Tips in the iPhone app are optional StoreKit purchases. They do not
-          unlock features, and splitting stays free. The website uses Ko-fi
+          unlock features, and splitting stays free. The iPhone app does not
+          show Ko-fi or any other outside payment link. The website uses Ko-fi
           instead of StoreKit. Apple handles the payment.
         </p>
       </LegalSection>

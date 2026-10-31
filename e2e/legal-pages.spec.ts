@@ -31,6 +31,8 @@ test.describe("legal pages", () => {
       page.getByRole("heading", { name: "Offline editing" }),
     ).toBeVisible();
     await expect(page.getByText(/Venmo is optional/)).toBeVisible();
+    await expect(page.getByText(/share the link without a connection/)).toBeVisible();
+    await expect(page.getByText(/does not show Ko-fi/)).toBeVisible();
 
     await page.getByRole("link", { name: "privacy policy" }).click();
     await expect(page).toHaveURL(/\/privacy$/);

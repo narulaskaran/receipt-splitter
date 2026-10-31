@@ -28,8 +28,11 @@ describe("PrivacyPage", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/Anthropic/)).toBeInTheDocument();
     expect(screen.getByText(/OpenAI or OpenRouter/)).toBeInTheDocument();
-    expect(screen.getByText(/Firecrawl/)).toBeInTheDocument();
+    expect(screen.getByText(/Firecrawl fetches the page/)).toBeInTheDocument();
+    expect(screen.getByText(/public web address/)).toBeInTheDocument();
     expect(screen.getByText(/UploadThing/)).toBeInTheDocument();
+    expect(screen.getByText(/same id/)).toBeInTheDocument();
+    expect(screen.getByText(/raw IP is not copied/)).toBeInTheDocument();
     expect(screen.getByText(/Speed Insights/)).toBeInTheDocument();
     expect(screen.getByText(/StoreKit/)).toBeInTheDocument();
     expect(screen.getByText(/90 days/)).toBeInTheDocument();
