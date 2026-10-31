@@ -2,7 +2,6 @@ import { Capacitor } from "@capacitor/core";
 import { createRoot } from "react-dom/client";
 import { App } from "@/mobile/App";
 import { bootNativeShell, configureMobileApp } from "@/mobile/boot";
-import "@/app/globals.css";
 import "@/mobile/mobile.css";
 
 // TODO: Analytics for native is documented in docs/ios/privacy.md.

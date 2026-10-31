@@ -39,6 +39,20 @@ if (!info?.isDirectory()) {
 const files = await walk(root);
 const hits = [];
 
+// Tailwind only generates utilities for files it scans. A wrong scan root still
+// builds, then renders the whole app as unstyled text.
+const requiredUtilities = [".flex{", ".grid{", ".hidden{"];
+const css = (
+  await Promise.all(
+    files.filter((f) => f.endsWith(".css")).map((f) => readFile(f, "utf8")),
+  )
+).join("\n");
+const missing = requiredUtilities.filter((rule) => !css.includes(rule));
+if (missing.length > 0) {
+  console.error(`Mobile CSS is missing Tailwind utilities: ${missing.join(" ")}`);
+  process.exit(1);
+}
+
 for (const file of files) {
   const text = await readFile(file, "utf8");
   for (const needle of forbidden) {

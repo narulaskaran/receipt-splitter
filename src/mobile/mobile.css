@@ -2,7 +2,13 @@
  * Native shell only. The Next.js app keeps its own viewport (no viewport-fit)
  * and loads Geist through next/font. Here the system stack fills the same
  * CSS variables globals.css already references.
+ *
+ * The Vite root is mobile/, which is also where Tailwind starts scanning, so
+ * src/ has to be declared or no utility classes are generated.
  */
+@import "../app/globals.css";
+@source "..";
+
 :root {
   --font-geist-sans:
     ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
