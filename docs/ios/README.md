@@ -44,9 +44,12 @@ On Linux:
 - `node scripts/generate-ios-assets.mjs` to rebuild the opaque icon and splash from `assets/app-icon.png`.
 - Do not commit a temporary `server.url`. `ios:check` rejects it.
 
-On a Mac (UNVERIFIED: no Xcode, simulator, or device was available here):
+On a Mac:
 
-- [ ] UNVERIFIED: install a current Xcode, open `ios/App/App.xcodeproj`, and run the App scheme on an iPhone simulator or device.
+- Install a current Xcode, open `ios/App/App.xcodeproj`, and run the App scheme on an iPhone simulator. This builds and runs with Xcode 27.1 on an iOS 27.0 simulator.
+- `xcodebuild` from a terminal can appear to hang while resolving packages. SwiftPM looks up a `github.com` Keychain credential before it downloads the Capacitor binaries, and macOS may be waiting on a Keychain dialog. Answer the dialog, or resolve packages once from the Xcode app.
+- Scheme changes such as a StoreKit configuration only apply to runs started from Xcode. `simctl launch` ignores them, so tips show as unavailable there.
+- [ ] UNVERIFIED: run the App scheme on a physical iPhone.
 - [ ] UNVERIFIED: a live-reload `server.url` is a local, uncommitted experiment only.
 
 Confirmed on Linux: the Xcode project sets `IPHONEOS_DEPLOYMENT_TARGET = 26.0`, `TARGETED_DEVICE_FAMILY = 1`, and `SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD` / `SUPPORTS_XROS_DESIGNED_FOR_IPHONE_IPAD` / `SUPPORTS_MACCATALYST` to `NO`. `npx cap sync ios` rewrites `Package.swift` and sets `platforms: [.iOS(.v26)]` to match that deployment target. Do not hand-edit `Package.swift`. CI runs sync and fails if the committed file drifts.
@@ -61,7 +64,7 @@ Checked on Linux, without a Mac:
 
 Not checked:
 
-- Compiling the iOS app, signing, or installing it.
+- Signing, or installing on a device.
 - StoreKit purchases, the camera, or any other plugin on a device.
 - App Store Connect, TestFlight, or review.
 

@@ -8,7 +8,7 @@ Tips are optional consumable in-app purchases. They do not unlock features. The 
 | Medium tip | `app.receiptsplitter.ios.tip.medium` | 2.99 USD |
 | Large tip | `app.receiptsplitter.ios.tip.large` | 4.99 USD |
 
-The 0.99 / 2.99 / 4.99 figures are placeholders inside `ios/App/Tips.storekit` for local Xcode testing. App Store Connect prices are chosen there and can differ. Nothing in this file was purchased or loaded in Xcode.
+The 0.99 / 2.99 / 4.99 figures are placeholders inside `ios/App/Tips.storekit` for local Xcode testing. App Store Connect prices are chosen there and can differ. Nothing has been purchased outside a local StoreKit test session.
 
 ## App Store Connect
 
@@ -33,11 +33,13 @@ VITE_TIP_PRODUCT_IDS=app.receiptsplitter.ios.tip.small,app.receiptsplitter.ios.t
 
 ## Local StoreKit file
 
-`ios/App/Tips.storekit` is a StoreKit configuration file in the version-3 schema Xcode writes (the same shape as other public `.storekit` files: `products[].type` of `Consumable`, localizations, and a `settings._storeKitErrors` list). It was written on Linux and has not been opened in Xcode. UNVERIFIED.
+`ios/App/Tips.storekit` is a StoreKit configuration file in the version-3 schema Xcode writes (the same shape as other public `.storekit` files: `products[].type` of `Consumable`, localizations, and a `settings._storeKitErrors` list). It loads in `SKTestSession` on Xcode 27.1 and an iOS 27.0 simulator. In that session the plugin returned all three products, and buying the small tip twice succeeded through the app's tip sheet.
+
+On a simulator, the first launch after installing the app can return no products from a StoreKit test session. Launch it again before reading anything into that.
 
 - [ ] UNVERIFIED: Open the file in Xcode. If Xcode rewrites it, commit that rewrite.
 - [ ] UNVERIFIED: Add it to the project if the navigator does not show it. Product, Scheme, Edit Scheme, Run, Options, StoreKit Configuration: select `Tips.storekit`.
-- [ ] UNVERIFIED: Run a debug build and buy each tip twice. Consumables must be purchasable again. Confirm pending, cancel, and failed paths (StoreKit testing can force a failure from the transaction manager).
+- [ ] UNVERIFIED: Confirm pending, cancel, and failed paths (StoreKit testing can force a failure from the transaction manager).
 
 Sandbox and TestFlight repeat purchases are on the device checklist in [manual-verification.md](manual-verification.md). The local file is not a substitute for a sandbox purchase against the real products.
 
