@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowRight, ClipboardPaste, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { normalizeReceiptUrl } from "@/lib/receipt-url";
+import { getPlatform } from "@/lib/platform";
 
 const INVALID_HINT_DELAY_MS = 600;
 
@@ -56,21 +57,24 @@ export function ReceiptLinkPaste({
 
   async function pasteFromClipboard() {
     setClipboardNotice(null);
-    try {
-      const text = (await navigator.clipboard.readText()).trim();
-      const clipboardUrl = normalizeReceiptUrl(text);
-      if (clipboardUrl) {
-        onSubmitUrl(clipboardUrl);
-        return;
-      }
-      setClipboardNotice(
-        text
-          ? "Your clipboard doesn't have a link. Copy the receipt link first."
-          : "Your clipboard is empty. Copy the receipt link first."
-      );
-    } catch {
-      // Denied or unsupported (older browsers, some webviews): paste by hand
+    const text = await getPlatform().readClipboardText();
+    // null = blocked or unavailable. Fall back to the field without claiming
+    // the clipboard was empty.
+    if (text === null) {
+      onOpenChange(true);
+      return;
     }
+    const trimmed = text.trim();
+    const clipboardUrl = normalizeReceiptUrl(trimmed);
+    if (clipboardUrl) {
+      onSubmitUrl(clipboardUrl);
+      return;
+    }
+    setClipboardNotice(
+      trimmed
+        ? "Your clipboard doesn't have a link. Copy the receipt link first."
+        : "Your clipboard is empty. Copy the receipt link first."
+    );
     onOpenChange(true);
   }
 
@@ -105,13 +109,13 @@ export function ReceiptLinkPaste({
                 onOpenChange(false);
               }
             }}
-            className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            className="h-11 min-h-11 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
           />
           <button
             type="submit"
             disabled={!url}
             aria-label="Read receipt from link"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors disabled:bg-muted disabled:text-muted-foreground"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors disabled:bg-muted disabled:text-muted-foreground"
           >
             <ArrowRight className="h-4 w-4" />
           </button>

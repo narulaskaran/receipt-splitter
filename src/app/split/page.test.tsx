@@ -40,6 +40,35 @@ describe("/split route (client) with query params", () => {
     });
   });
 
+  it("renders a split that was shared without a phone number", async () => {
+    renderWithQuery(
+      "names=Jon%2CJane&amounts=10.00%2C20.00&total=30.00&note=Lunch"
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Lunch" })).toBeInTheDocument();
+    });
+    expect(screen.getByText("$10.00")).toBeInTheDocument();
+    expect(screen.getByText("$20.00")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Payment details weren't included — pay however you prefer."
+      )
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /with Venmo/i })).not.toBeInTheDocument();
+  });
+
+  it("still rejects a link whose phone number is not a US Venmo number", async () => {
+    renderWithQuery(
+      "names=Jon%2CJane&amounts=10.00%2C20.00&total=30.00&note=Lunch&phone=123"
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Unable to Load Split/i)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/format is invalid/i)).toBeInTheDocument();
+  });
+
   it("shows error UI for obviously invalid params", async () => {
     const bad =
       "names=A%2CB&amounts=10.00%2C20.00&total=99.99&note=Bad&phone=5551234567";

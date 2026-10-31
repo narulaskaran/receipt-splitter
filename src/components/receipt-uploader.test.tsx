@@ -3,6 +3,14 @@ import { ReceiptUploader } from "./receipt-uploader";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 import imageCompression from "browser-image-compression";
+import { acceptAiConsent, AI_CONSENT_STORAGE_KEY } from "@/lib/ai-consent";
+import { PARSE_RECEIPT_PATH } from "@/lib/app-config";
+import {
+  PlatformPermissionError,
+  setPlatform,
+  webPlatform,
+  type PlatformAdapter,
+} from "@/lib/platform";
 
 jest.mock("browser-image-compression", () => jest.fn());
 
@@ -13,6 +21,11 @@ describe("ReceiptUploader", () => {
   beforeEach(() => {
     mockOnReceiptParsed = jest.fn();
     mockSetIsLoading = jest.fn();
+    acceptAiConsent();
+  });
+
+  afterEach(() => {
+    setPlatform(webPlatform);
   });
 
   function renderUploader() {
@@ -189,7 +202,7 @@ describe("ReceiptUploader", () => {
     });
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
-        "/api/parse-receipt",
+        PARSE_RECEIPT_PATH,
         expect.objectContaining({ method: "POST" })
       );
     });
@@ -775,7 +788,8 @@ describe("ReceiptUploader", () => {
       (global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: false,
         status: 422,
-        json: async () => ({ error: "That link needs a login." }),
+        text: async () =>
+          JSON.stringify({ error: "That link needs a login.", code: "needs_login" }),
       });
       renderUploader();
 
@@ -890,6 +904,157 @@ describe("ReceiptUploader", () => {
       expect(screen.queryByRole("button", { name: /paste receipt link/i })).not.toBeInTheDocument();
       expect(firePaste(LINK).defaultPrevented).toBe(false);
       onLine.mockRestore();
+    });
+  });
+
+  describe("AI consent", () => {
+    beforeEach(() => {
+      localStorage.removeItem(AI_CONSENT_STORAGE_KEY);
+    });
+
+    it("asks before the first upload and sends nothing if declined", async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ restaurant: "Cafe", total: 1, items: [] }),
+      });
+      renderUploader();
+
+      const file = new File(["x"], "receipt.png", { type: "image/png" });
+      await userEvent.upload(getFileInput(), file);
+
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+      expect(global.fetch).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByRole("button", { name: /don't send/i }));
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("sends the file after the receipt is accepted and remembers it", async () => {
+      (global.fetch as jest.Mock).mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ restaurant: "Cafe", total: 1, items: [] }),
+      });
+      renderUploader();
+
+      await userEvent.upload(
+        getFileInput(),
+        new File(["x"], "receipt.png", { type: "image/png" })
+      );
+      await userEvent.click(screen.getByRole("button", { name: /agree and continue/i }));
+
+      await waitFor(() =>
+        expect(mockOnReceiptParsed).toHaveBeenCalledWith(
+          expect.objectContaining({ restaurant: "Cafe" })
+        )
+      );
+      expect(localStorage.getItem(AI_CONSENT_STORAGE_KEY)).toContain('"version":1');
+    });
+
+    it("does not ask again once consent is stored", async () => {
+      acceptAiConsent();
+      (global.fetch as jest.Mock).mockReset();
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: async () => ({ restaurant: "Cafe", total: 1, items: [] }),
+      });
+      renderUploader();
+
+      await userEvent.upload(
+        getFileInput(),
+        new File(["y"], "second.png", { type: "image/png" })
+      );
+
+      await waitFor(() => expect(mockOnReceiptParsed).toHaveBeenCalled());
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("asks before a pasted link and before a page-level paste", async () => {
+      renderUploader();
+      const event = new Event("paste", { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "clipboardData", {
+        value: { getData: () => "https://example.com/receipt" },
+      });
+      document.body.dispatchEvent(event);
+
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+      expect(global.fetch).not.toHaveBeenCalled();
+      await userEvent.click(screen.getByRole("button", { name: /don't send/i }));
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("device capture", () => {
+    function installPlatform(
+      overrides: Partial<PlatformAdapter>
+    ) {
+      setPlatform({
+        ...webPlatform,
+        ...overrides,
+      });
+    }
+
+    it("shows Take photo and Choose photos when the platform provides them", () => {
+      installPlatform({
+        captureReceiptPhoto: jest.fn(),
+        pickReceiptPhotos: jest.fn(),
+      });
+      renderUploader();
+      expect(screen.getByRole("button", { name: "Take photo" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Choose photos" })).toBeInTheDocument();
+    });
+
+    it("hides capture buttons on the web platform", () => {
+      renderUploader();
+      expect(screen.queryByRole("button", { name: "Take photo" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Choose photos" })).not.toBeInTheDocument();
+    });
+
+    it("parses a captured photo and ignores a cancel", async () => {
+      const capture = jest
+        .fn<Promise<File | null>, []>()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(new File(["x"], "shot.jpg", { type: "image/jpeg" }));
+      installPlatform({ captureReceiptPhoto: capture });
+      (global.fetch as jest.Mock).mockReset();
+      (global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: async () => ({ restaurant: "Camera Cafe", total: 4, items: [] }),
+      });
+      renderUploader();
+
+      await userEvent.click(screen.getByRole("button", { name: "Take photo" }));
+      expect(global.fetch).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByRole("button", { name: "Take photo" }));
+      await waitFor(() =>
+        expect(mockOnReceiptParsed).toHaveBeenCalledWith(
+          expect.objectContaining({ restaurant: "Camera Cafe" })
+        )
+      );
+    });
+
+    it("toasts a permission error with a Settings hint and stays quiet for an empty pick", async () => {
+      const pick = jest
+        .fn<Promise<File[]>, [number]>()
+        .mockRejectedValueOnce(
+          new PlatformPermissionError("Photo library access is off.", "photos")
+        )
+        .mockResolvedValueOnce([]);
+      installPlatform({ pickReceiptPhotos: pick });
+      renderUploader();
+
+      await userEvent.click(screen.getByRole("button", { name: "Choose photos" }));
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith(
+          expect.stringMatching(/photo library access is off.*settings/i)
+        )
+      );
+      expect(global.fetch).not.toHaveBeenCalled();
+
+      await userEvent.click(screen.getByRole("button", { name: "Choose photos" }));
+      await waitFor(() => expect(pick).toHaveBeenCalledTimes(2));
+      expect(global.fetch).not.toHaveBeenCalled();
     });
   });
 });

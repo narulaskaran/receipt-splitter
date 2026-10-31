@@ -177,7 +177,7 @@ export function ItemAssignment({
           />
           <label
             htmlFor={`person-${person.id}-item-${index}${idSuffix}`}
-            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+            className="flex min-h-11 min-w-11 flex-1 cursor-pointer items-center text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
           >
             {person.name}
           </label>
@@ -206,7 +206,7 @@ export function ItemAssignment({
                 />
                 <label
                   htmlFor={`group-${group.id}-item-${index}${idSuffix}`}
-                  className="flex-1 cursor-pointer"
+                  className="flex min-h-11 min-w-11 flex-1 cursor-pointer items-center"
                 >
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 flex items-center justify-center">
@@ -412,7 +412,7 @@ export function ItemAssignment({
                                 </span>
                               </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="p-0" align="end">
+                            <PopoverContent className="max-w-[calc(100vw-1.5rem)] p-0" align="end">
                               {renderAssignmentOptions(index)}
                             </PopoverContent>
                           </Popover>
@@ -423,6 +423,7 @@ export function ItemAssignment({
                           <Button
                             variant="outline"
                             size="sm"
+                            aria-label={`Edit split for ${item.name}`}
                             onClick={() => {
                               setCurrentItemIndex(index);
                               setOpen(true);
@@ -448,7 +449,7 @@ export function ItemAssignment({
             </div>
 
             {/* Mobile Card View */}
-            <div className="md:hidden -mx-6 divide-y border-y">
+            <div className="-mx-6 divide-y border-y md:hidden">
               {receipt.items.map((item, index) => (
                 <div key={index} className="px-6 py-3">
                   <div className="space-y-2">
@@ -500,7 +501,7 @@ export function ItemAssignment({
                               <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
                             </Button>
                           </PopoverTrigger>
-                          <PopoverContent className="p-0 w-80" align="end">
+                          <PopoverContent className="w-80 max-w-[calc(100vw-1.5rem)] p-0" align="end">
                             {renderAssignmentOptions(index, "-mobile")}
                           </PopoverContent>
                         </Popover>
@@ -509,6 +510,7 @@ export function ItemAssignment({
                         <Button
                           variant="outline"
                           size="sm"
+                          aria-label={`Edit split for ${item.name}`}
                           onClick={() => {
                             setCurrentItemIndex(index);
                             setOpen(true);

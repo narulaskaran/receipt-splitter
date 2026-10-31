@@ -14,12 +14,16 @@ This project is a receipt splitting web application built with Next.js, TypeScri
 
 ### Core Application
 
-- `src/app/page.tsx` - Main application page with tabbed interface
+- `src/app/page.tsx` - Next.js adapter for the home screen
 
-  - Implements session caching in localStorage with automatic restoration
+  - Renders `src/components/home-screen.tsx` (session restore/autosave, tabs, share-target)
+  - The Vite iOS shell mounts the same screen from `src/mobile/App.tsx`
   - New Split button for clearing session and resetting app state
-  - Responsive design with mobile-first approach
-  - Tab-based workflow: Upload → People → Groups → Assignment → Results
+  - Tab-based workflow: Upload → People → Assign → Results
+
+- `src/components/split-screen.tsx` - Shared split viewer. `src/app/split/page.tsx` adapts it with `useSearchParams` and `next/link`. The iOS shell opens `#/split?<query>`.
+
+- `mobile/` - Vite build for the Capacitor bundle (`npm run mobile:build` → `dist-mobile`). `npm run ios:sync` builds, then `cap sync ios`.
 
 - `src/app/layout.tsx` - Root layout with theme provider and analytics
 
@@ -111,12 +115,16 @@ This project is a receipt splitting web application built with Next.js, TypeScri
 
 ### Core Application
 
-- `src/app/page.tsx` - Main application page with tabbed interface
+- `src/app/page.tsx` - Next.js adapter for the home screen
 
-  - Implements session caching in localStorage with automatic restoration
+  - Renders `src/components/home-screen.tsx` (session restore/autosave, tabs, share-target)
+  - The Vite iOS shell mounts the same screen from `src/mobile/App.tsx`
   - New Split button for clearing session and resetting app state
-  - Responsive design with mobile-first approach
-  - Tab-based workflow: Upload → People → Groups → Assignment → Results
+  - Tab-based workflow: Upload → People → Assign → Results
+
+- `src/components/split-screen.tsx` - Shared split viewer. `src/app/split/page.tsx` adapts it with `useSearchParams` and `next/link`. The iOS shell opens `#/split?<query>`.
+
+- `mobile/` - Vite build for the Capacitor bundle (`npm run mobile:build` → `dist-mobile`). `npm run ios:sync` builds, then `cap sync ios`.
 
 - `src/app/layout.tsx` - Root layout with theme provider and analytics
 
@@ -431,3 +439,7 @@ Comprehensive test coverage including:
 - **Performance**: Optimized rendering and efficient state management
 - **Accessibility**: Screen reader support and keyboard navigation
 - **Progressive Enhancement**: Core functionality works on all devices
+
+## iOS app
+
+The iPhone app is a Capacitor project under `ios/` (iOS 26, iPhone only) that bundles a static build of the shared React UI and calls the hosted API. Store and release notes are in `docs/ios/`. Public `/privacy` and `/support` pages are the App Store privacy and support URLs. `npm run ios:check` validates the committed native project on Linux. Signing, TestFlight, and submission are manual Mac steps and are not verified in this environment.

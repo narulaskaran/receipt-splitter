@@ -184,7 +184,7 @@ export function GroupManager({
             groups.map((group) => (
               <div
                 key={group.id}
-                className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg"
+                className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-secondary/50 p-3"
               >
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
@@ -275,7 +275,7 @@ export function GroupManager({
                       />
                       <Label
                         htmlFor={`create-${person.id}`}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        className="min-h-11 min-w-11 flex-1 cursor-pointer text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                       >
                         {person.name}
                       </Label>
@@ -333,7 +333,7 @@ export function GroupManager({
                       />
                       <Label
                         htmlFor={`edit-${person.id}`}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        className="min-h-11 min-w-11 flex-1 cursor-pointer text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                       >
                         {person.name}
                       </Label>

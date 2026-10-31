@@ -9,7 +9,7 @@ export interface SharedSplitData {
   amounts: number[];
   total: number;
   note: string; // Required: becomes Venmo transaction description
-  phone: string; // Required: needed for Venmo payment links
+  phone?: string; // Optional US Venmo number; omitted when the split has no payment details
   currency: string; // Currency code (e.g., 'USD', 'JPY', 'EUR')
   date?: string; // Optional: receipt date for display
   receipts?: SharedReceiptBreakdown[]; // Optional multi-receipt detail
@@ -83,7 +83,7 @@ const MAX_RECEIPT_PAYLOAD_LENGTH = 6000;
  *
  * @param people - Array of people with their calculated amounts
  * @param note - Required note/memo for the split (becomes Venmo transaction description)
- * @param phone - Required phone number for Venmo payments
+ * @param phone - Optional US Venmo phone. Blank/null omits the `phone` param
  * @param currency - Currency code for the split (defaults to USD)
  * @param date - Optional receipt date
  * @param receiptBreakdown - Optional per-receipt amounts for multi-receipt shares
@@ -92,7 +92,7 @@ const MAX_RECEIPT_PAYLOAD_LENGTH = 6000;
 export function serializeSplitData(
   people: Person[],
   note: string,
-  phone: string,
+  phone: string | null | undefined,
   currency: string = DEFAULT_CURRENCY,
   date?: string | null,
   receiptBreakdown?: SharedReceiptBreakdown[]
@@ -123,10 +123,15 @@ export function serializeSplitData(
   params.set("amounts", amountsMinorUnits.join(","));
   params.set("total", String(totalMinorUnits));
   params.set("note", note.trim());
-  params.set("phone", phone.trim());
   params.set("currency", currency);
 
-  // Optional parameters
+  // Optional parameters. A blank phone is left out entirely so the link
+  // can be opened without Venmo payment buttons.
+  const trimmedPhone = phone?.trim() ?? "";
+  if (trimmedPhone) {
+    params.set("phone", trimmedPhone);
+  }
+
   if (date) {
     params.set("date", date);
   }
@@ -259,14 +264,9 @@ export function deserializeSplitData(
     const currencyParam = searchParams.get("currency");
     const receiptsParam = searchParams.get("receipts");
 
-    // Required parameters check (currency defaults to USD for backwards compatibility)
-    if (
-      !namesParam ||
-      !amountsParam ||
-      !totalParam ||
-      !noteParam ||
-      !phoneParam
-    ) {
+    // Required parameters check (currency defaults to USD for backwards compatibility).
+    // `phone` is optional: missing or blank means the split has no payment details.
+    if (!namesParam || !amountsParam || !totalParam || !noteParam) {
       return null;
     }
 
@@ -280,10 +280,9 @@ export function deserializeSplitData(
       .map((amount) => amount.trim());
     const total = parseAmountParam(totalParam, currency);
     const note = noteParam.trim();
-    const phone = phoneParam.trim();
+    const phone = phoneParam?.trim() ?? "";
 
-    // Validate required fields
-    if (note.length === 0 || phone.length === 0) {
+    if (note.length === 0) {
       return null;
     }
 
@@ -322,7 +321,10 @@ export function deserializeSplitData(
       amounts,
       total,
       note,
-      phone,
+      // A present phone is returned unchanged (including values that fail the
+      // US format check). Callers still reject those through the validation
+      // helpers. A missing or blank phone is omitted.
+      ...(phone ? { phone } : {}),
       currency,
       date,
       ...(receipts ? { receipts } : {}),
@@ -411,7 +413,7 @@ function isValidReceiptBreakdownShape(
  * @param baseUrl - The base URL of the application (e.g., 'https://yourapp.com')
  * @param people - Array of people with their calculated amounts
  * @param note - Required note/memo for the split (becomes Venmo transaction description)
- * @param phone - Required phone number for Venmo payments
+ * @param phone - Optional US Venmo phone. Blank/null omits the `phone` param
  * @param currency - Currency code for the split (defaults to USD)
  * @param date - Optional receipt date
  * @param receiptBreakdown - Optional per-receipt amounts for multi-receipt shares
@@ -421,7 +423,7 @@ export function generateShareableUrl(
   baseUrl: string,
   people: Person[],
   note: string,
-  phone: string,
+  phone: string | null | undefined,
   currency: string = DEFAULT_CURRENCY,
   date?: string | null,
   receiptBreakdown?: SharedReceiptBreakdown[]
@@ -679,7 +681,7 @@ export function validateSplitDataDetailed(
  */
 function pushNotePhoneDateErrors(
   note: string | undefined,
-  phone: string | undefined,
+  phone: string | null | undefined,
   date: string | null | undefined,
   errors: SplitDataError[],
   errorMessages: string[]
@@ -699,18 +701,13 @@ function pushNotePhoneDateErrors(
     );
   }
 
-  // Validate required phone field
-  if (!phone || phone.trim().length === 0) {
+  // Phone is optional. Only a non-empty value is checked, and that check is
+  // the same US Venmo format as before.
+  const trimmedPhone = phone?.trim() ?? "";
+  if (trimmedPhone.length > 0 && !isValidPhoneNumber(trimmedPhone)) {
     errors.push(SplitDataError.INVALID_PHONE_NUMBER);
     errorMessages.push(
-      `Phone number is required for split sharing. Received: '${
-        phone || "undefined"
-      }'`
-    );
-  } else if (!isValidPhoneNumber(phone)) {
-    errors.push(SplitDataError.INVALID_PHONE_NUMBER);
-    errorMessages.push(
-      `Phone number '${phone}' format is invalid for Venmo (must be 10 or 11 digits)`
+      `Phone number '${trimmedPhone}' format is invalid for Venmo (must be 10 or 11 digits)`
     );
   }
 
@@ -726,14 +723,14 @@ function pushNotePhoneDateErrors(
  *
  * @param people - Array of people to validate
  * @param note - Required note/memo for the split
- * @param phone - Required phone number for Venmo
+ * @param phone - Optional US Venmo phone. Blank/null is allowed
  * @param date - Optional date
  * @returns SplitValidationResult with validation details
  */
 export function validateSerializationInput(
   people: Person[],
   note: string,
-  phone: string,
+  phone: string | null | undefined,
   date?: string | null
 ): SplitValidationResult {
   const errors: SplitDataError[] = [];

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { UploadCloud, Loader2, WifiOff } from "lucide-react";
+import { Camera, Images, UploadCloud, Loader2, WifiOff } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { ReceiptLinkPaste } from "@/components/receipt-link-paste";
+import { AiConsentDialog } from "@/components/ai-consent-dialog";
 import { toast } from "sonner";
 import { type Receipt } from "@/types";
 import {
@@ -11,8 +13,10 @@ import {
   MAX_RECEIPTS_PER_SESSION,
 } from "@/lib/constants";
 import imageCompression from "browser-image-compression";
-import { getSessionId } from "@/lib/session";
 import { useOnlineStatus } from "@/lib/use-online-status";
+import { parseReceipt } from "@/lib/parse-receipt-client";
+import { acceptAiConsent, hasAiConsent } from "@/lib/ai-consent";
+import { getPlatform, PlatformPermissionError } from "@/lib/platform";
 import { normalizeReceiptUrl } from "@/lib/receipt-url";
 import { RECEIPT_IMAGE_STORAGE_KEY, safeRemoveItem } from "@/lib/storage";
 import { clearThumbnails } from "@/lib/receipt-thumbnails";
@@ -103,49 +107,18 @@ async function prepareReceiptFile(
   return file;
 }
 
-async function postReceipt(formData: FormData): Promise<Receipt> {
-  formData.append("sessionId", getSessionId());
-
-  let response: Response;
-  try {
-    response = await fetch("/api/parse-receipt", {
-      method: "POST",
-      body: formData,
-    });
-  } catch (error) {
-    // fetch rejects with a TypeError when the request never reached the server
-    if (error instanceof TypeError) {
-      console.error("Receipt upload request failed:", error);
-      throw new Error(
-        "Couldn't reach the server. Check your connection and try again."
-      );
-    }
-    throw error;
-  }
-
-  if (!response.ok) {
-    if (response.status === 413) {
-      throw new Error(
-        `File is too large. Maximum size is ${MAX_FILE_SIZE_MB}MB. Please compress your image or use a smaller file.`
-      );
-    }
-    const errorData = await response.json();
-    throw new Error(errorData.error || "Failed to parse receipt");
-  }
-
-  return response.json();
-}
+const SPLIT_FULL_MESSAGE = `This split already has ${MAX_RECEIPTS_PER_SESSION} receipts. Remove one to add another.`;
 
 function parseReceiptFile(file: File): Promise<Receipt> {
   const formData = new FormData();
   formData.append("file", file);
-  return postReceipt(formData);
+  return parseReceipt(formData);
 }
 
 function parseReceiptUrl(url: string): Promise<Receipt> {
   const formData = new FormData();
   formData.append("url", url);
-  return postReceipt(formData);
+  return parseReceipt(formData);
 }
 
 /**
@@ -189,8 +162,8 @@ export function ReceiptUploader({
 
   // Reset persisted thumbnails when resetImageTrigger changes (not on initial mount).
   // NOTE: this component must NOT touch the legacy singular image key here.
-  // Child passive effects run before parent effects, and Home's restore effect
-  // (src/app/page.tsx) performs migrateLegacyImage() with the real newest
+  // Child passive effects run before parent effects, and HomeScreen's restore
+  // effect (src/components/home-screen.tsx) performs migrateLegacyImage() with the real newest
   // receipt id once the session is available. Deleting or moving that key
   // here would race ahead of it and silently lose a legacy user's image.
   const prevResetImageTrigger = useRef<number | undefined>(undefined);
@@ -205,16 +178,45 @@ export function ReceiptUploader({
     prevResetImageTrigger.current = resetImageTrigger;
   }, [resetImageTrigger]);
 
-  const onDrop = useCallback(
+  const [consentOpen, setConsentOpen] = useState(false);
+  const pendingSend = useRef<(() => void) | null>(null);
+  // Agree closes the dialog, which also reports a dismiss. Ignore that dismiss
+  // so it cannot cancel the send that was just approved.
+  const consentAccepted = useRef(false);
+
+  const runWithConsent = useCallback((action: () => void) => {
+    if (hasAiConsent()) {
+      action();
+      return;
+    }
+    pendingSend.current = action;
+    setConsentOpen(true);
+  }, []);
+
+  const handleConsentAccept = () => {
+    consentAccepted.current = true;
+    acceptAiConsent();
+    const action = pendingSend.current;
+    pendingSend.current = null;
+    setConsentOpen(false);
+    queueMicrotask(() => {
+      consentAccepted.current = false;
+    });
+    action?.();
+  };
+
+  const handleConsentDecline = () => {
+    if (consentAccepted.current) {
+      consentAccepted.current = false;
+      return;
+    }
+    pendingSend.current = null;
+    setConsentOpen(false);
+  };
+
+  const processFiles = useCallback(
     async (acceptedFiles: File[]) => {
       if (acceptedFiles.length === 0) return;
-
-      if (maxRemaining <= 0) {
-        toast.error(
-          `This split already has ${MAX_RECEIPTS_PER_SESSION} receipts. Remove one to add another.`
-        );
-        return;
-      }
 
       if (acceptedFiles.length > maxRemaining) {
         toast.error(
@@ -267,12 +269,26 @@ export function ReceiptUploader({
     [onReceiptParsed, setIsLoading, maxRemaining]
   );
 
+  const onDrop = useCallback(
+    (acceptedFiles: File[]) => {
+      if (acceptedFiles.length === 0) return;
+
+      if (maxRemaining <= 0) {
+        toast.error(SPLIT_FULL_MESSAGE);
+        return;
+      }
+
+      runWithConsent(() => {
+        void processFiles(acceptedFiles);
+      });
+    },
+    [maxRemaining, processFiles, runWithConsent]
+  );
+
   const processUrl = useCallback(
     async (url: string) => {
       if (maxRemaining <= 0) {
-        toast.error(
-          `This split already has ${MAX_RECEIPTS_PER_SESSION} receipts. Remove one to add another.`
-        );
+        toast.error(SPLIT_FULL_MESSAGE);
         return;
       }
 
@@ -302,6 +318,73 @@ export function ReceiptUploader({
     },
     [onReceiptParsed, setIsLoading, maxRemaining]
   );
+
+  const requestUrl = useCallback(
+    (url: string) => {
+      if (maxRemaining <= 0) {
+        toast.error(SPLIT_FULL_MESSAGE);
+        return;
+      }
+      runWithConsent(() => {
+        void processUrl(url);
+      });
+    },
+    [maxRemaining, processUrl, runWithConsent]
+  );
+
+  const reportPermissionError = (error: PlatformPermissionError) => {
+    toast.error(`${error.message} Enable access in Settings.`);
+  };
+
+  const requestCapture = useCallback(() => {
+    const capture = getPlatform().captureReceiptPhoto;
+    if (!capture) return;
+    if (maxRemaining <= 0) {
+      toast.error(SPLIT_FULL_MESSAGE);
+      return;
+    }
+    runWithConsent(() => {
+      void (async () => {
+        try {
+          const file = await capture();
+          if (!file) return;
+          await processFiles([file]);
+        } catch (error) {
+          if (error instanceof PlatformPermissionError) {
+            reportPermissionError(error);
+            return;
+          }
+          console.error("Receipt capture error:", error);
+          toast.error("Couldn't take a photo. Please try again.");
+        }
+      })();
+    });
+  }, [maxRemaining, processFiles, runWithConsent]);
+
+  const requestPick = useCallback(() => {
+    const pick = getPlatform().pickReceiptPhotos;
+    if (!pick) return;
+    if (maxRemaining <= 0) {
+      toast.error(SPLIT_FULL_MESSAGE);
+      return;
+    }
+    runWithConsent(() => {
+      void (async () => {
+        try {
+          const files = await pick(maxRemaining);
+          if (files.length === 0) return;
+          await processFiles(files);
+        } catch (error) {
+          if (error instanceof PlatformPermissionError) {
+            reportPermissionError(error);
+            return;
+          }
+          console.error("Receipt photo pick error:", error);
+          toast.error("Couldn't choose photos. Please try again.");
+        }
+      })();
+    });
+  }, [maxRemaining, processFiles, runWithConsent]);
 
   // Guard against re-processing the same files (React strict mode re-runs
   // effects on mount).
@@ -358,11 +441,11 @@ export function ReceiptUploader({
       const url = normalizeReceiptUrl(text);
       if (!url) return;
       event.preventDefault();
-      void processUrl(url);
+      requestUrl(url);
     };
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
-  }, [isDisabled, processUrl]);
+  }, [isDisabled, requestUrl]);
   const compact = hasReceipts;
   const parsingLabel = linkHost
     ? `Reading ${linkHost}...`
@@ -380,12 +463,44 @@ export function ReceiptUploader({
       onOpenChange={setLinkFieldOpen}
       value={linkValue}
       onValueChange={setLinkValue}
-      onSubmitUrl={(url) => void processUrl(url)}
+      onSubmitUrl={requestUrl}
       onAddFile={open}
     />
   );
 
+  const platform = getPlatform();
+  const captureButtons =
+    platform.captureReceiptPhoto || platform.pickReceiptPhotos ? (
+      <div className="flex w-full flex-col gap-2 sm:flex-row">
+        {platform.captureReceiptPhoto && (
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11 flex-1"
+            onClick={requestCapture}
+            disabled={isDisabled}
+          >
+            <Camera />
+            Take photo
+          </Button>
+        )}
+        {platform.pickReceiptPhotos && (
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11 flex-1"
+            onClick={requestPick}
+            disabled={isDisabled}
+          >
+            <Images />
+            Choose photos
+          </Button>
+        )}
+      </div>
+    ) : null;
+
   return (
+    <>
     <Card className={`w-full ${compact ? "py-3" : ""}`}>
       <CardContent className={compact ? "px-4" : "p-6"}>
         <div
@@ -396,7 +511,11 @@ export function ReceiptUploader({
             isDragActive ? "border-primary bg-primary/5" : "border-input"
           } ${isDisabled ? "opacity-60 cursor-not-allowed" : ""}`}
         >
-          <input {...getInputProps()} disabled={isDisabled} />
+          <input
+            {...getInputProps()}
+            aria-label="Receipt photos or PDFs"
+            disabled={isDisabled}
+          />
 
           {isCompressing ? (
             <div
@@ -458,7 +577,10 @@ export function ReceiptUploader({
               </div>
             )
           ) : compact ? (
-            <div onClick={stopPropagation}>{linkPaste}</div>
+            <div className="flex flex-col gap-2" onClick={stopPropagation}>
+              {linkPaste}
+              {captureButtons}
+            </div>
           ) : (
             <div className="flex flex-col items-center">
               <UploadCloud className="h-12 w-12 mb-4 text-muted-foreground" />
@@ -470,6 +592,7 @@ export function ReceiptUploader({
                 className="mt-4 flex w-full max-w-sm flex-col items-center gap-3"
                 onClick={stopPropagation}
               >
+                {captureButtons}
                 {!linkFieldOpen && (
                   <div className="flex w-full items-center gap-3 text-xs text-muted-foreground">
                     <span className="h-px flex-1 bg-border" />
@@ -484,5 +607,11 @@ export function ReceiptUploader({
         </div>
       </CardContent>
     </Card>
+    <AiConsentDialog
+      open={consentOpen}
+      onAccept={handleConsentAccept}
+      onDecline={handleConsentDecline}
+    />
+    </>
   );
 }

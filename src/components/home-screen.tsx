@@ -1,0 +1,792 @@
+"use client";
+
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, ArrowRight, UploadCloud, Users, ListChecks, DollarSign } from "lucide-react";
+
+import { ReceiptUploader } from "@/components/receipt-uploader";
+import {
+  SHARE_TARGET_EMPTY,
+  SHARE_TARGET_OK,
+  SHARE_TARGET_PARAM,
+  takeSharedFiles,
+} from "@/lib/share-target";
+import { ParsedReceiptsList } from "@/components/parsed-receipts-list";
+import { PeopleManager } from "@/components/people-manager";
+import { GroupManager } from "@/components/group-manager";
+import { ItemAssignment } from "@/components/item-assignment";
+import { ResultsSummary } from "@/components/results-summary";
+import { PersonItems } from "@/components/person-items";
+import { SupportFooter, SupportBanner } from "@/components/support-links";
+import { ValidationErrors } from "@/components/validation-errors";
+import { ThemeToggle } from "@/components/theme-toggle";
+
+import {
+  type Receipt,
+  type Person,
+  type PersonItemAssignment,
+  type ReceiptState,
+  type Group,
+} from "@/types";
+import {
+  getUnassignedItems,
+  getSessionUnassigned,
+  calculateSessionPersonTotals,
+  calculatePerReceiptPersonTotals,
+  sessionShareNote,
+  sessionShareDate,
+  validateSessionAssignments,
+  validateSessionInvariants,
+  sessionCurrency,
+  validateReceiptCurrency,
+  distributeEqualShares,
+} from "@/lib/receipt-utils";
+import { MAX_RECEIPTS_PER_SESSION } from "@/lib/constants";
+import {
+  UNTITLED_RECEIPT_NAME,
+  receiptRestaurantName,
+  receiptSubtitle,
+} from "@/lib/receipt-labels";
+import {
+  getUniqueGroupEmoji,
+  getRandomGroupEmojiExcluding,
+} from "@/lib/emoji-utils";
+import {
+  RECEIPT_IMAGE_STORAGE_KEY,
+  safeGetItem,
+  safeRemoveItem,
+  safeSetItem,
+} from "@/lib/storage";
+import {
+  clearThumbnails,
+  migrateLegacyImage,
+  pruneThumbnails,
+  removeThumbnail,
+} from "@/lib/receipt-thumbnails";
+import {
+  SESSION_STORAGE_KEY,
+  emptyReceiptState,
+  serializeSession,
+  deserializeSession,
+  isDefaultSession,
+} from "@/lib/session-persistence";
+
+type ParseResult =
+  | { status: "added"; next: ReceiptState }
+  | { status: "capped"; next: ReceiptState }
+  | { status: "mismatch"; next: ReceiptState; pinned: string };
+
+/**
+ * Applies a change to receipts, assignments, or people and recomputes each
+ * person's totals so they never go stale.
+ */
+function withPersonTotals(
+  prev: ReceiptState,
+  patch: Partial<Pick<ReceiptState, "receipts" | "assignedItems" | "people">>
+): ReceiptState {
+  const next = { ...prev, ...patch };
+  return {
+    ...next,
+    people: calculateSessionPersonTotals(next.receipts, next.people, next.assignedItems),
+  };
+}
+
+function addParsedReceipt(prev: ReceiptState, receipt: Receipt): ParseResult {
+  if (prev.receipts.length >= MAX_RECEIPTS_PER_SESSION) {
+    return { status: "capped", next: prev };
+  }
+
+  const pinned = sessionCurrency(prev.receipts);
+  if (!validateReceiptCurrency(receipt, pinned)) {
+    return { status: "mismatch", next: prev, pinned: pinned as string };
+  }
+
+  const id = crypto.randomUUID();
+  const nextAssigned = new Map(prev.assignedItems);
+  nextAssigned.set(id, new Map());
+  const nextReceipts = [...prev.receipts, { id, receipt }];
+  // Keep people/groups even when this is the only receipt (retry after a
+  // full clear is the same outing; New Split is what starts a new one).
+  return {
+    status: "added",
+    next: {
+      ...withPersonTotals(prev, { receipts: nextReceipts, assignedItems: nextAssigned }),
+      error: null,
+    },
+  };
+}
+
+/** Pinned currency from other receipts, when an edit would diverge. */
+function currencyChangeConflict(
+  receipts: ReceiptState["receipts"],
+  receiptId: string,
+  updatedReceipt: Receipt
+): string | undefined {
+  const existing = receipts.find((stored) => stored.id === receiptId);
+  if (!existing || existing.receipt.currency === updatedReceipt.currency) {
+    return undefined;
+  }
+  const pinned = sessionCurrency(receipts.filter((stored) => stored.id !== receiptId));
+  if (pinned && !validateReceiptCurrency(updatedReceipt, pinned)) {
+    return pinned;
+  }
+  return undefined;
+}
+
+function removeReceiptFromState(
+  prev: ReceiptState,
+  receiptId: string
+): ReceiptState {
+  const nextReceipts = prev.receipts.filter((stored) => stored.id !== receiptId);
+  const nextAssigned = new Map(prev.assignedItems);
+  nextAssigned.delete(receiptId);
+  return withPersonTotals(prev, { receipts: nextReceipts, assignedItems: nextAssigned });
+}
+
+function updateReceiptInState(
+  prev: ReceiptState,
+  receiptId: string,
+  updatedReceipt: Receipt,
+  remappedAssignments?: Map<number, PersonItemAssignment[]>
+): ReceiptState {
+  const existing = prev.receipts.find((stored) => stored.id === receiptId);
+  if (!existing) return prev;
+  if (currencyChangeConflict(prev.receipts, receiptId, updatedReceipt)) {
+    return prev;
+  }
+
+  const nextReceipts = prev.receipts.map((stored) =>
+    stored.id === receiptId ? { ...stored, receipt: updatedReceipt } : stored
+  );
+
+  const nextOuter = new Map(prev.assignedItems);
+  if (remappedAssignments) {
+    nextOuter.set(receiptId, remappedAssignments);
+  }
+
+  return withPersonTotals(prev, { receipts: nextReceipts, assignedItems: nextOuter });
+}
+
+const TAB_ORDER = ["upload", "people", "assign", "results"] as const;
+
+export function HomeScreen({ storageReady = true }: { storageReady?: boolean }) {
+  const [state, setState] = useState<ReceiptState>(emptyReceiptState);
+  const [activeTab, setActiveTab] = useState("upload");
+  const [hasSession, setHasSession] = useState(false);
+  // Stay false until the restore effect finishes. Autosave must not run on the
+  // empty initial state, including when storageReady flips true after mount.
+  const [restored, setRestored] = useState(false);
+  const [resetImageTrigger, setResetImageTrigger] = useState(0);
+  const stateRef = useRef(state);
+
+  const commitState = (next: ReceiptState) => {
+    stateRef.current = next;
+    setState(next);
+  };
+
+  const currency = sessionCurrency(state.receipts);
+
+  const validationResult = useMemo(() => {
+    return validateSessionInvariants(
+      state.receipts,
+      state.assignedItems,
+      state.people
+    );
+  }, [state.receipts, state.assignedItems, state.people]);
+
+  const receiptBreakdown = useMemo(
+    () =>
+      calculatePerReceiptPersonTotals(
+        state.receipts,
+        state.people,
+        state.assignedItems
+      ).map(({ stored, people }) => ({
+        name: stored.receipt.restaurant || UNTITLED_RECEIPT_NAME,
+        date: stored.receipt.date,
+        people,
+      })),
+    [state.receipts, state.people, state.assignedItems]
+  );
+
+  // Restore session once storage is ready. setRestored is batched with the
+  // restored state, so the save effect below does not run against the empty
+  // initial state in this same commit.
+  useEffect(() => {
+    if (!storageReady) {
+      setRestored(false);
+      return;
+    }
+
+    const session = safeGetItem(SESSION_STORAGE_KEY);
+    if (session) {
+      const restoredSession = deserializeSession(session);
+      if (restoredSession) {
+        commitState(restoredSession.state);
+        // Re-attach any thumbnails orphaned by a corrupted/rolled-back blob,
+        // then migrate the legacy singular image key onto the newest receipt.
+        pruneThumbnails(restoredSession.state.receipts.map((r) => r.id));
+        migrateLegacyImage(
+          restoredSession.state.receipts[restoredSession.state.receipts.length - 1]?.id
+        );
+        const restoredTab = restoredSession.activeTab || "upload";
+        const restoredAssigned = validateSessionAssignments(
+          restoredSession.state.receipts,
+          restoredSession.state.assignedItems
+        );
+        if (restoredTab === "results" && !restoredAssigned) {
+          setActiveTab(
+            restoredSession.state.people.length > 0 ? "assign" : "people"
+          );
+        } else {
+          setActiveTab(restoredTab);
+        }
+        setHasSession(
+          !isDefaultSession(restoredSession.state, restoredSession.activeTab || "upload")
+        );
+      } else {
+        setHasSession(false);
+      }
+    } else {
+      setHasSession(false);
+    }
+    setRestored(true);
+  }, [storageReady]);
+
+  // Receipts shared to the installed app (Web Share Target): the service worker
+  // stashed them and redirected here with a SHARE_TARGET_PARAM value. State
+  // updates are applied in order, so the uploader never sees the shared files
+  // before the restored session above (it needs the restored receipt count to
+  // enforce the per-split limit).
+  const [sharedFiles, setSharedFiles] = useState<File[]>([]);
+  useEffect(() => {
+    // The share hand-off lives in the service worker's Cache API. Without it
+    // (the iOS shell) this is a no-op, and it waits until the session restore
+    // above has committed so the per-split cap sees the restored receipts.
+    if (!storageReady || !restored) return;
+    if (typeof globalThis.caches === "undefined") return;
+
+    const status = new URLSearchParams(window.location.search).get(
+      SHARE_TARGET_PARAM
+    );
+    if (status === null) return;
+    window.history.replaceState(null, "", window.location.pathname);
+
+    if (status !== SHARE_TARGET_OK) {
+      toast.error(
+        status === SHARE_TARGET_EMPTY
+          ? "That wasn't a receipt image or PDF. Please choose a photo or PDF of a receipt."
+          : "Couldn't receive the shared receipt. Please choose it again."
+      );
+      return;
+    }
+    takeSharedFiles()
+      .then((files) => {
+        if (files.length === 0) {
+          console.warn("Share target: no shared files were waiting");
+          toast.error("Couldn't find the shared receipt. Please choose it again.");
+          return;
+        }
+        setActiveTab("upload");
+        setSharedFiles(files);
+      })
+      .catch((error) => {
+        console.error("Failed to read shared files:", error);
+        toast.error("Couldn't read the shared receipt. Please choose it again.");
+      });
+  }, [storageReady, restored]);
+  const clearSharedFiles = useCallback(() => setSharedFiles([]), []);
+
+  // Save session to localStorage on state or tab change
+  useEffect(() => {
+    // Do not autosave until storage is ready and the restore effect has
+    // committed. Otherwise the empty initial state overwrites a saved session
+    // (including when storageReady flips true after the first paint).
+    if (!storageReady || !restored) return;
+    // Only save if not loading
+    if (!state.isLoading) {
+      const serialized = serializeSession(state, activeTab);
+      const ok = safeSetItem(SESSION_STORAGE_KEY, serialized);
+      if (!ok) {
+        // Quota exhausted — evict cached images (largest consumers) and retry once
+        safeRemoveItem(RECEIPT_IMAGE_STORAGE_KEY);
+        clearThumbnails();
+        safeSetItem(SESSION_STORAGE_KEY, serialized);
+      }
+      setHasSession(!isDefaultSession(state, activeTab));
+    }
+  }, [state, activeTab, storageReady, restored]);
+
+  // Handler for New Split button
+  const handleNewSplit = () => {
+    safeRemoveItem(SESSION_STORAGE_KEY);
+    safeRemoveItem(RECEIPT_IMAGE_STORAGE_KEY);
+    clearThumbnails();
+    const empty = emptyReceiptState();
+    commitState(empty);
+    setActiveTab("upload");
+    setHasSession(false);
+    setResetImageTrigger((v) => v + 1);
+  };
+
+  // Check if all items are assigned
+  const allItemsAssigned = validateSessionAssignments(
+    state.receipts,
+    state.assignedItems
+  );
+
+  useEffect(() => {
+    if (activeTab !== "results" || allItemsAssigned) return;
+    if (state.people.length > 0) {
+      setActiveTab("assign");
+    } else if (state.receipts.length > 0) {
+      setActiveTab("people");
+    } else {
+      setActiveTab("upload");
+    }
+  }, [activeTab, allItemsAssigned, state.people.length, state.receipts.length]);
+
+  const progress = useMemo(() => {
+    if (state.receipts.length === 0) return 0;
+
+    const totalItems = state.receipts.reduce(
+      (n, r) => n + r.receipt.items.length,
+      0
+    );
+    const unassigned = getSessionUnassigned(state.receipts, state.assignedItems);
+    return totalItems === 0
+      ? 100
+      : ((totalItems - unassigned.length) / totalItems) * 100;
+  }, [state.receipts, state.assignedItems]);
+
+  // Handle receipt upload — append to the current outing (people/groups stay).
+  // Returns the new receipt id so the uploader can key its thumbnail to it.
+  const handleReceiptParsed = (receipt: Receipt): string | false => {
+    const result = addParsedReceipt(stateRef.current, receipt);
+    if (result.status === "capped") {
+      toast.error(
+        `This split already has ${MAX_RECEIPTS_PER_SESSION} receipts. Remove one to add another.`
+      );
+      return false;
+    }
+    if (result.status === "mismatch") {
+      toast.error(
+        `This receipt is ${receipt.currency}, but this split is in ${result.pinned}.`
+      );
+      return false;
+    }
+    commitState(result.next);
+    toast.success("Receipt successfully parsed!");
+    return result.next.receipts[result.next.receipts.length - 1].id;
+  };
+
+  const handleRemoveReceipt = (receiptId: string) => {
+    removeThumbnail(receiptId);
+    commitState(removeReceiptFromState(stateRef.current, receiptId));
+    toast.success("Receipt removed");
+  };
+
+  // Handle people changes
+  const handlePeopleChange = (updatedPeople: Person[]) => {
+    const prevState = stateRef.current;
+    let nextAssigned = prevState.assignedItems;
+
+    // If we're removing a person, we need to update the assigned items
+    if (prevState.people.length > updatedPeople.length) {
+      const removedIds = new Set(
+        prevState.people
+          .filter((p) => !updatedPeople.some((up) => up.id === p.id))
+          .map((p) => p.id)
+      );
+
+      // Clone outer map AND each inner map we change (shallow Map clone is not enough)
+      const nextOuter = new Map(prevState.assignedItems);
+      for (const [receiptId, inner] of prevState.assignedItems) {
+        const nextInner = new Map(inner);
+        nextInner.forEach((assignments, itemIndex) => {
+          const updatedAssignments = assignments.filter(
+            (a) => !removedIds.has(a.personId)
+          );
+          if (updatedAssignments.length === 0) {
+            nextInner.delete(itemIndex);
+          } else {
+            nextInner.set(itemIndex, updatedAssignments);
+          }
+        });
+        nextOuter.set(receiptId, nextInner);
+      }
+      nextAssigned = nextOuter;
+    }
+
+    commitState(
+      withPersonTotals(prevState, { people: updatedPeople, assignedItems: nextAssigned })
+    );
+  };
+
+  // Handle receipt updates. Currency mismatches are rejected like uploads.
+  const handleReceiptUpdate = (
+    receiptId: string,
+    updatedReceipt: Receipt,
+    remappedAssignments?: Map<number, PersonItemAssignment[]>
+  ): boolean => {
+    const pinned = currencyChangeConflict(
+      stateRef.current.receipts,
+      receiptId,
+      updatedReceipt
+    );
+    if (pinned) {
+      toast.error(
+        `This receipt is ${updatedReceipt.currency}, but this split is in ${pinned}.`
+      );
+      return false;
+    }
+    commitState(
+      updateReceiptInState(
+        stateRef.current,
+        receiptId,
+        updatedReceipt,
+        remappedAssignments
+      )
+    );
+    return true;
+  };
+
+  // Handle item assignments for a specific receipt
+  const handleAssignItems = (
+    receiptId: string,
+    itemIndex: number,
+    assignments: PersonItemAssignment[]
+  ) => {
+    const prevState = stateRef.current;
+    if (!prevState.receipts.some((stored) => stored.id === receiptId)) {
+      return;
+    }
+
+    const nextOuter = new Map(prevState.assignedItems);
+    const inner = new Map(nextOuter.get(receiptId) ?? []);
+
+    if (assignments.length === 0) {
+      inner.delete(itemIndex);
+    } else {
+      inner.set(itemIndex, assignments);
+    }
+    nextOuter.set(receiptId, inner);
+
+    commitState(withPersonTotals(prevState, { assignedItems: nextOuter }));
+  };
+
+  // Update loading state
+  const setIsLoading = (isLoading: boolean) => {
+    commitState({
+      ...stateRef.current,
+      isLoading,
+    });
+  };
+
+  // Handle group creation
+  const handleGroupCreate = (name: string, memberIds: string[]) => {
+    // Get emojis already used by existing groups for uniqueness
+    const existingEmojis = stateRef.current.groups
+      .map((group) => group.emoji)
+      .filter(Boolean) as string[];
+
+    const newGroup: Group = {
+      id: crypto.randomUUID(),
+      name: name.trim(),
+      memberIds,
+      emoji: getUniqueGroupEmoji(existingEmojis),
+    };
+
+    commitState({
+      ...stateRef.current,
+      groups: [...stateRef.current.groups, newGroup],
+    });
+  };
+
+  // Handle group update
+  const handleGroupUpdate = (groupId: string, updates: Partial<Group>) => {
+    commitState({
+      ...stateRef.current,
+      groups: stateRef.current.groups.map((group) =>
+        group.id === groupId ? { ...group, ...updates } : group
+      ),
+    });
+  };
+
+  // Handle group deletion
+  const handleGroupDelete = (groupId: string) => {
+    commitState({
+      ...stateRef.current,
+      groups: stateRef.current.groups.filter((group) => group.id !== groupId),
+    });
+  };
+
+  // Handle emoji regeneration for a group
+  const handleGroupEmojiRegenerate = (groupId: string) => {
+    const group = stateRef.current.groups.find((g) => g.id === groupId);
+    if (!group) return;
+
+    const newEmoji = getRandomGroupEmojiExcluding(group.emoji);
+
+    commitState({
+      ...stateRef.current,
+      groups: stateRef.current.groups.map((g) =>
+        g.id === groupId ? { ...g, emoji: newEmoji } : g
+      ),
+    });
+  };
+
+  // Navigate to the adjacent tab, staying put at either end
+  const goToAdjacentTab = (step: 1 | -1) => {
+    const index = TAB_ORDER.indexOf(activeTab as (typeof TAB_ORDER)[number]);
+    const target = TAB_ORDER[index + step];
+    if (index !== -1 && target) setActiveTab(target);
+  };
+
+  // Check if can proceed to next tab
+  const canGoToNextTab = (): boolean => {
+    switch (activeTab) {
+      case "upload":
+        return state.receipts.length > 0;
+      case "people":
+        return state.people.length > 0;
+      case "assign":
+        return allItemsAssigned;
+      default:
+        return false;
+    }
+  };
+
+  // Split unassigned items on one receipt evenly among all people
+  const splitItemsEvenlyForReceipt = (receiptId: string) => {
+    const prevState = stateRef.current;
+    const stored = prevState.receipts.find((r) => r.id === receiptId);
+    if (!stored || prevState.people.length === 0) return;
+
+    const inner = new Map(prevState.assignedItems.get(receiptId) ?? []);
+    const currentlyUnassigned = getUnassignedItems(stored.receipt, inner);
+
+    if (currentlyUnassigned.length === 0) {
+      toast.info("No unassigned items to split evenly!");
+      return;
+    }
+
+    const equalAssignments = distributeEqualShares(
+      prevState.people.map((p) => p.id)
+    );
+    currentlyUnassigned.forEach((itemIndex) => {
+      inner.set(itemIndex, equalAssignments.map((a) => ({ ...a })));
+    });
+
+    const nextOuter = new Map(prevState.assignedItems);
+    nextOuter.set(receiptId, inner);
+
+    toast.success(
+      `Split remaining items on ${receiptRestaurantName(stored)}.`
+    );
+
+    commitState(withPersonTotals(prevState, { assignedItems: nextOuter }));
+  };
+
+  const hasReceipt = state.receipts.length > 0;
+  const canViewResults =
+    hasReceipt && state.people.length > 0 && allItemsAssigned;
+
+  if (!storageReady) return null;
+
+  return (
+        <main className="container mx-auto min-w-0 max-w-4xl px-[16px] py-8 sm:px-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+        <div className="w-full sm:w-auto">
+          <h1 className="text-2xl font-semibold tracking-tight">Receipt Splitter</h1>
+          <p className="text-sm text-muted-foreground">
+            Upload receipts, add people, and split the day
+          </p>
+        </div>
+
+        <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleNewSplit}
+            disabled={!hasSession}
+            className="flex items-center gap-1"
+            title={
+              hasSession
+                ? "Start a new split (clear session)"
+                : "No session to clear"
+            }
+          >
+            New Split
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => goToAdjacentTab(-1)}
+            disabled={activeTab === "upload"}
+            className="flex items-center gap-1"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => goToAdjacentTab(1)}
+            disabled={!canGoToNextTab()}
+            className="flex items-center gap-1"
+          >
+            Next
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="space-y-6"
+      >
+        <div className="flex flex-col gap-4 mb-2">
+          <TabsList className="h-auto min-w-0 w-full flex-wrap justify-start sm:flex-nowrap">
+            <TabsTrigger value="upload" className="gap-1.5 sm:flex-1 sm:gap-2">
+              <UploadCloud className="h-4 w-4 flex-shrink-0" />
+              <span className="sm:hidden">Upload</span>
+              <span className="hidden sm:inline">Upload Receipts</span>
+            </TabsTrigger>
+            <TabsTrigger value="people" disabled={!hasReceipt} className="gap-1.5 sm:flex-1 sm:gap-2">
+              <Users className="h-4 w-4 flex-shrink-0" />
+              <span className="sm:hidden">People</span>
+              <span className="hidden sm:inline">Add People</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="assign"
+              disabled={!hasReceipt || state.people.length === 0}
+              className="gap-1.5 sm:flex-1 sm:gap-2"
+            >
+              <ListChecks className="h-4 w-4 flex-shrink-0" />
+              <span className="sm:hidden">Items</span>
+              <span className="hidden sm:inline">Assign Items</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="results"
+              disabled={!canViewResults}
+              className="gap-1.5 sm:flex-1 sm:gap-2"
+            >
+              <DollarSign className="h-4 w-4 flex-shrink-0" />
+              <span className="sm:hidden">Results</span>
+              <span className="hidden sm:inline">Results</span>
+            </TabsTrigger>
+          </TabsList>
+
+          {hasReceipt && (
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Progress
+                value={progress}
+                aria-label="Items assigned"
+                className="h-1 w-full sm:w-48"
+              />
+              <span className="text-xs text-muted-foreground tabular-nums whitespace-nowrap w-10 text-right">
+                {Math.round(progress)}%
+              </span>
+            </div>
+          )}
+        </div>
+
+        <TabsContent value="upload" className="space-y-6">
+          <ReceiptUploader
+            onReceiptParsed={handleReceiptParsed}
+            isLoading={state.isLoading}
+            setIsLoading={setIsLoading}
+            resetImageTrigger={resetImageTrigger}
+            maxRemaining={MAX_RECEIPTS_PER_SESSION - state.receipts.length}
+            hasReceipts={hasReceipt}
+            incomingFiles={sharedFiles}
+            onIncomingFilesHandled={clearSharedFiles}
+          />
+
+          <ParsedReceiptsList
+            receipts={state.receipts}
+            onReceiptUpdate={(id, receipt) => handleReceiptUpdate(id, receipt)}
+            onRemoveReceipt={handleRemoveReceipt}
+          />
+        </TabsContent>
+
+        <TabsContent value="people" className="space-y-6">
+          {state.receipts.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {state.receipts.length}{" "}
+              {state.receipts.length === 1 ? "receipt" : "receipts"} ·{" "}
+              {currency ?? "USD"}
+            </p>
+          )}
+
+          <PeopleManager
+            people={state.people}
+            onPeopleChange={handlePeopleChange}
+          />
+
+          <GroupManager
+            people={state.people}
+            groups={state.groups}
+            onGroupCreate={handleGroupCreate}
+            onGroupUpdate={handleGroupUpdate}
+            onGroupDelete={handleGroupDelete}
+            onGroupEmojiRegenerate={handleGroupEmojiRegenerate}
+          />
+        </TabsContent>
+
+        <TabsContent value="assign" className="space-y-6">
+          {state.receipts.map((stored) => {
+            const inner = state.assignedItems.get(stored.id) ?? new Map();
+            const unassigned = getUnassignedItems(stored.receipt, inner);
+            return (
+              <ItemAssignment
+                key={stored.id}
+                receipt={stored.receipt}
+                title={receiptRestaurantName(stored)}
+                subtitle={receiptSubtitle(stored, state.receipts)}
+                people={state.people}
+                groups={state.groups}
+                assignedItems={inner}
+                unassignedItems={unassigned}
+                onAssignItems={(itemIndex, assignments) =>
+                  handleAssignItems(stored.id, itemIndex, assignments)
+                }
+                onReceiptUpdate={(receipt, remapped) =>
+                  handleReceiptUpdate(stored.id, receipt, remapped)
+                }
+                onSplitEvenly={() => splitItemsEvenlyForReceipt(stored.id)}
+              />
+            );
+          })}
+        </TabsContent>
+
+        <TabsContent value="results" className="space-y-6">
+          <SupportBanner>
+            Saved you some math? A coffee helps cover our costs.
+          </SupportBanner>
+
+          <ValidationErrors errors={validationResult.errors} currencyCode={currency} />
+
+          <ResultsSummary
+            people={state.people}
+            receiptName={sessionShareNote(state.receipts)}
+            receiptDate={sessionShareDate(state.receipts)}
+            currencyCode={currency}
+            validationResult={validationResult}
+            receiptBreakdown={receiptBreakdown}
+          />
+
+          <PersonItems people={state.people} currencyCode={currency} />
+        </TabsContent>
+      </Tabs>
+
+      <SupportFooter>
+        <ThemeToggle />
+      </SupportFooter>
+    </main>
+  );
+}

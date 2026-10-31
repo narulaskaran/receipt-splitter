@@ -239,7 +239,7 @@ test.describe("edge-case receipt values", () => {
       });
     });
 
-    await page.route("**/api/parse-receipt", (route) =>
+    await page.route("**/api/v1/parse-receipt", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -304,7 +304,7 @@ test.describe("edge-case receipt values", () => {
       });
     });
 
-    await page.route("**/api/parse-receipt", (route) =>
+    await page.route("**/api/v1/parse-receipt", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -360,7 +360,7 @@ test.describe("edge-case receipt values", () => {
       await preloadSession(page, manyItemsData.state);
     });
 
-    await page.route("**/api/parse-receipt", (route) =>
+    await page.route("**/api/v1/parse-receipt", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",

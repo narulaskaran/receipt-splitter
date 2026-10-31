@@ -1,3 +1,5 @@
+import { getAppConfig } from './app-config';
+import { getPlatform } from './platform';
 import { isValidPhoneNumber } from './split-sharing';
 
 /**
@@ -158,6 +160,10 @@ export function generateVenmoWebLink(
 }
 
 export function isVenmoAppPreferred(): boolean {
+  // The Capacitor shell's WebView user agent is not a reliable phone check.
+  if (getAppConfig().platform === 'ios') {
+    return true;
+  }
   if (typeof navigator === 'undefined') {
     return false;
   }
@@ -172,11 +178,11 @@ export function isVenmoAppPreferred(): boolean {
  * @param note - Payment note/memo
  * @returns true if link was opened successfully, false if parameters were invalid
  */
-export function openVenmoPayment(
+export async function openVenmoPayment(
   phoneNumber: string,
   amount: number,
   note: string = ''
-): boolean {
+): Promise<boolean> {
   const preferNativeApp = isVenmoAppPreferred();
   const link = preferNativeApp
     ? generateVenmoLink(phoneNumber, amount, note)
@@ -187,18 +193,22 @@ export function openVenmoPayment(
   }
 
   try {
-    // Phones must use the native scheme so the app receives `%20` spaces.
-    // `https://venmo.com/?…` is rewritten by Venmo's web interstitial with `+`.
-    if (preferNativeApp) {
-      // `_self` is a top-level navigation from the user gesture, which iOS
-      // allows for custom URL schemes. `window.open(..., '_blank')` is often
-      // treated as a popup and blocked for `venmo://`.
-      window.open(link, '_self');
+    const outcome = await getPlatform().openExternalUrl(link);
+    if (outcome === 'opened') {
       return true;
     }
 
-    window.open(link, '_blank', 'noopener,noreferrer');
-    return true;
+    // Nothing handled venmo:// (app not installed). Open the web compose URL.
+    if (preferNativeApp && link.startsWith('venmo://')) {
+      const webLink = generateVenmoWebLink(phoneNumber, amount, note);
+      if (!webLink) {
+        return false;
+      }
+      const webOutcome = await getPlatform().openExternalUrl(webLink);
+      return webOutcome === 'opened';
+    }
+
+    return false;
   } catch (error) {
     console.error('Failed to open Venmo payment link:', error);
     return false;

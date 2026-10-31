@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import { mockReceipt, mockPeople, mockGroups, createMockReceipt } from "@/test/test-utils";
 import { RECEIPT_IMAGE_STORAGE_KEY } from "@/lib/storage";
 import * as shareTarget from "@/lib/share-target";
+import { acceptAiConsent } from "@/lib/ai-consent";
+import { PARSE_RECEIPT_PATH } from "@/lib/app-config";
 
 type SerializedAssignments = [number, { personId: string; sharePercentage: number }[]][];
 
@@ -27,6 +29,10 @@ function loadSession(overrides: Partial<typeof baseState> = {}, activeTab = "upl
 
 describe("Home Page", () => {
   let originalSetItem: typeof localStorage.setItem;
+
+  beforeEach(() => {
+    acceptAiConsent();
+  });
 
   afterEach(() => {
     if (originalSetItem) {
@@ -61,8 +67,25 @@ describe("Home Page", () => {
   });
 
   describe("Web Share Target", () => {
+    const cachesDescriptor = Object.getOwnPropertyDescriptor(globalThis, "caches");
+
+    beforeEach(() => {
+      if (typeof globalThis.caches === "undefined") {
+        Object.defineProperty(globalThis, "caches", {
+          configurable: true,
+          writable: true,
+          value: {},
+        });
+      }
+    });
+
     afterEach(() => {
       window.history.replaceState(null, "", "/");
+      if (cachesDescriptor) {
+        Object.defineProperty(globalThis, "caches", cachesDescriptor);
+      } else {
+        delete (globalThis as { caches?: unknown }).caches;
+      }
     });
 
     it("hands shared files to the uploader and clears the query param", async () => {
@@ -78,7 +101,7 @@ describe("Home Page", () => {
 
       await waitFor(() => {
         expect(global.fetch).toHaveBeenCalledWith(
-          "/api/parse-receipt",
+          PARSE_RECEIPT_PATH,
           expect.objectContaining({ method: "POST" })
         );
       });
