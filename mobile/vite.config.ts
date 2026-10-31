@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
@@ -14,6 +15,19 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    {
+      // The web app serves /venmo.png from public/. The mobile root is
+      // mobile/, so emit just that icon (not the whole public/ folder, which
+      // has large PWA screenshots) at the bundle root.
+      name: "receipt-splitter-venmo-icon",
+      generateBundle() {
+        this.emitFile({
+          type: "asset",
+          fileName: "venmo.png",
+          source: fs.readFileSync(path.resolve(repoRoot, "public/venmo.png")),
+        });
+      },
+    },
     {
       name: "receipt-splitter-theme-init",
       transformIndexHtml(html) {

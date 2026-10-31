@@ -1,5 +1,7 @@
 "use client";
 
+import type { MouseEvent } from "react";
+
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,6 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { getPublicShareOrigin } from "@/lib/app-config";
+import { getPlatform } from "@/lib/platform";
 
 export function AiConsentDialog({
   open,
@@ -21,6 +24,14 @@ export function AiConsentDialog({
   onDecline: () => void;
 }) {
   const origin = getPublicShareOrigin();
+  // On iOS target="_blank" links are not reliable inside the WebView; hand
+  // them to the system browser instead.
+  const openLink = (url: string) => (event: MouseEvent) => {
+    const platform = getPlatform();
+    if (!platform.isNative) return;
+    event.preventDefault();
+    void platform.openExternalUrl(url);
+  };
 
   return (
     <Dialog
@@ -34,14 +45,17 @@ export function AiConsentDialog({
           <DialogTitle>Send this receipt to be read?</DialogTitle>
           <DialogDescription>
             The receipt image, PDF, or pasted link is sent to our server and
-            processed by an AI provider (Anthropic by default). The server may
-            keep a copy for about 90 days and notifies the operator. An
-            approximate location is derived from the IP address.
+            read by an AI provider (Anthropic by default). For a pasted link, a
+            screenshot of the page is taken by a third-party service
+            (Firecrawl). The server may keep a copy for about 90 days and may
+            forward the receipt details to the operator. An approximate
+            location is derived from your IP address.
           </DialogDescription>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
           <a
             href={`${origin}/privacy`}
+            onClick={openLink(`${origin}/privacy`)}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4"
@@ -51,6 +65,7 @@ export function AiConsentDialog({
           {" · "}
           <a
             href={`${origin}/support`}
+            onClick={openLink(`${origin}/support`)}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex min-h-11 min-w-11 items-center underline underline-offset-4"
