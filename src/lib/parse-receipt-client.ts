@@ -12,8 +12,52 @@ const TIMEOUT_ERROR = "This is taking too long. Please try again.";
 const RATE_LIMIT_ERROR = "Too many requests, try again in a few minutes.";
 const GENERIC_ERROR = "Failed to parse receipt";
 
+/**
+ * A parse that never reached a completed server response. `offlineLike`
+ * covers WKWebView, where `navigator.onLine` can stay true. `retryable`
+ * means the same file or link can be submitted again unchanged.
+ *
+ * The picked photo is not retained here. `FormData` may hold the only
+ * `File`, and the caller (`ReceiptUploader`) drops it after showing this
+ * error. A toast Retry action would have to live in that component and
+ * resubmit the same `File`; it was left there so this module stays the
+ * request boundary. Callers that still have the file can call `parseReceipt`
+ * again.
+ */
+export class ParseReceiptError extends Error {
+  readonly retryable: boolean;
+  readonly offlineLike: boolean;
+
+  constructor(
+    message: string,
+    options: { retryable: boolean; offlineLike: boolean },
+  ) {
+    super(message);
+    this.name = "ParseReceiptError";
+    this.retryable = options.retryable;
+    this.offlineLike = options.offlineLike;
+  }
+}
+
+export function isRetryableParseError(error: unknown): boolean {
+  return error instanceof ParseReceiptError && error.retryable;
+}
+
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === "AbortError";
+}
+
+/** Failures that mean the upload was not accepted and can be tried again. */
+function isOfflineLikeFailure(error: unknown): boolean {
+  if (error instanceof TypeError) return true;
+  if (typeof DOMException !== "undefined" && error instanceof DOMException) {
+    return error.name === "NetworkError";
+  }
+  if (!(error instanceof Error)) return false;
+  if (error.name === "NetworkError" || error.name === "TimeoutError") return true;
+  return /failed to fetch|network error|internet connection appears to be offline|load failed/i.test(
+    error.message,
+  );
 }
 
 async function messageFromErrorResponse(response: Response): Promise<string> {
@@ -68,12 +112,13 @@ export async function parseReceipt(formData: FormData): Promise<Receipt> {
     });
   } catch (error) {
     if (isAbortError(error)) {
-      throw new Error(TIMEOUT_ERROR);
+      throw new ParseReceiptError(TIMEOUT_ERROR, { retryable: true, offlineLike: true });
     }
-    // fetch rejects with a TypeError when the request never reached the server
-    if (error instanceof TypeError) {
+    // fetch rejects when the request never reached the server. WKWebView
+    // sometimes uses a TypeError ("Load failed") and sometimes a plain Error.
+    if (isOfflineLikeFailure(error)) {
       console.error("Receipt upload request failed:", error);
-      throw new Error(NETWORK_ERROR);
+      throw new ParseReceiptError(NETWORK_ERROR, { retryable: true, offlineLike: true });
     }
     throw error;
   } finally {
@@ -82,14 +127,18 @@ export async function parseReceipt(formData: FormData): Promise<Receipt> {
 
   if (!response.ok) {
     if (response.status === 413) {
-      throw new Error(
-        `File is too large. Maximum size is ${MAX_FILE_SIZE_MB}MB. Please compress your image or use a smaller file.`
+      throw new ParseReceiptError(
+        `File is too large. Maximum size is ${MAX_FILE_SIZE_MB}MB. Please compress your image or use a smaller file.`,
+        { retryable: false, offlineLike: false },
       );
     }
     if (response.status === 429) {
-      throw new Error(RATE_LIMIT_ERROR);
+      throw new ParseReceiptError(RATE_LIMIT_ERROR, { retryable: true, offlineLike: false });
     }
-    throw new Error(await messageFromErrorResponse(response));
+    throw new ParseReceiptError(await messageFromErrorResponse(response), {
+      retryable: response.status >= 500,
+      offlineLike: false,
+    });
   }
 
   return response.json();

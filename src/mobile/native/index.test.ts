@@ -8,7 +8,7 @@ import { PWA_BACKGROUND_DARK, PWA_BACKGROUND_LIGHT } from "@/lib/pwa";
 import { safeSetItem, setStorageMirror } from "@/lib/storage";
 
 import { bootNative } from "./index";
-import { flush } from "./storage";
+import { flush, HYDRATION_TIMEOUT_MS, resetPreferencesQueueForTests } from "./storage";
 
 jest.mock("@capacitor/core", () => ({
   registerPlugin: jest.fn(() => ({
@@ -73,6 +73,7 @@ type AppStateListener = (state: { isActive: boolean }) => void;
 beforeEach(() => {
   document.documentElement.className = "";
   localStorage.clear();
+  resetPreferencesQueueForTests();
   setPlatform(webPlatform);
   setStorageMirror(null);
   (Preferences.keys as jest.Mock).mockResolvedValue({ keys: [] });
@@ -86,6 +87,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  jest.useRealTimers();
   setPlatform(webPlatform);
   setStorageMirror(null);
   document.documentElement.className = "";
@@ -152,12 +154,12 @@ describe("bootNative", () => {
       return { remove: async () => {} };
     });
     let release: () => void = () => {};
-    (Preferences.set as jest.Mock).mockImplementation(
-      () =>
-        new Promise<void>((resolve) => {
-          release = resolve;
-        }),
-    );
+    (Preferences.set as jest.Mock).mockImplementation(({ key }: { key: string }) => {
+      if (key !== "receiptSplitterSession") return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    });
 
     await bootNative();
     safeSetItem("receiptSplitterSession", "held");
@@ -177,6 +179,72 @@ describe("bootNative", () => {
       key: "receiptSplitterSession",
       value: "held",
     });
+  });
+
+  it("flushes Preferences on pagehide and pause", async () => {
+    const listeners = new Map<string, EventListener>();
+    const windowAdd = window.addEventListener.bind(window);
+    const documentAdd = document.addEventListener.bind(document);
+    const windowSpy = jest.spyOn(window, "addEventListener").mockImplementation((type, listener, options) => {
+      if (String(type) === "pagehide") listeners.set("pagehide", listener as EventListener);
+      return windowAdd(type, listener as EventListener, options);
+    });
+    const documentSpy = jest.spyOn(document, "addEventListener").mockImplementation((type, listener, options) => {
+      if (String(type) === "pause") listeners.set("pause", listener as EventListener);
+      return documentAdd(type, listener as EventListener, options);
+    });
+
+    try {
+      await bootNative();
+    } finally {
+      windowSpy.mockRestore();
+      documentSpy.mockRestore();
+    }
+    expect(listeners.get("pagehide")).toEqual(expect.any(Function));
+    expect(listeners.get("pause")).toEqual(expect.any(Function));
+
+    let release: () => void = () => {};
+    (Preferences.set as jest.Mock).mockImplementation(({ key }: { key: string }) => {
+      if (key !== "receiptSplitterSession") return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    });
+
+    safeSetItem("receiptSplitterSession", "background");
+    let flushed = false;
+    const waiting = flush().then(() => {
+      flushed = true;
+    });
+    listeners.get("pagehide")?.(new Event("pagehide"));
+    await Promise.resolve();
+    expect(flushed).toBe(false);
+    release();
+    await waiting;
+    expect(Preferences.set).toHaveBeenCalledWith({
+      key: "receiptSplitterSession",
+      value: "background",
+    });
+
+    (Preferences.set as jest.Mock).mockResolvedValue(undefined);
+    (Preferences.set as jest.Mock).mockClear();
+    safeSetItem("receiptSplitterSession", "paused");
+    listeners.get("pause")?.(new Event("pause"));
+    await flush();
+    expect(Preferences.set).toHaveBeenCalledWith({
+      key: "receiptSplitterSession",
+      value: "paused",
+    });
+  });
+
+  it("still installs the platform when Preferences hangs", async () => {
+    jest.useFakeTimers();
+    (Preferences.keys as jest.Mock).mockReturnValue(new Promise(() => {}));
+    const booting = bootNative();
+    await jest.advanceTimersByTimeAsync(HYDRATION_TIMEOUT_MS);
+    await booting;
+    expect(getPlatform().kind).toBe("ios");
+    jest.useRealTimers();
   });
 
   it("still boots when the app listener cannot be registered", async () => {

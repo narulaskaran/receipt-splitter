@@ -1,8 +1,23 @@
 import { Preferences } from "@capacitor/preferences";
 
-import { safeRemoveItem, safeSetItem, setStorageMirror } from "@/lib/storage";
+import { deserializeSession, serializeSession } from "@/lib/session-persistence";
+import {
+  MAX_PREFERENCES_VALUE_LENGTH,
+  safeGetItem,
+  safeRemoveItem,
+  safeSetItem,
+  setStorageMirror,
+  clearAllLocalData,
+} from "@/lib/storage";
+import { mockPeople, mockReceipt } from "@/test/test-utils";
+import { type ReceiptState } from "@/types";
 
-import { flush, hydrateStorageFromPreferences } from "./storage";
+import {
+  flush,
+  HYDRATION_TIMEOUT_MS,
+  hydrateStorageFromPreferences,
+  resetPreferencesQueueForTests,
+} from "./storage";
 
 jest.mock("@capacitor/preferences", () => ({
   Preferences: {
@@ -32,6 +47,7 @@ beforeEach(() => {
   memory.clear();
   localStorage.clear();
   setStorageMirror(null);
+  resetPreferencesQueueForTests();
   useMemoryPreferences();
 });
 
@@ -109,7 +125,7 @@ describe("hydrateStorageFromPreferences", () => {
     expect(console.warn).toHaveBeenCalled();
   });
 
-  it("does not install the mirror when writing localStorage throws", async () => {
+  it("installs the mirror when localStorage writes throw and serves Preferences from memory", async () => {
     memory.set("receiptSplitterSession", "from-native");
     const setItem = localStorage.setItem;
     localStorage.setItem = jest.fn(() => {
@@ -118,9 +134,11 @@ describe("hydrateStorageFromPreferences", () => {
 
     try {
       await hydrateStorageFromPreferences();
+      expect(safeGetItem("receiptSplitterSession")).toBe("from-native");
+      expect(localStorage.getItem("receiptSplitterSession")).toBeNull();
       safeSetItem("receiptSplitterThumbnails", "x");
       await flush();
-      expect(Preferences.set).not.toHaveBeenCalled();
+      expect(memory.get("receiptSplitterThumbnails")).toBe("x");
     } finally {
       localStorage.setItem = setItem;
     }
@@ -149,6 +167,10 @@ describe("preferences mirror", () => {
     const calls: string[] = [];
     let releaseFirst: () => void = () => {};
     (Preferences.set as jest.Mock).mockImplementation(({ key, value }: { key: string; value: string }) => {
+      if (key !== "receiptSplitterSession") {
+        memory.set(key, value);
+        return Promise.resolve();
+      }
       calls.push(value);
       if (calls.length === 1) {
         return new Promise<void>((resolve) => {
@@ -186,6 +208,10 @@ describe("preferences mirror", () => {
     let releaseFirst: () => void = () => {};
     let sets = 0;
     (Preferences.set as jest.Mock).mockImplementation(({ key, value }: { key: string; value: string }) => {
+      if (key !== "receiptSplitterSession") {
+        memory.set(key, value);
+        return Promise.resolve();
+      }
       sets += 1;
       return new Promise<void>((resolve) => {
         releaseFirst = () => {
@@ -207,11 +233,14 @@ describe("preferences mirror", () => {
 
   it("swallows a Preferences error and still applies the next write", async () => {
     await hydrateStorageFromPreferences();
-    (Preferences.set as jest.Mock)
-      .mockRejectedValueOnce(new Error("disk"))
-      .mockImplementation(async ({ key, value }: { key: string; value: string }) => {
-        memory.set(key, value);
-      });
+    let failedSession = false;
+    (Preferences.set as jest.Mock).mockImplementation(async ({ key, value }: { key: string; value: string }) => {
+      if (key === "receiptSplitterSession" && !failedSession) {
+        failedSession = true;
+        throw new Error("disk");
+      }
+      memory.set(key, value);
+    });
 
     safeSetItem("receiptSplitterSession", "first");
     safeSetItem("receiptSplitterSession", "second");
@@ -228,5 +257,227 @@ describe("preferences mirror", () => {
     await flush();
     expect(Preferences.set).not.toHaveBeenCalled();
     expect(memory.has("theme")).toBe(false);
+  });
+
+  it("skips an oversized Preferences write without throwing", async () => {
+    await hydrateStorageFromPreferences();
+    const oversized = "x".repeat(MAX_PREFERENCES_VALUE_LENGTH + 1);
+    expect(() => safeSetItem("receiptSplitterThumbnails", oversized)).not.toThrow();
+    await flush();
+    expect(localStorage.getItem("receiptSplitterThumbnails")).toBe(oversized);
+    expect(memory.has("receiptSplitterThumbnails")).toBe(false);
+    expect(console.warn).toHaveBeenCalled();
+  });
+
+  it("clears Preferences when New Split removes the session and thumbnails", async () => {
+    await hydrateStorageFromPreferences();
+    safeSetItem("receiptSplitterSession", "session");
+    safeSetItem("receiptSplitterThumbnails", "{\"r1\":\"data:image/jpeg;base64,aa\"}");
+    safeSetItem("receiptSplitterImage", "data:image/jpeg;base64,bb");
+    await flush();
+
+    safeRemoveItem("receiptSplitterSession");
+    safeRemoveItem("receiptSplitterImage");
+    safeRemoveItem("receiptSplitterThumbnails");
+    await flush();
+
+    expect(memory.has("receiptSplitterSession")).toBe(false);
+    expect(memory.has("receiptSplitterThumbnails")).toBe(false);
+    expect(memory.has("receiptSplitterImage")).toBe(false);
+    expect(localStorage.getItem("receiptSplitterSession")).toBeNull();
+  });
+});
+
+function v2Session(restaurant: string): string {
+  const receiptId = "receipt-1";
+  const assigned = new Map([
+    [
+      receiptId,
+      new Map([[0, [{ personId: "a", sharePercentage: 100 }]]]),
+    ],
+  ]);
+  const state: ReceiptState = {
+    receipts: [{ id: receiptId, receipt: { ...mockReceipt, restaurant } }],
+    people: mockPeople,
+    groups: [],
+    assignedItems: assigned,
+    isLoading: false,
+    error: null,
+  };
+  return serializeSession(state, "assign");
+}
+
+describe("session restore from Preferences", () => {
+  it("restores a v2 session, including assignment maps, when localStorage was evicted", async () => {
+    const blob = v2Session("Native Diner");
+    memory.set("receiptSplitterSession", blob);
+
+    await hydrateStorageFromPreferences();
+
+    const restored = deserializeSession(localStorage.getItem("receiptSplitterSession") ?? "");
+    expect(restored).not.toBeNull();
+    expect(restored!.state.receipts[0].receipt.restaurant).toBe("Native Diner");
+    expect(restored!.state.assignedItems.get("receipt-1")?.get(0)).toEqual([
+      { personId: "a", sharePercentage: 100 },
+    ]);
+    expect(restored!.activeTab).toBe("assign");
+  });
+
+  it("prefers a legacy Preferences blob when both stores differ and neither has metadata", async () => {
+    memory.set("receiptSplitterSession", v2Session("Native Diner"));
+    localStorage.setItem("receiptSplitterSession", v2Session("Web Cafe"));
+
+    await hydrateStorageFromPreferences();
+
+    const restored = deserializeSession(safeGetItem("receiptSplitterSession") ?? "");
+    expect(restored!.state.receipts[0].receipt.restaurant).toBe("Native Diner");
+    const inner = restored!.state.assignedItems.get("receipt-1");
+    expect(inner).toBeInstanceOf(Map);
+    expect(inner?.get(0)).toEqual([{ personId: "a", sharePercentage: 100 }]);
+  });
+});
+
+describe("revision reconciliation across relaunch", () => {
+  it("keeps a newer local edit when the Preferences write failed, then re-syncs it", async () => {
+    await hydrateStorageFromPreferences();
+    safeSetItem("receiptSplitterSession", "A");
+    await flush();
+    expect(memory.get("receiptSplitterSession")).toBe("A");
+
+    (Preferences.set as jest.Mock).mockImplementation(async ({ key, value }: { key: string; value: string }) => {
+      if (key === "receiptSplitterSession") throw new Error("quota");
+      memory.set(key, value);
+    });
+    safeSetItem("receiptSplitterSession", "B");
+    await flush();
+    expect(localStorage.getItem("receiptSplitterSession")).toBe("B");
+    expect(memory.get("receiptSplitterSession")).toBe("A");
+
+    (Preferences.set as jest.Mock).mockImplementation(async ({ key, value }: { key: string; value: string }) => {
+      memory.set(key, value);
+    });
+    await hydrateStorageFromPreferences();
+
+    expect(localStorage.getItem("receiptSplitterSession")).toBe("B");
+    expect(memory.get("receiptSplitterSession")).toBe("B");
+  });
+
+  it("does not resurrect a cleared split when the Preferences remove failed", async () => {
+    await hydrateStorageFromPreferences();
+    safeSetItem("receiptSplitterSession", "A");
+    await flush();
+
+    let removeFails = true;
+    (Preferences.remove as jest.Mock).mockImplementation(async ({ key }: { key: string }) => {
+      if (removeFails && key === "receiptSplitterSession") {
+        removeFails = false;
+        throw new Error("disk");
+      }
+      memory.delete(key);
+    });
+    safeRemoveItem("receiptSplitterSession");
+    await flush();
+    expect(localStorage.getItem("receiptSplitterSession")).toBeNull();
+    expect(memory.get("receiptSplitterSession")).toBe("A");
+
+    await hydrateStorageFromPreferences();
+
+    expect(localStorage.getItem("receiptSplitterSession")).toBeNull();
+    expect(memory.has("receiptSplitterSession")).toBe(false);
+  });
+
+  it("retries a failed clear-all so Preferences cannot restore the cleared session", async () => {
+    await hydrateStorageFromPreferences();
+    safeSetItem("receiptSplitterSession", "A");
+    safeSetItem("receiptSplitterSessionId", "sid");
+    await flush();
+
+    (Preferences.remove as jest.Mock).mockRejectedValue(new Error("disk"));
+    clearAllLocalData();
+    await flush();
+    expect(localStorage.getItem("receiptSplitterSession")).toBeNull();
+    expect(memory.get("receiptSplitterSession")).toBe("A");
+
+    (Preferences.remove as jest.Mock).mockImplementation(async ({ key }: { key: string }) => {
+      memory.delete(key);
+    });
+    await hydrateStorageFromPreferences();
+    expect(safeGetItem("receiptSplitterSession")).toBeNull();
+    expect(memory.has("receiptSplitterSession")).toBe(false);
+    expect(memory.has("receiptSplitterSessionId")).toBe(false);
+  });
+});
+
+describe("hydration timeout and partial reads", () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it("fails closed when Preferences hangs, and a late result cannot change localStorage", async () => {
+    jest.useFakeTimers();
+    localStorage.setItem("receiptSplitterSession", "keep");
+    let resolveKeys: (value: { keys: string[] }) => void = () => {};
+    (Preferences.keys as jest.Mock).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveKeys = resolve;
+        }),
+    );
+    const writesBefore = (localStorage.setItem as jest.Mock).mock.calls.length;
+
+    const pending = hydrateStorageFromPreferences();
+    await jest.advanceTimersByTimeAsync(HYDRATION_TIMEOUT_MS);
+    await pending;
+
+    expect(localStorage.getItem("receiptSplitterSession")).toBe("keep");
+    expect(console.warn).toHaveBeenCalled();
+
+    (Preferences.get as jest.Mock).mockResolvedValue({ value: "late-native" });
+    resolveKeys({ keys: ["receiptSplitterSession"] });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(localStorage.getItem("receiptSplitterSession")).toBe("keep");
+    expect((localStorage.setItem as jest.Mock).mock.calls.length).toBe(writesBefore);
+    safeSetItem("receiptSplitterSession", "after");
+    await flush();
+    expect(memory.has("receiptSplitterSession")).toBe(false);
+  });
+
+  it("does not install the mirror or apply a partial Preferences read", async () => {
+    localStorage.setItem("receiptSplitterSession", "keep");
+    (Preferences.keys as jest.Mock).mockResolvedValue({
+      keys: ["receiptSplitterSession", "receiptSplitterThumbnails"],
+    });
+    (Preferences.get as jest.Mock).mockImplementation(async ({ key }: { key: string }) => {
+      if (key === "receiptSplitterThumbnails") throw new Error("read failed");
+      return { value: "from-native" };
+    });
+
+    await hydrateStorageFromPreferences();
+
+    expect(localStorage.getItem("receiptSplitterSession")).toBe("keep");
+    safeSetItem("receiptSplitterSession", "next");
+    await flush();
+    expect(Preferences.set).not.toHaveBeenCalled();
+  });
+
+  it("does not let an in-flight hydration overwrite a write that landed first", async () => {
+    let resolveKeys: (value: { keys: string[] }) => void = () => {};
+    (Preferences.keys as jest.Mock).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveKeys = resolve;
+        }),
+    );
+    const pending = hydrateStorageFromPreferences();
+    await Promise.resolve();
+    safeSetItem("receiptSplitterSession", "during");
+    (Preferences.get as jest.Mock).mockResolvedValue({ value: "from-native" });
+    resolveKeys({ keys: ["receiptSplitterSession"] });
+    await pending;
+
+    expect(localStorage.getItem("receiptSplitterSession")).toBe("during");
+    expect(memory.get("receiptSplitterSession")).toBe("during");
   });
 });
