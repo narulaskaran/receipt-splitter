@@ -143,7 +143,14 @@ async function parseReceiptFile(file: File, original: File): Promise<Receipt> {
     try {
       const { gps } = await import("exifr");
       const coordinates = await gps(original);
-      if (coordinates) formData.append("photoLocation", JSON.stringify(coordinates));
+      if (coordinates) {
+        // Rounded to ~1 km here so precise coordinates never leave the browser
+        const round = (value: number) => Math.round(value * 100) / 100;
+        formData.append(
+          "photoLocation",
+          JSON.stringify({ latitude: round(coordinates.latitude), longitude: round(coordinates.longitude) })
+        );
+      }
     } catch {
       // Missing or unreadable metadata should not prevent an upload.
     }

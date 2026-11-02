@@ -58,7 +58,7 @@ const MAX_PHOTO_LOCATION_LENGTH = 200;
 // rounded to ~1 km before use so webhooks never carry an exact spot (a photo
 // taken at home would otherwise pin the home address).
 function photoGeolocation(raw: FormDataEntryValue | null): GeolocationData | null {
-  if (typeof raw !== "string" || raw.length >= MAX_PHOTO_LOCATION_LENGTH) return null;
+  if (typeof raw !== "string" || raw.length > MAX_PHOTO_LOCATION_LENGTH) return null;
   try {
     const parsed = JSON.parse(raw);
     const round = (value: unknown, limit: number) =>

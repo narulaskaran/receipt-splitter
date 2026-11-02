@@ -175,8 +175,8 @@ describe("ReceiptUploader", () => {
     });
   });
 
-  it("sends GPS coordinates read from the original photo", async () => {
-    mockGps.mockResolvedValueOnce({ latitude: 48.32, longitude: 11.65 });
+  it("sends only the GPS coordinates from the original photo, rounded to ~1 km", async () => {
+    mockGps.mockResolvedValueOnce({ latitude: 48.3243193, longitude: 11.658644, extra: "ignored" });
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ restaurant: "Test Restaurant", total: 100, items: [] }),
@@ -188,7 +188,7 @@ describe("ReceiptUploader", () => {
 
     await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
     const body = (global.fetch as jest.Mock).mock.calls[0][1].body as FormData;
-    expect(JSON.parse(body.get("photoLocation") as string)).toEqual({ latitude: 48.32, longitude: 11.65 });
+    expect(JSON.parse(body.get("photoLocation") as string)).toEqual({ latitude: 48.32, longitude: 11.66 });
   });
 
   it("uploads without a location when the photo has no readable GPS", async () => {
