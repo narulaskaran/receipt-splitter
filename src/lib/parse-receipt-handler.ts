@@ -49,32 +49,25 @@ function extractGeolocation(request: NextRequest): GeolocationData | null {
   };
 }
 
-function buildJsonResponse(
-  apiVersion: ParseReceiptApiVersion,
-  origin: string | null,
-  body: Record<string, unknown>,
-  status: number,
-  responseHeaders?: Record<string, string>
-): NextResponse {
-  const response = NextResponse.json(body, {
-    status,
-    headers: responseHeaders,
-  });
-  if (apiVersion === 1) {
-    return withV1Cors(response, origin, responseHeaders);
-  }
-  return response;
-}
-
-function errorPayload(
-  apiVersion: ParseReceiptApiVersion,
+type Fail = (
   message: string,
-  code?: string
-): Record<string, unknown> {
-  if (apiVersion === 1 && code) {
-    return { error: message, code };
-  }
-  return { error: message };
+  code: string | undefined,
+  status: number,
+  headers?: Record<string, string>
+) => NextResponse;
+
+/** Error response in the shape of the requested API version (v1 adds `code`, CORS and X-API-Version). */
+function failureResponder(
+  apiVersion: ParseReceiptApiVersion,
+  origin: string | null
+): Fail {
+  return (message, code, status, headers) => {
+    const response = NextResponse.json(
+      apiVersion === 1 && code ? { error: message, code } : { error: message },
+      { status }
+    );
+    return apiVersion === 1 ? withV1Cors(response, origin, headers) : response;
+  };
 }
 
 function mergeClientIntoContext(
@@ -92,8 +85,8 @@ function handleExtractError(
   error: unknown,
   extractor: ReceiptExtractor,
   errorContext: ErrorNotificationContext,
-  apiVersion: ParseReceiptApiVersion,
-  origin: string | null
+  fail: Fail,
+  apiVersion: ParseReceiptApiVersion
 ): NextResponse {
   const { provider } = extractor;
   const llmError =
@@ -108,95 +101,48 @@ function handleExtractError(
   const { kind, message, status } = llmError;
   console.error(`LLM extraction failed (${provider}, ${kind}):`, error);
 
-  const ctx = errorContext;
+  const notify = (type: string, detail: string) =>
+    sendErrorNotification(type, detail, errorContext).catch(() => {});
+  const parseFailed = () =>
+    fail("Failed to parse receipt. Please try again later.", "parse_failed", 500);
 
   switch (kind) {
     case "rate_limit":
-      sendErrorNotification(
-        "llm_rate_limit",
-        `Rate limit exceeded: ${message}`,
-        ctx
-      ).catch(() => {});
-      return buildJsonResponse(
-        apiVersion,
-        origin,
-        errorPayload(
-          apiVersion,
-          "Rate limit exceeded. Please try again in a few moments.",
-          "rate_limited"
-        ),
+      notify("llm_rate_limit", `Rate limit exceeded: ${message}`);
+      return fail(
+        "Rate limit exceeded. Please try again in a few moments.",
+        "rate_limited",
         429,
         apiVersion === 1 ? { "Retry-After": "60" } : undefined
       );
     case "bad_request":
-      sendErrorNotification(
-        "llm_bad_request",
-        `Bad request to ${provider} API: ${message}`,
-        ctx
-      ).catch(() => {});
-      return buildJsonResponse(
-        apiVersion,
-        origin,
-        errorPayload(
-          apiVersion,
-          "Invalid request format. Please ensure your file is a valid receipt image or PDF.",
-          "bad_request"
-        ),
+      notify("llm_bad_request", `Bad request to ${provider} API: ${message}`);
+      return fail(
+        "Invalid request format. Please ensure your file is a valid receipt image or PDF.",
+        "bad_request",
         400
       );
     case "auth":
-      sendErrorNotification(
+      notify(
         "llm_auth_error",
-        `${provider} auth or billing error (${status}): ${message}`,
-        ctx
-      ).catch(() => {});
-      return buildJsonResponse(
-        apiVersion,
-        origin,
-        errorPayload(
-          apiVersion,
-          "Server configuration error: LLM provider is not configured",
-          "llm_not_configured"
-        ),
+        `${provider} auth or billing error (${status}): ${message}`
+      );
+      return fail(
+        "Server configuration error: LLM provider is not configured",
+        "llm_not_configured",
         500
       );
     case "empty_response":
-      sendErrorNotification("empty_response", message, ctx).catch(() => {});
-      return buildJsonResponse(
-        apiVersion,
-        origin,
-        errorPayload(
-          apiVersion,
-          "Failed to parse receipt. Please try again later.",
-          "parse_failed"
-        ),
-        500
-      );
+      notify("empty_response", message);
+      return parseFailed();
     case "invalid_json":
-      sendErrorNotification(
-        "json_parse_error",
-        `Failed to parse JSON response: ${message}`,
-        ctx
-      ).catch(() => {});
-      return buildJsonResponse(
-        apiVersion,
-        origin,
-        errorPayload(
-          apiVersion,
-          "Failed to parse receipt. Please try again later.",
-          "parse_failed"
-        ),
-        500
-      );
+      notify("json_parse_error", `Failed to parse JSON response: ${message}`);
+      return parseFailed();
     case "api_error":
-      sendErrorNotification(
-        "llm_api_error",
-        `${provider} API error (${status}): ${message}`,
-        ctx
-      ).catch(() => {});
+      notify("llm_api_error", `${provider} API error (${status}): ${message}`);
       break;
     case "unknown":
-      sendErrorNotification("llm_unknown_error", message, ctx).catch(() => {});
+      notify("llm_unknown_error", message);
       break;
     default: {
       const unhandled: never = kind;
@@ -204,14 +150,9 @@ function handleExtractError(
     }
   }
 
-  return buildJsonResponse(
-    apiVersion,
-    origin,
-    errorPayload(
-      apiVersion,
-      "Failed to process receipt. Please try again later.",
-      "parse_failed"
-    ),
+  return fail(
+    "Failed to process receipt. Please try again later.",
+    "parse_failed",
     503
   );
 }
@@ -233,6 +174,7 @@ export async function handleParseReceipt(
   { apiVersion }: HandleParseReceiptOptions
 ): Promise<NextResponse> {
   const origin = request.headers.get("origin");
+  const fail = failureResponder(apiVersion, origin);
   const client = parseClientMetadata(request);
 
   try {
@@ -249,16 +191,7 @@ export async function handleParseReceipt(
         error.message,
         mergeClientIntoContext({ geolocation }, client)
       ).catch(() => {});
-      return buildJsonResponse(
-        apiVersion,
-        origin,
-        errorPayload(
-          apiVersion,
-          "Server configuration error: LLM provider is not configured",
-          "llm_not_configured"
-        ),
-        500
-      );
+      return fail("Server configuration error: LLM provider is not configured", "llm_not_configured", 500);
     }
 
     const formData = await request.formData();
@@ -292,50 +225,20 @@ export async function handleParseReceipt(
             client
           )
         ).catch(() => {});
-        const linkCode =
-          apiVersion === 1 ? error.code : undefined;
-        return buildJsonResponse(
-          apiVersion,
-          origin,
-          errorPayload(apiVersion, error.message, linkCode),
-          error.status
-        );
+        return fail(error.message, error.code, error.status);
       }
     }
 
     if (!file) {
-      return buildJsonResponse(
-        apiVersion,
-        origin,
-        errorPayload(
-          apiVersion,
-          "No file or link provided in the request",
-          "no_input"
-        ),
-        400
-      );
+      return fail("No file or link provided in the request", "no_input", 400);
     }
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      return buildJsonResponse(
-        apiVersion,
-        origin,
-        errorPayload(
-          apiVersion,
-          `File size exceeds the maximum limit of ${MAX_FILE_SIZE_MB}MB`,
-          "file_too_large"
-        ),
-        400
-      );
+      return fail(`File size exceeds the maximum limit of ${MAX_FILE_SIZE_MB}MB`, "file_too_large", 400);
     }
 
     if (file.size === 0) {
-      return buildJsonResponse(
-        apiVersion,
-        origin,
-        errorPayload(apiVersion, "Uploaded file is empty", "empty_file"),
-        400
-      );
+      return fail("Uploaded file is empty", "empty_file", 400);
     }
 
     const buffer = await file.arrayBuffer();
@@ -346,16 +249,7 @@ export async function handleParseReceipt(
     );
 
     if (!extractor.supportedMimeTypes.includes(mimeType)) {
-      return buildJsonResponse(
-        apiVersion,
-        origin,
-        errorPayload(
-          apiVersion,
-          "Unsupported file format. Please use JPEG, PNG, GIF, WebP, or PDF.",
-          "unsupported_type"
-        ),
-        400
-      );
+      return fail("Unsupported file format. Please use JPEG, PNG, GIF, WebP, or PDF.", "unsupported_type", 400);
     }
 
     const llm = { provider: extractor.provider, model: extractor.model };
@@ -403,13 +297,7 @@ export async function handleParseReceipt(
         jsonSchema: receiptJsonSchema,
       });
     } catch (error) {
-      return handleExtractError(
-        error,
-        extractor,
-        errorContext,
-        apiVersion,
-        origin
-      );
+      return handleExtractError(error, extractor, errorContext, fail, apiVersion);
     }
 
     try {
@@ -422,16 +310,7 @@ export async function handleParseReceipt(
           summarizeZodValidationForWebhook(validationResult.error),
           errorContext
         ).catch(() => {});
-        return buildJsonResponse(
-          apiVersion,
-          origin,
-          errorPayload(
-            apiVersion,
-            "Failed to parse receipt. Please try again later.",
-            "parse_failed"
-          ),
-          500
-        );
+        return fail("Failed to parse receipt. Please try again later.", "parse_failed", 500);
       }
 
       console.log("Successfully parsed receipt data");
@@ -453,16 +332,7 @@ export async function handleParseReceipt(
         console.error(
           "All items filtered out - receipt contained only modifiers/items without prices"
         );
-        return buildJsonResponse(
-          apiVersion,
-          origin,
-          errorPayload(
-            apiVersion,
-            "Could not find any items with prices on the receipt. The receipt may only contain modifiers or add-ons without individual prices.",
-            "no_priced_items"
-          ),
-          422
-        );
+        return fail("Could not find any items with prices on the receipt. The receipt may only contain modifiers or add-ons without individual prices.", "no_priced_items", 422);
       }
 
       const subtotalValue = validationResult.data.subtotal ?? 0;
@@ -540,16 +410,7 @@ export async function handleParseReceipt(
         "Failed to parse model JSON response",
         errorContext
       ).catch(() => {});
-      return buildJsonResponse(
-        apiVersion,
-        origin,
-        errorPayload(
-          apiVersion,
-          "Failed to parse receipt. Please try again later.",
-          "parse_failed"
-        ),
-        500
-      );
+      return fail("Failed to parse receipt. Please try again later.", "parse_failed", 500);
     }
   } catch (error) {
     const errorMessage =
@@ -557,16 +418,7 @@ export async function handleParseReceipt(
     console.error("Error processing receipt:", errorMessage);
 
     if (error instanceof TypeError && errorMessage.includes("FormData")) {
-      return buildJsonResponse(
-        apiVersion,
-        origin,
-        errorPayload(
-          apiVersion,
-          "Invalid request format. Please upload a valid file.",
-          "bad_request"
-        ),
-        400
-      );
+      return fail("Invalid request format. Please upload a valid file.", "bad_request", 400);
     }
 
     sendErrorNotification(
@@ -574,15 +426,6 @@ export async function handleParseReceipt(
       errorMessage,
       mergeClientIntoContext({}, client)
     ).catch(() => {});
-    return buildJsonResponse(
-      apiVersion,
-      origin,
-      errorPayload(
-        apiVersion,
-        "An unexpected error occurred while processing your receipt. Please try again.",
-        "unexpected"
-      ),
-      500
-    );
+    return fail("An unexpected error occurred while processing your receipt. Please try again.", "unexpected", 500);
   }
 }

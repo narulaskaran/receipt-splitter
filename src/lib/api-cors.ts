@@ -25,20 +25,10 @@ function isLocalDevHttpOrigin(origin: string): boolean {
   }
 }
 
-/** Returns true when `origin` may receive CORS headers (never `*`). */
-export function isOriginAllowed(origin: string | null): boolean {
-  if (!origin) {
-    return false;
-  }
-  if (configuredNativeOrigins().includes(origin)) {
-    return true;
-  }
-  return isLocalDevHttpOrigin(origin);
-}
-
-/** Echoes the request origin when allowed; otherwise null. */
-export function resolveAllowedOrigin(origin: string | null): string | null {
-  if (origin && isOriginAllowed(origin)) {
+/** Echoes the request origin when allowed (never `*`); otherwise null. */
+function resolveAllowedOrigin(origin: string | null): string | null {
+  if (!origin) return null;
+  if (configuredNativeOrigins().includes(origin) || isLocalDevHttpOrigin(origin)) {
     return origin;
   }
   return null;
