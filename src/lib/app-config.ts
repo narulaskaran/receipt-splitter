@@ -21,7 +21,6 @@ export const DEFAULT_PUBLIC_ORIGIN = "https://split.narula.xyz";
 
 /** Versioned parse endpoint. The unversioned /api/parse-receipt stays for older clients. */
 export const PARSE_RECEIPT_PATH = "/api/v1/parse-receipt";
-export const LEGACY_PARSE_RECEIPT_PATH = "/api/parse-receipt";
 
 let override: Partial<AppConfig> | null = null;
 

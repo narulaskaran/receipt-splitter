@@ -1,5 +1,3 @@
-const ALLOWED_PLATFORMS = new Set(["web", "ios"]);
-
 export type ClientPlatform = "web" | "ios";
 
 export interface ClientMetadata {
@@ -7,22 +5,14 @@ export interface ClientMetadata {
   version: string | null;
 }
 
-export function parseClientPlatform(
-  header: string | null
-): ClientPlatform | null {
-  if (!header) {
-    return null;
-  }
-  const value = header.trim().toLowerCase();
-  return ALLOWED_PLATFORMS.has(value) ? (value as ClientPlatform) : null;
+function parseClientPlatform(header: string | null): ClientPlatform | null {
+  const value = header?.trim().toLowerCase();
+  return value === "web" || value === "ios" ? value : null;
 }
 
 /** Length-capped, alphanumeric-ish client version string for webhooks. */
-export function parseClientVersion(header: string | null): string | null {
-  if (!header) {
-    return null;
-  }
-  const sanitized = header
+function parseClientVersion(header: string | null): string | null {
+  const sanitized = (header ?? "")
     .trim()
     .replace(/[^\w.\-+]/g, "")
     .slice(0, 64);

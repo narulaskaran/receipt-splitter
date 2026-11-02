@@ -47,7 +47,7 @@ npm ci
 npm run ios:sync
 ```
 
-`npm run ios:sync` is the mobile script that builds `dist-mobile` and runs `npx cap sync ios`. If that script is not on the tag yet, run `npm run mobile:build` and then `npx cap sync ios`.
+`npm run ios:sync` builds `dist-mobile` and runs `npx cap sync ios`.
 
 Example archive and export. UNVERIFIED. These commands were not run. The shared scheme name `App` is the Capacitor target name. If Xcode has not shared a scheme, create and share it once, then re-run. Replace the team id. `ExportOptions.plist` is a file you create on the Mac (method `app-store-connect`, team id, upload symbols). Do not commit a file that contains a provisioning profile or a certificate.
 
