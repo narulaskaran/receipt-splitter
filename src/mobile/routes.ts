@@ -1,12 +1,3 @@
-export function homeHash(): string {
-  return "#/";
-}
-
-export function splitHash(query = ""): string {
-  const normalized = query.replace(/^\?/, "");
-  return normalized ? `#/split?${normalized}` : "#/split";
-}
-
 export type MobileRoute =
   | { name: "home" }
   | { name: "split"; searchParams: URLSearchParams };

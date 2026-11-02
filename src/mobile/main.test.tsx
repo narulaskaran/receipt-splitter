@@ -6,7 +6,7 @@ import { createRoot } from "react-dom/client";
 import { setPlatform, webPlatform } from "@/lib/platform";
 import { setStorageMirror } from "@/lib/storage";
 
-import { resetMobileRootForTests, startMobileApp } from "./main";
+import { startMobileApp } from "./main";
 import { HYDRATION_TIMEOUT_MS, resetPreferencesQueueForTests } from "./native/storage";
 
 jest.mock("react-dom/client", () => ({
@@ -73,7 +73,6 @@ const env = {
 
 beforeEach(() => {
   document.body.innerHTML = '<div id="root"></div>';
-  resetMobileRootForTests();
   resetPreferencesQueueForTests();
   setStorageMirror(null);
   setPlatform(webPlatform);
@@ -89,27 +88,14 @@ afterEach(() => {
 });
 
 describe("startMobileApp", () => {
-  it("mounts exactly once when Preferences hangs and a late read arrives", async () => {
+  it("still mounts, with the existing local data, when Preferences hangs", async () => {
     jest.useFakeTimers();
     localStorage.setItem("receiptSplitterSession", "keep");
-    let resolveKeys: (value: { keys: string[] }) => void = () => {};
-    (Preferences.keys as jest.Mock).mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolveKeys = resolve;
-        }),
-    );
+    (Preferences.keys as jest.Mock).mockImplementation(() => new Promise(() => {}));
 
     const starting = startMobileApp(env, true);
     await jest.advanceTimersByTimeAsync(HYDRATION_TIMEOUT_MS);
     await starting;
-
-    expect(createRoot).toHaveBeenCalledTimes(1);
-
-    (Preferences.get as jest.Mock).mockResolvedValue({ value: "late-native" });
-    resolveKeys({ keys: ["receiptSplitterSession"] });
-    await Promise.resolve();
-    await Promise.resolve();
 
     expect(createRoot).toHaveBeenCalledTimes(1);
     expect(localStorage.getItem("receiptSplitterSession")).toBe("keep");

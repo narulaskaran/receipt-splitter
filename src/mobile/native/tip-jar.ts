@@ -5,24 +5,11 @@ import type { TipJar, TipProduct, TipPurchaseResult } from "@/lib/platform";
 /** How long a StoreKit call may take before the UI treats it as unavailable. */
 export const TIP_PLUGIN_TIMEOUT_MS = 10_000;
 
-export interface NativeTipProduct {
-  id: string;
-  displayName: string;
-  displayPrice: string;
-}
-
-export type NativeTipPurchaseResult = {
-  status?: string;
-  message?: string;
-};
+type NativeTipPurchaseResult = { status?: string; message?: string };
 
 export interface TipJarPlugin {
-  getProducts(options: { ids: string[] }): Promise<{ products?: NativeTipProduct[] }>;
+  getProducts(options: { ids: string[] }): Promise<{ products?: TipProduct[] }>;
   purchase(options: { id: string }): Promise<NativeTipPurchaseResult>;
-  addListener(
-    eventName: "tipCompleted",
-    listener: (event: { id?: string; status?: string }) => void,
-  ): Promise<{ remove: () => Promise<void> }>;
 }
 
 export const TipJarNative = registerPlugin<TipJarPlugin>("TipJar");
@@ -50,14 +37,14 @@ function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
   });
 }
 
+const FAILED_MESSAGE = "The tip didn't go through.";
+
 function errorMessage(error: unknown): string {
-  if (error instanceof Error && error.message) return error.message;
-  return "The tip didn't go through.";
+  return error instanceof Error && error.message ? error.message : FAILED_MESSAGE;
 }
 
 function isUnavailableError(error: unknown): boolean {
-  const message = errorMessage(error);
-  return /unavailable|not implemented|unimplemented/i.test(message);
+  return /unavailable|not implemented|unimplemented/i.test(errorMessage(error));
 }
 
 function normalizePurchase(result: NativeTipPurchaseResult | null | undefined): TipPurchaseResult {
@@ -65,10 +52,7 @@ function normalizePurchase(result: NativeTipPurchaseResult | null | undefined): 
   if (status === "success" || status === "pending" || status === "cancelled" || status === "unavailable") {
     return { status };
   }
-  if (status === "failed") {
-    return { status: "failed", message: result?.message || "The tip didn't go through." };
-  }
-  return { status: "failed", message: "The tip didn't go through." };
+  return { status: "failed", message: (status === "failed" && result?.message) || FAILED_MESSAGE };
 }
 
 /**
@@ -77,9 +61,7 @@ function normalizePurchase(result: NativeTipPurchaseResult | null | undefined): 
  * Plugin failures and the timeout become an empty catalog or a failed /
  * unavailable purchase. This function does not throw into the UI.
  */
-export function createNativeTipJar(productIds: readonly string[]): TipJar {
-  const allowed = productIds.filter((id) => id.length > 0);
-
+export function createNativeTipJar(allowed: readonly string[]): TipJar {
   return {
     async loadProducts(): Promise<TipProduct[]> {
       try {
@@ -95,13 +77,8 @@ export function createNativeTipJar(productIds: readonly string[]): TipJar {
         return allowed.flatMap((id) => {
           const product = byId.get(id);
           if (!product?.displayName || !product.displayPrice) return [];
-          return [
-            {
-              id: product.id,
-              displayName: product.displayName,
-              displayPrice: product.displayPrice,
-            },
-          ];
+          const { displayName, displayPrice } = product;
+          return [{ id, displayName, displayPrice }];
         });
       } catch {
         return [];

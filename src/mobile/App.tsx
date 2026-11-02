@@ -8,7 +8,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { consumeDurableStorageNotice } from "@/lib/storage";
-import { homeHash, parseMobileHash, type MobileRoute } from "@/mobile/routes";
+import { parseMobileHash, type MobileRoute } from "@/mobile/routes";
 
 function readRoute(): MobileRoute {
   if (typeof window === "undefined") return { name: "home" };
@@ -81,7 +81,7 @@ export function App() {
           <SplitScreen
             searchParams={route.searchParams}
             onCreateNew={() => {
-              window.location.hash = homeHash();
+              window.location.hash = "#/";
             }}
           />
         ) : (

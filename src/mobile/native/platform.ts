@@ -32,9 +32,8 @@ function isPermissionDenial(error: unknown): boolean {
 }
 
 function permissionError(kind: "camera" | "photos"): PlatformPermissionError {
-  const which = kind === "camera" ? "camera" : "photos";
   return new PlatformPermissionError(
-    `Receipt Splitter can't use the ${which}. Enable access in Settings > Receipt Splitter.`,
+    `Receipt Splitter can't use the ${kind}. Enable access in Settings > Receipt Splitter.`,
     kind,
   );
 }
@@ -76,9 +75,7 @@ async function captureReceiptPhoto(): Promise<File | null> {
       correctOrientation: true,
       saveToGallery: false,
     });
-    if (!photo.webPath) {
-      throw new Error("Could not read the photo");
-    }
+    if (!photo.webPath) throw new Error("Could not read the photo");
     return await fileFromWebPath(photo.webPath, photo.format, "receipt");
   } catch (error) {
     if (isCancellation(error)) return null;
@@ -94,16 +91,12 @@ async function pickReceiptPhotos(limit: number): Promise<File[]> {
       quality: 85,
       correctOrientation: true,
     });
-    const photos = gallery.photos ?? [];
-    const files = await Promise.all(
-      photos.map((photo, index) => {
-        if (!photo.webPath) {
-          throw new Error("Could not read the photo");
-        }
+    return await Promise.all(
+      (gallery.photos ?? []).map((photo, index) => {
+        if (!photo.webPath) throw new Error("Could not read the photo");
         return fileFromWebPath(photo.webPath, photo.format, `receipt-${index + 1}`);
       }),
     );
-    return files;
   } catch (error) {
     if (isCancellation(error)) return [];
     if (isPermissionDenial(error)) throw permissionError("photos");

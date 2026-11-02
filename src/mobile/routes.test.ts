@@ -1,13 +1,6 @@
-import { homeHash, parseMobileHash, splitHash } from "@/mobile/routes";
+import { parseMobileHash } from "@/mobile/routes";
 
 describe("mobile hash routes", () => {
-  it("builds home and split links", () => {
-    expect(homeHash()).toBe("#/");
-    expect(splitHash()).toBe("#/split");
-    expect(splitHash("?names=A&amounts=1")).toBe("#/split?names=A&amounts=1");
-    expect(splitHash("names=A")).toBe("#/split?names=A");
-  });
-
   it("parses home and split hashes", () => {
     expect(parseMobileHash("")).toEqual({ name: "home" });
     expect(parseMobileHash("#/")).toEqual({ name: "home" });

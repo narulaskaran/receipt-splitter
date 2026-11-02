@@ -10,12 +10,6 @@ import { THEME_STORAGE_KEY } from "@/lib/theme";
 import { createNativePlatform } from "./platform";
 import { flush, hydrateStorageFromPreferences } from "./storage";
 
-export { createNativePlatform } from "./platform";
-export { createNativeTipJar, TIP_PLUGIN_TIMEOUT_MS } from "./tip-jar";
-export { flush, hydrateStorageFromPreferences } from "./storage";
-
-let chromeBound = false;
-
 function themeIsDark(): boolean {
   const root = document.documentElement;
   if (root.classList.contains("dark") && !root.classList.contains("light")) return true;
@@ -54,8 +48,6 @@ async function applyKeyboard(): Promise<void> {
 }
 
 function bindChromeUpdates(): void {
-  if (chromeBound) return;
-  chromeBound = true;
   window.addEventListener("themechange", () => {
     void applyStatusBar();
   });

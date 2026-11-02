@@ -1,5 +1,5 @@
 import { Capacitor } from "@capacitor/core";
-import { createRoot, type Root } from "react-dom/client";
+import { createRoot } from "react-dom/client";
 import { App } from "@/mobile/App";
 import { setPlatform, webPlatform } from "@/lib/platform";
 import { bootNativeShell, configureMobileApp, type MobileViteEnv } from "@/mobile/boot";
@@ -8,12 +8,10 @@ import "@/mobile/mobile.css";
 // TODO: Analytics for native is documented in docs/ios/privacy.md.
 // Do not add analytics SDKs here.
 
-let mobileRoot: Root | null = null;
-
 /**
- * Configure, hydrate (bounded; a hung Preferences call fails closed), then
- * mount once. A late hydration result must not mount again. Failures are
- * logged here so the boot promise does not become an unhandled rejection.
+ * Configure, hydrate storage (bounded; a hung Preferences call fails closed
+ * inside bootNativeShell), then mount. Failures are logged here so the boot
+ * promise does not become an unhandled rejection.
  */
 export async function startMobileApp(env: MobileViteEnv, isNative = Capacitor.isNativePlatform()): Promise<void> {
   try {
@@ -24,28 +22,11 @@ export async function startMobileApp(env: MobileViteEnv, isNative = Capacitor.is
       // iOS layout without the Capacitor bridge, so UI work does not need a phone.
       setPlatform({ ...webPlatform, kind: "ios", isNative: true, showKofi: false });
     }
-    renderMobileRoot();
+    const rootElement = document.getElementById("root");
+    if (rootElement) createRoot(rootElement).render(<App />);
   } catch (error) {
-    console.error("Mobile startup failed; continuing without blocking on boot.", error);
-    try {
-      renderMobileRoot();
-    } catch (renderError) {
-      console.error("Mobile render failed", renderError);
-    }
+    console.error("Mobile startup failed", error);
   }
-}
-
-function renderMobileRoot(): void {
-  if (mobileRoot) return;
-  const rootElement = document.getElementById("root");
-  if (!rootElement) return;
-  mobileRoot = createRoot(rootElement);
-  mobileRoot.render(<App />);
-}
-
-/** Lets tests mount again. Production calls startMobileApp once. */
-export function resetMobileRootForTests(): void {
-  mobileRoot = null;
 }
 
 const runningUnderJest =
