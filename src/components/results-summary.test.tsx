@@ -2,11 +2,19 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ResultsSummary } from "./results-summary";
 import { mockPeople } from "@/test/test-utils";
 import { toast } from "sonner";
+import { configureApp } from "@/lib/app-config";
+import { setPlatform, webPlatform } from "@/lib/platform";
+import { AmountValidationError } from "@/lib/receipt-utils";
 
 // Note: Browser API mocks (clipboard, alert, navigator.share) are configured
 // globally in jest.setup.ts. Tests can override specific behaviors as needed.
 
 describe("ResultsSummary", () => {
+  afterEach(() => {
+    configureApp(null);
+    setPlatform(webPlatform);
+  });
+
   describe("Rendering", () => {
     it("renders nothing when no people are provided", () => {
       const { container } = render(
@@ -41,6 +49,12 @@ describe("ResultsSummary", () => {
       const phoneInput = screen.getByPlaceholderText("e.g. 555-123-4567");
       expect(phoneInput).toBeInTheDocument();
       expect(phoneInput).toHaveAttribute("type", "tel");
+      expect(
+        screen.getByText("Your phone number (optional, US Venmo only)")
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Leave blank to share without payment buttons.")
+      ).toBeInTheDocument();
     });
 
     it("renders Share Split button", () => {
@@ -188,23 +202,25 @@ describe("ResultsSummary", () => {
   });
 
   describe("Share Split Button State", () => {
-    it("is disabled when phone number is empty", () => {
+    const peopleWithTotals = [{ ...mockPeople[0], finalTotal: 25 }];
+
+    it("is enabled when the phone number is left blank", () => {
       render(
         <ResultsSummary
-          people={mockPeople}
+          people={peopleWithTotals}
           receiptName="Test Restaurant"
           receiptDate="2024-01-01"
         />
       );
 
       const shareButton = screen.getByRole("button", { name: /share split/i });
-      expect(shareButton).toBeDisabled();
+      expect(shareButton).toBeEnabled();
     });
 
     it("is disabled when phone number is too short", () => {
       render(
         <ResultsSummary
-          people={mockPeople}
+          people={peopleWithTotals}
           receiptName="Test Restaurant"
           receiptDate="2024-01-01"
         />
@@ -215,6 +231,49 @@ describe("ResultsSummary", () => {
 
       const shareButton = screen.getByRole("button", { name: /share split/i });
       expect(shareButton).toBeDisabled();
+      expect(
+        screen.getByText("Enter a valid 10-digit US number, or leave this blank.")
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /share text/i })).toBeEnabled();
+      expect(phoneInput).toHaveValue("555");
+    });
+
+    it("is disabled when the receipt has validation errors", () => {
+      render(
+        <ResultsSummary
+          people={peopleWithTotals}
+          receiptName="Test Restaurant"
+          receiptDate="2024-01-01"
+          validationResult={{
+            isValid: false,
+            errors: [
+              {
+                type: AmountValidationError.RECEIPT_TOTAL_MISMATCH,
+                message: "Totals do not match",
+              },
+            ],
+          }}
+        />
+      );
+
+      expect(screen.getByRole("button", { name: /share split/i })).toBeDisabled();
+    });
+
+    it("hides the phone field for non-USD splits", () => {
+      render(
+        <ResultsSummary
+          people={peopleWithTotals}
+          receiptName="Bistro"
+          receiptDate="2024-01-01"
+          currencyCode="EUR"
+        />
+      );
+
+      expect(screen.queryByPlaceholderText("e.g. 555-123-4567")).not.toBeInTheDocument();
+      expect(
+        screen.getByText("No payment details are needed to share this split.")
+      ).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /share split/i })).toBeEnabled();
     });
 
     it("is enabled when valid phone number is entered", () => {
@@ -291,7 +350,83 @@ describe("ResultsSummary", () => {
         expect(clipboardContent).toContain("/split?");
         expect(clipboardContent).toContain("names=");
         expect(clipboardContent).toContain("amounts=");
+        expect(clipboardContent).toContain("phone=5551234567");
       });
+    });
+
+    it("copies a no-phone link from the configured public origin", async () => {
+      configureApp({ publicOrigin: "https://example.test" });
+      expect(window.location.origin).not.toBe("https://example.test");
+
+      render(
+        <ResultsSummary
+          people={[{ ...mockPeople[0], finalTotal: 25 }]}
+          receiptName="Test Restaurant"
+          receiptDate="2024-01-01"
+        />
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: /share split/i }));
+
+      await waitFor(() => {
+        const clipboardContent = (navigator.clipboard.writeText as jest.Mock).mock.calls[0][0] as string;
+        expect(clipboardContent.startsWith("https://example.test/split?")).toBe(true);
+        expect(clipboardContent).not.toContain(window.location.origin);
+        expect(new URL(clipboardContent).searchParams.has("phone")).toBe(false);
+      });
+    });
+
+    it("shares a non-USD split without a phone parameter", async () => {
+      configureApp({ publicOrigin: "https://example.test" });
+
+      render(
+        <ResultsSummary
+          people={[{ ...mockPeople[0], finalTotal: 25 }]}
+          receiptName="Bistro"
+          receiptDate={null}
+          currencyCode="EUR"
+        />
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: /share split/i }));
+
+      await waitFor(() => {
+        const clipboardContent = (navigator.clipboard.writeText as jest.Mock).mock.calls[0][0] as string;
+        expect(clipboardContent.startsWith("https://example.test/split?")).toBe(true);
+        expect(clipboardContent).toContain("currency=EUR");
+        expect(new URL(clipboardContent).searchParams.has("phone")).toBe(false);
+      });
+    });
+
+    it("opens the native share sheet for the split link", async () => {
+      const shareText = jest.fn().mockResolvedValue("shared");
+      setPlatform({
+        ...webPlatform,
+        kind: "ios",
+        isNative: true,
+        shareText,
+      });
+
+      render(
+        <ResultsSummary
+          people={[{ ...mockPeople[0], finalTotal: 25 }]}
+          receiptName="Test Restaurant"
+          receiptDate="2024-01-01"
+        />
+      );
+
+      fireEvent.change(screen.getByPlaceholderText("e.g. 555-123-4567"), {
+        target: { value: "5551234567" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /share link/i }));
+
+      await waitFor(() => {
+        expect(shareText).toHaveBeenCalledWith({
+          title: "Test Restaurant",
+          url: expect.stringContaining("phone=5551234567"),
+        });
+      });
+      expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
     });
 
     it("shows success state after copying", async () => {

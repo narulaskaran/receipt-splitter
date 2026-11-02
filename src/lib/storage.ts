@@ -1,5 +1,67 @@
 export const RECEIPT_IMAGE_STORAGE_KEY = "receiptSplitterImage";
 
+/** Keys with this prefix are copied to the native Preferences mirror when one is installed. */
+export const STORAGE_MIRROR_PREFIX = "receiptSplitter";
+
+/**
+ * iOS UserDefaults (what Capacitor Preferences uses) is not a blob store.
+ * Values larger than this are kept in localStorage only. A full thumbnail map
+ * stays well under the cap; a legacy full-size receipt image does not.
+ */
+export const MAX_PREFERENCES_VALUE_LENGTH = 1_000_000;
+
+/**
+ * Optional write-through used by the iOS shell so the WebView's localStorage
+ * can be rebuilt if iOS evicts it. Web never installs one. `set` / `remove`
+ * run after the localStorage attempt, including when that attempt throws.
+ */
+export interface StorageMirror {
+  set(key: string, value: string): void;
+  remove(key: string): void;
+}
+
+let storageMirror: StorageMirror | null = null;
+let durableStorageNoticePending = false;
+
+const DURABLE_STORAGE_NOTICE =
+  "Backup storage on this device is unavailable. This session still uses on-device storage.";
+
+export function setStorageMirror(mirror: StorageMirror | null): void {
+  storageMirror = mirror;
+}
+
+export function isMirroredDataKey(key: string): boolean {
+  return key.startsWith(STORAGE_MIRROR_PREFIX);
+}
+
+/**
+ * One-time, non-blocking signal that Preferences could not be used.
+ * Boot logs immediately; the shell shows the message after the first paint.
+ */
+export function reportDurableStorageUnavailable(detail?: unknown): void {
+  console.warn(
+    "Durable storage is unavailable; continuing with on-device storage only.",
+    detail ?? "",
+  );
+  durableStorageNoticePending = true;
+}
+
+export function consumeDurableStorageNotice(): string | null {
+  if (!durableStorageNoticePending) return null;
+  durableStorageNoticePending = false;
+  return DURABLE_STORAGE_NOTICE;
+}
+
+function notifyMirror(key: string, op: "set" | "remove", value?: string): void {
+  if (!storageMirror || !isMirroredDataKey(key)) return;
+  try {
+    if (op === "set") storageMirror.set(key, value ?? "");
+    else storageMirror.remove(key);
+  } catch (err) {
+    console.warn(`Storage mirror ${op} failed for key "${key}"`, err);
+  }
+}
+
 /**
  * Safe localStorage wrapper that handles QuotaExceededError.
  * Returns true on success, false on failure (logs the error to console).
@@ -19,18 +81,20 @@ export const RECEIPT_IMAGE_STORAGE_KEY = "receiptSplitterImage";
  * to evicting the image cache.
  */
 export function safeSetItem(key: string, value: string): boolean {
+  let stored = true;
   try {
     localStorage.setItem(key, value);
-    return true;
   } catch (err) {
+    stored = false;
     const usage = measureStorageUsage();
     console.warn(
       `localStorage.setItem failed for key "${key}"` +
         ` (current usage: ~${formatBytes(usage)})`,
       err,
     );
-    return false;
   }
+  notifyMirror(key, "set", value);
+  return stored;
 }
 
 /**
@@ -46,12 +110,32 @@ export function safeGetItem(key: string): string | null {
 }
 
 export function safeRemoveItem(key: string): boolean {
+  let removed = true;
   try {
     localStorage.removeItem(key);
-    return true;
   } catch {
-    return false;
+    removed = false;
   }
+  notifyMirror(key, "remove");
+  return removed;
+}
+
+/**
+ * Remove on-device split data: session, thumbnails, legacy image, AI consent,
+ * and the anonymous session id. Theme is left alone. Removals go through the
+ * mirror too, so a later boot cannot restore what was cleared.
+ */
+export function clearAllLocalData(): void {
+  const keys: string[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && isMirroredDataKey(key)) keys.push(key);
+    }
+  } catch (error) {
+    console.warn("Could not list local data to clear", error);
+  }
+  for (const key of keys) safeRemoveItem(key);
 }
 
 /**

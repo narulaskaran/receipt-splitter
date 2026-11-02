@@ -1,6 +1,9 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { SplitSummary } from "./split-summary";
 import { type SharedSplitData } from "@/lib/split-sharing";
+import { configureApp } from "@/lib/app-config";
+import { setPlatform, webPlatform } from "@/lib/platform";
+import { toast } from "sonner";
 
 jest.mock("@/lib/receipt-utils", () => ({
   formatCurrency: jest.fn((amount: number) => `$${amount.toFixed(2)}`),
@@ -43,6 +46,8 @@ describe("SplitSummary", () => {
 
   afterEach(() => {
     setUserAgent(originalUserAgent);
+    configureApp(null);
+    setPlatform(webPlatform);
   });
   it("renders restaurant, total, date, and people", () => {
     render(<SplitSummary splitData={mockSplitData} phoneNumber="5551234567" />);
@@ -197,6 +202,11 @@ describe("SplitSummary", () => {
     expect(
       screen.queryByRole("link", { name: /with Venmo/i })
     ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Payment details weren't included — pay however you prefer."
+      )
+    ).toBeInTheDocument();
   });
 
   it("hides Venmo actions for non-USD currencies but still shows amounts", () => {
@@ -236,5 +246,73 @@ describe("SplitSummary", () => {
     expect(screen.getAllByText("$12.00")).toHaveLength(2);
     expect(screen.getByText("$8.00")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: /Pay/ })).toHaveLength(2);
+    expect(
+      screen.queryByText(/Payment details weren't included/)
+    ).not.toBeInTheDocument();
+  });
+
+  it("uses the native Venmo scheme when the app platform is iOS", async () => {
+    configureApp({ platform: "ios" });
+    setUserAgent(
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+    );
+
+    render(<SplitSummary splitData={mockSplitData} phoneNumber="5551234567" />);
+
+    const payLink = await screen.findByRole("link", {
+      name: "Pay $32.50 for Alice with Venmo",
+    });
+
+    await waitFor(() =>
+      expect(payLink.getAttribute("href")).toContain("venmo://paycharge")
+    );
+  });
+
+  it("keeps a plain anchor on the web", () => {
+    const openExternalUrl = jest.fn();
+    setPlatform({ ...webPlatform, openExternalUrl });
+
+    render(<SplitSummary splitData={mockSplitData} phoneNumber="5551234567" />);
+    fireEvent.click(
+      screen.getByRole("link", { name: "Pay $32.50 for Alice with Venmo" })
+    );
+
+    expect(openExternalUrl).not.toHaveBeenCalled();
+  });
+
+  it("opens Venmo through the platform on native and falls back to the web", async () => {
+    const openExternalUrl = jest
+      .fn()
+      .mockResolvedValueOnce("unavailable")
+      .mockResolvedValueOnce("opened");
+    setPlatform({
+      ...webPlatform,
+      kind: "ios",
+      isNative: true,
+      openExternalUrl,
+    });
+    configureApp({ platform: "ios" });
+
+    render(<SplitSummary splitData={mockSplitData} phoneNumber="5551234567" />);
+
+    fireEvent.click(
+      await screen.findByRole("link", {
+        name: "Pay $32.50 for Alice with Venmo",
+      })
+    );
+
+    await waitFor(() => {
+      expect(openExternalUrl).toHaveBeenNthCalledWith(
+        1,
+        expect.stringContaining("venmo://paycharge")
+      );
+    });
+    expect(toast.info).toHaveBeenCalledWith(
+      "Venmo app not found — opening Venmo on the web"
+    );
+    expect(openExternalUrl).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("https://venmo.com/pay")
+    );
   });
 });

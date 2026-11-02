@@ -69,13 +69,13 @@ export function PeopleManager({ people, onPeopleChange }: PeopleManagerProps) {
             people.map(person => (
               <div 
                 key={person.id}
-                className="flex items-center gap-1 bg-secondary text-secondary-foreground px-3 py-1 rounded-full"
+                className="flex max-w-full items-center gap-1 rounded-full bg-secondary px-3 py-1 text-secondary-foreground"
               >
-                <span>{person.name}</span>
+                <span className="break-words">{person.name}</span>
                 <button
                   type="button"
                   onClick={() => removePerson(person.id)}
-                  className="rounded-full p-2 hover:bg-destructive/10 text-muted-foreground hover:text-destructive min-w-[32px] min-h-[32px] flex items-center justify-center"
+                  className="flex min-h-11 min-w-11 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                   aria-label={`Remove ${person.name}`}
                 >
                   <X className="h-4 w-4" />

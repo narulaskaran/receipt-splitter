@@ -81,6 +81,90 @@ test.describe("Share Split clipboard", () => {
     expect(copied[0]).toContain("/split?");
     expect(copied[0]).toContain("names=");
     expect(copied[0]).toContain("amounts=");
+    expect(copied[0]).toContain("phone=5551234567");
+  });
+
+  test("copies a share URL with no phone when the field is left blank", async ({
+    page,
+  }) => {
+    await disableNativeShare(page);
+    await stubClipboardCapture(page);
+    await preloadSession(page, fullyAssignedState(), "results");
+    await page.goto("/");
+    await expect(page.getByRole("cell", { name: "Alice" })).toBeVisible({
+      timeout: 10000,
+    });
+
+    await expect(
+      page.getByText("Leave blank to share without payment buttons."),
+    ).toBeVisible();
+    const shareBtn = page.getByRole("button", { name: "Share Split" });
+    await expect(shareBtn).toBeEnabled();
+    await shareBtn.click();
+
+    await expect(page.getByText("Copied!")).toBeVisible({ timeout: 5000 });
+    const copied = await page.evaluate(() => window.__copiedTexts || []);
+    expect(copied[0]).toContain("/split?");
+    expect(copied[0]).not.toContain("phone=");
+  });
+
+  test("shares a non-USD split without a phone field", async ({ page }) => {
+    await disableNativeShare(page);
+    await stubClipboardCapture(page);
+    await preloadSession(
+      page,
+      fullyAssignedState({
+        originalReceipt: {
+          restaurant: "Bistro",
+          date: "2024-01-15",
+          subtotal: 20,
+          tax: 0,
+          tip: 0,
+          total: 20,
+          currency: "EUR",
+          items: [
+            { name: "Burger", price: 10, quantity: 1 },
+            { name: "Fries", price: 10, quantity: 1 },
+          ],
+        },
+      }),
+      "results",
+    );
+    await page.goto("/");
+    await expect(page.getByRole("cell", { name: "Alice" })).toBeVisible({
+      timeout: 10000,
+    });
+
+    await expect(page.locator("#venmo-phone")).toHaveCount(0);
+    await expect(
+      page.getByText("No payment details are needed to share this split."),
+    ).toBeVisible();
+    const shareBtn = page.getByRole("button", { name: "Share Split" });
+    await expect(shareBtn).toBeEnabled();
+    await shareBtn.click();
+
+    await expect(page.getByText("Copied!")).toBeVisible({ timeout: 5000 });
+    const copied = await page.evaluate(() => window.__copiedTexts || []);
+    expect(copied[0]).toContain("currency=EUR");
+    expect(copied[0]).not.toContain("phone=");
+  });
+
+  test("disables only the link button when the phone number is incomplete", async ({
+    page,
+  }) => {
+    await disableNativeShare(page);
+    await preloadSession(page, fullyAssignedState(), "results");
+    await page.goto("/");
+    await expect(page.getByRole("cell", { name: "Alice" })).toBeVisible({
+      timeout: 10000,
+    });
+
+    await page.locator("#venmo-phone").fill("555");
+    await expect(page.getByRole("button", { name: "Share Split" })).toBeDisabled();
+    await expect(
+      page.getByText("Enter a valid 10-digit US number, or leave this blank."),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Share Text" })).toBeEnabled();
   });
 
   test("shows an error toast when clipboard write is denied", async ({

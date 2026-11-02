@@ -13,9 +13,17 @@ import {
   generateVenmoWebLink,
   isVenmoAppPreferred,
 } from "@/lib/venmo-utils";
+import { getPlatform } from "@/lib/platform";
 import { formatDisplayDate } from "@/lib/date-utils";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { useEffect, useState, type MouseEvent } from "react";
+
+const PAYMENT_DETAILS_OMITTED_NOTE =
+  "Payment details weren't included — pay however you prefer.";
+
+const VENMO_APP_MISSING_TOAST =
+  "Venmo app not found — opening Venmo on the web";
 
 interface SplitSummaryProps {
   splitData: SharedSplitData;
@@ -26,52 +34,75 @@ function personCountLabel(count: number): string {
   return `${count} ${count === 1 ? "person" : "people"}`;
 }
 
+async function openNativeVenmoPayment(
+  href: string,
+  webHref: string | null
+): Promise<void> {
+  const outcome = await getPlatform().openExternalUrl(href);
+  if (outcome === "unavailable" && href.startsWith("venmo://") && webHref) {
+    toast.info(VENMO_APP_MISSING_TOAST);
+    await getPlatform().openExternalUrl(webHref);
+  }
+}
+
 function SplitPersonRow({
   name,
   amount,
   currency,
   venmoHref,
+  venmoWebHref,
 }: {
   name: string;
   amount: number;
   currency: string;
   venmoHref: string | null;
+  venmoWebHref: string | null;
 }) {
   const formattedAmount = formatCurrency(amount, currency);
 
+  const onPayClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (!getPlatform().isNative || !venmoHref) return;
+    event.preventDefault();
+    void openNativeVenmoPayment(venmoHref, venmoWebHref);
+  };
+
   return (
-    <li className="flex items-center gap-3 px-5 py-3 sm:px-6">
-      <div
-        className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium"
-        aria-hidden="true"
-      >
-        {name.charAt(0).toUpperCase()}
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-[20px] py-3 sm:flex-nowrap sm:px-6">
+      <div className="flex min-w-[min(100%,8rem)] flex-1 items-center gap-3">
+        <div
+          className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-medium"
+          aria-hidden="true"
+        >
+          {name.charAt(0).toUpperCase()}
+        </div>
+        <span className="min-w-0 break-words font-medium">{name}</span>
       </div>
-      <span className="min-w-0 flex-1 truncate font-medium">{name}</span>
-      <span className="shrink-0 tabular-nums font-medium">
-        {formattedAmount}
-      </span>
-      {venmoHref && (
+      <div className="flex shrink-0 items-center gap-3">
+        <span className="tabular-nums font-medium">{formattedAmount}</span>
+        {venmoHref && (
         <Button
           size="sm"
           asChild
-          className="shrink-0 bg-[#008CFF] px-3 text-white hover:bg-[#0074D9]"
+          className="shrink-0 bg-[#005A9E] px-3 text-white hover:bg-[#004E8C]"
         >
           <a
             href={venmoHref}
             aria-label={`Pay ${formattedAmount} for ${name} with Venmo`}
+            onClick={onPayClick}
           >
             <Image src="/venmo.png" alt="" width={14} height={14} />
             Pay
           </a>
         </Button>
-      )}
+        )}
+      </div>
     </li>
   );
 }
 
 export function SplitSummary({ splitData, phoneNumber }: SplitSummaryProps) {
-  const canPayWithVenmo = Boolean(phoneNumber) && splitData.currency === "USD";
+  const paymentPhone = phoneNumber?.trim() ? phoneNumber.trim() : undefined;
+  const canPayWithVenmo = Boolean(paymentPhone) && splitData.currency === "USD";
 
   // `navigator` is unavailable during SSR, so default to the native app scheme
   // (matching the server render) and switch desktop browsers to the web
@@ -82,14 +113,21 @@ export function SplitSummary({ splitData, phoneNumber }: SplitSummaryProps) {
     setPreferNativeApp(isVenmoAppPreferred());
   }, []);
 
-  const buildVenmoHref = (name: string, index: number): string | null => {
-    if (!canPayWithVenmo || !phoneNumber) {
-      return null;
+  const venmoLinksFor = (
+    name: string,
+    index: number
+  ): { href: string | null; webHref: string | null } => {
+    if (!canPayWithVenmo || !paymentPhone) {
+      return { href: null, webHref: null };
     }
     const note = formatVenmoNote(splitData.note, name);
-    return preferNativeApp
-      ? generateVenmoLink(phoneNumber, splitData.amounts[index], note)
-      : generateVenmoWebLink(phoneNumber, splitData.amounts[index], note);
+    const amount = splitData.amounts[index];
+    const appHref = generateVenmoLink(paymentPhone, amount, note);
+    const webHref = generateVenmoWebLink(paymentPhone, amount, note);
+    return {
+      href: preferNativeApp ? appHref : webHref,
+      webHref,
+    };
   };
 
   const meta = [
@@ -119,16 +157,25 @@ export function SplitSummary({ splitData, phoneNumber }: SplitSummaryProps) {
             Individual amounts
           </h2>
           <ul className="flex flex-col divide-y divide-border border-t">
-            {splitData.names.map((name, index) => (
-              <SplitPersonRow
-                key={`${name}-${index}`}
-                name={name}
-                amount={splitData.amounts[index]}
-                currency={splitData.currency}
-                venmoHref={buildVenmoHref(name, index)}
-              />
-            ))}
+            {splitData.names.map((name, index) => {
+              const links = venmoLinksFor(name, index);
+              return (
+                <SplitPersonRow
+                  key={`${name}-${index}`}
+                  name={name}
+                  amount={splitData.amounts[index]}
+                  currency={splitData.currency}
+                  venmoHref={links.href}
+                  venmoWebHref={links.webHref}
+                />
+              );
+            })}
           </ul>
+          {!paymentPhone && (
+            <p className="px-5 pt-3 pb-1 text-sm text-muted-foreground sm:px-6">
+              {PAYMENT_DETAILS_OMITTED_NOTE}
+            </p>
+          )}
         </section>
         {splitData.receipts && splitData.receipts.length > 1 && (
           <section aria-labelledby="receipt-breakdown-heading" className="mt-6">
@@ -151,6 +198,7 @@ export function SplitSummary({ splitData, phoneNumber }: SplitSummaryProps) {
                         amount={receipt.amounts[personIndex]}
                         currency={splitData.currency}
                         venmoHref={null}
+                        venmoWebHref={null}
                       />
                     ))}
                   </ul>

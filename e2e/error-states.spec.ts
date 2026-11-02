@@ -9,7 +9,7 @@ test.describe("error states", () => {
   test("API 500 on receipt upload shows an error toast and clears loading", async ({
     page,
   }) => {
-    await page.route("**/api/parse-receipt", (route) =>
+    await page.route("**/api/v1/parse-receipt", (route) =>
       route.fulfill({
         status: 500,
         contentType: "application/json",
@@ -35,7 +35,7 @@ test.describe("error states", () => {
   test("API timeout clears loading and leaves the dropzone usable", async ({
     page,
   }) => {
-    await page.route("**/api/parse-receipt", (route) =>
+    await page.route("**/api/v1/parse-receipt", (route) =>
       route.abort("timedout"),
     );
 
