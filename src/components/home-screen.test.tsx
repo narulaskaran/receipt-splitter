@@ -51,31 +51,6 @@ describe("HomeScreen persistence", () => {
     expect(stored.state.people).toHaveLength(mockPeople.length);
   });
 
-  it("does not restore or save until storageReady flips true", async () => {
-    seedSession();
-    (localStorage.setItem as jest.Mock).mockClear();
-
-    const { rerender } = render(<HomeScreen storageReady={false} />);
-
-    expect(screen.queryByRole("tab", { name: /upload receipt/i })).not.toBeInTheDocument();
-    expect(sessionWrites()).toHaveLength(0);
-    expect(localStorage.getItem(SESSION_STORAGE_KEY)).toContain(mockPeople[0].name);
-
-    rerender(<HomeScreen storageReady />);
-
-    await waitFor(() => {
-      expect(screen.getByRole("tab", { name: /add people/i })).toHaveAttribute(
-        "data-state",
-        "active"
-      );
-    });
-
-    expect(sessionWrites().length).toBeGreaterThan(0);
-    for (const raw of sessionWrites()) {
-      expect(JSON.parse(raw).state.people).toHaveLength(mockPeople.length);
-    }
-  });
-
   it("is a no-op for share-target when the cache API is missing", async () => {
     const cachesDescriptor = Object.getOwnPropertyDescriptor(globalThis, "caches");
     delete (globalThis as { caches?: unknown }).caches;

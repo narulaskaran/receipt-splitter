@@ -58,14 +58,6 @@ export class MobileErrorBoundary extends Component<BoundaryProps, BoundaryState>
 
 export function App() {
   const [route, setRoute] = useState<MobileRoute>(readRoute);
-  // False until the native storage mirror (bootNative, before this render)
-  // is visible to React. HomeScreen will not restore or autosave before that.
-  const [storageReady, setStorageReady] = useState(false);
-
-  useEffect(() => {
-    setStorageReady(true);
-  }, []);
-
   useEffect(() => {
     const notice = consumeDurableStorageNotice();
     if (notice) toast.warning(notice);
@@ -93,7 +85,7 @@ export function App() {
             }}
           />
         ) : (
-          <HomeScreen storageReady={storageReady} />
+          <HomeScreen />
         )}
         <Toaster />
       </ThemeProvider>

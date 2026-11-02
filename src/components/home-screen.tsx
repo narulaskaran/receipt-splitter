@@ -174,12 +174,12 @@ function updateReceiptInState(
 
 const TAB_ORDER = ["upload", "people", "assign", "results"] as const;
 
-export function HomeScreen({ storageReady = true }: { storageReady?: boolean }) {
+export function HomeScreen() {
   const [state, setState] = useState<ReceiptState>(emptyReceiptState);
   const [activeTab, setActiveTab] = useState("upload");
   const [hasSession, setHasSession] = useState(false);
   // Stay false until the restore effect finishes. Autosave must not run on the
-  // empty initial state, including when storageReady flips true after mount.
+  // empty initial state.
   const [restored, setRestored] = useState(false);
   const [resetImageTrigger, setResetImageTrigger] = useState(0);
   const stateRef = useRef(state);
@@ -213,15 +213,10 @@ export function HomeScreen({ storageReady = true }: { storageReady?: boolean }) 
     [state.receipts, state.people, state.assignedItems]
   );
 
-  // Restore session once storage is ready. setRestored is batched with the
-  // restored state, so the save effect below does not run against the empty
-  // initial state in this same commit.
+  // Restore the session once. setRestored is batched with the restored state,
+  // so the save effect below does not run against the empty initial state in
+  // this same commit.
   useEffect(() => {
-    if (!storageReady) {
-      setRestored(false);
-      return;
-    }
-
     const session = safeGetItem(SESSION_STORAGE_KEY);
     if (session) {
       const restoredSession = deserializeSession(session);
@@ -255,7 +250,7 @@ export function HomeScreen({ storageReady = true }: { storageReady?: boolean }) 
       setHasSession(false);
     }
     setRestored(true);
-  }, [storageReady]);
+  }, []);
 
   // Receipts shared to the installed app (Web Share Target): the service worker
   // stashed them and redirected here with a SHARE_TARGET_PARAM value. State
@@ -267,7 +262,7 @@ export function HomeScreen({ storageReady = true }: { storageReady?: boolean }) 
     // The share hand-off lives in the service worker's Cache API. Without it
     // (the iOS shell) this is a no-op, and it waits until the session restore
     // above has committed so the per-split cap sees the restored receipts.
-    if (!storageReady || !restored) return;
+    if (!restored) return;
     if (typeof globalThis.caches === "undefined") return;
 
     const status = new URLSearchParams(window.location.search).get(
@@ -298,15 +293,14 @@ export function HomeScreen({ storageReady = true }: { storageReady?: boolean }) 
         console.error("Failed to read shared files:", error);
         toast.error("Couldn't read the shared receipt. Please choose it again.");
       });
-  }, [storageReady, restored]);
+  }, [restored]);
   const clearSharedFiles = useCallback(() => setSharedFiles([]), []);
 
   // Save session to localStorage on state or tab change
   useEffect(() => {
-    // Do not autosave until storage is ready and the restore effect has
-    // committed. Otherwise the empty initial state overwrites a saved session
-    // (including when storageReady flips true after the first paint).
-    if (!storageReady || !restored) return;
+    // Do not autosave until the restore effect has committed. Otherwise the
+    // empty initial state overwrites a saved session.
+    if (!restored) return;
     // Only save if not loading
     if (!state.isLoading) {
       const serialized = serializeSession(state, activeTab);
@@ -319,7 +313,7 @@ export function HomeScreen({ storageReady = true }: { storageReady?: boolean }) 
       }
       setHasSession(!isDefaultSession(state, activeTab));
     }
-  }, [state, activeTab, storageReady, restored]);
+  }, [state, activeTab, restored]);
 
   // Handler for New Split button
   const handleNewSplit = () => {
@@ -595,8 +589,6 @@ export function HomeScreen({ storageReady = true }: { storageReady?: boolean }) 
   const hasReceipt = state.receipts.length > 0;
   const canViewResults =
     hasReceipt && state.people.length > 0 && allItemsAssigned;
-
-  if (!storageReady) return null;
 
   const native = getPlatform().isNative;
 
