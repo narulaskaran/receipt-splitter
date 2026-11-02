@@ -29,6 +29,26 @@ export default defineConfig({
       },
     },
     {
+      // The entry script lives outside the Vite root (mobile/). `vite build`
+      // resolves "../src/mobile/main.tsx" relative to the HTML file, but the
+      // dev server turns it into "/src/mobile/main.tsx" under the root, which
+      // 404s. Serve it through /@fs instead; `server.fs.allow` already covers
+      // the repo. Dev only: ctx.server is undefined during a build.
+      name: "receipt-splitter-dev-entry",
+      transformIndexHtml: {
+        // "pre": Vite's own rewrite of relative script URLs would otherwise
+        // run first and turn this one into /src/..., which the dev server 404s.
+        order: "pre",
+        handler(html, ctx) {
+          if (!ctx.server) return html;
+          return html.replace(
+            '"../src/mobile/main.tsx"',
+            `"/@fs${path.resolve(repoRoot, "src/mobile/main.tsx")}"`
+          );
+        },
+      },
+    },
+    {
       name: "receipt-splitter-theme-init",
       transformIndexHtml(html) {
         return html.replace(
