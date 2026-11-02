@@ -3,7 +3,6 @@ import { Preferences } from "@capacitor/preferences";
 import { deserializeSession, serializeSession } from "@/lib/session-persistence";
 import {
   MAX_PREFERENCES_VALUE_LENGTH,
-  safeGetItem,
   safeRemoveItem,
   safeSetItem,
   setStorageMirror,
