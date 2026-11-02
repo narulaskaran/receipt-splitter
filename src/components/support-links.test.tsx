@@ -1,7 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 
-import { getPublicShareOrigin } from "@/lib/app-config";
 import { setPlatform, webPlatform, type TipProduct } from "@/lib/platform";
 
 import { SupportFooter, SupportBanner, KOFI_URL } from "./support-links";
@@ -28,26 +26,6 @@ describe("SupportFooter", () => {
       "href",
       "/support",
     );
-  });
-
-  it("opens Privacy and Support through the platform on iOS", async () => {
-    const user = userEvent.setup();
-    const openExternalUrl = jest.fn(async () => "opened" as const);
-    setPlatform({
-      ...webPlatform,
-      kind: "ios",
-      isNative: true,
-      showKofi: false,
-      tips: null,
-      openExternalUrl,
-    });
-
-    render(<SupportFooter />);
-    expect(screen.queryByRole("link", { name: "Privacy" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Privacy" }));
-    await user.click(screen.getByRole("button", { name: "Support" }));
-    expect(openExternalUrl).toHaveBeenNthCalledWith(1, `${getPublicShareOrigin()}/privacy`);
-    expect(openExternalUrl).toHaveBeenNthCalledWith(2, `${getPublicShareOrigin()}/support`);
   });
 
   it("renders children alongside the support text", () => {

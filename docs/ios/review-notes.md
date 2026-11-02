@@ -67,7 +67,7 @@ Local `ios/App/Tips.storekit` prices (0.99 / 2.99 / 4.99 USD) are for Xcode. San
 
 `src/components/ai-consent-dialog.tsx` asks "Send this receipt to be read?" before a parse. Agree stores `receiptSplitterAiConsent` with `CONSENT_VERSION` (currently 1) and the request proceeds. Don't send, or dismissing the dialog, stores nothing and uploads nothing. A later parse on the same install reuses that acceptance until `CONSENT_VERSION` is increased.
 
-The dialog says the image, PDF, or pasted link goes to our server and an AI provider (Anthropic by default), that the server may keep a copy for about 90 days, that the operator is notified, and that an approximate location comes from the IP address. It links to `/privacy` and `/support`. The privacy policy is the complete recipient list, including Firecrawl for pasted links. The dialog itself does not say the name Firecrawl. See [privacy.md](privacy.md).
+The dialog says the image, PDF, or pasted link goes to our server and a third-party AI provider, that the server may keep a copy for about 90 days, that the operator is notified, and that an approximate location comes from the IP address. It links to `/privacy` and `/support`. Neither the dialog nor the privacy policy names vendors; both describe recipients by category (AI provider, screenshot service, file storage, hosting). The named list for review is below. See [privacy.md](privacy.md).
 
 ## Anticipated questions
 
@@ -97,7 +97,7 @@ Location is coarse and derived from the request IP by Vercel. The app does not r
 
 Before upload, the privacy manifest must match [privacy.md](privacy.md). The committed `PrivacyInfo.xcprivacy` still lists Product Interaction. The iOS bundle does not collect that. Do not submit until that entry is removed or analytics are actually added to the iOS binary and the privacy page is updated in the same release.
 
-The consent dialog names Anthropic and says the operator is notified. A webhook is sent only when `WEBHOOK_URL` is set, and a pasted link is also sent to Firecrawl, which the dialog does not name. The dialog links to the privacy policy, which does name Firecrawl. If you change the dialog to name Firecrawl, bump `CONSENT_VERSION` in the same change so a previous acceptance is not reused.
+The consent dialog says the operator is notified. A webhook is sent only when `WEBHOOK_URL` is set. The dialog and the privacy policy describe recipients by category and do not name vendors, so changing the AI provider or the screenshot service needs no dialog or policy edit. Bump `CONSENT_VERSION` in the same change as any edit to what the dialog promises, so a previous acceptance is not reused.
 
 ### 3.1.1 Payments
 

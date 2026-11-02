@@ -9,7 +9,7 @@ describe("AiConsentDialog", () => {
     const onDecline = jest.fn();
     render(<AiConsentDialog open onAccept={onAccept} onDecline={onDecline} />);
 
-    expect(screen.getByRole("dialog")).toHaveTextContent(/anthropic by default/i);
+    expect(screen.getByRole("dialog")).toHaveTextContent(/third-party AI provider/i);
     expect(screen.getByRole("dialog")).toHaveTextContent(/90 days/i);
     expect(screen.getByRole("dialog")).toHaveTextContent(/ip address/i);
 

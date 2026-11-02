@@ -45,9 +45,9 @@ export function AiConsentDialog({
           <DialogTitle>Send this receipt to be read?</DialogTitle>
           <DialogDescription>
             The receipt image, PDF, or pasted link is sent to our server and
-            read by an AI provider (Anthropic by default). For a pasted link, a
-            screenshot of the page is taken by a third-party service
-            (Firecrawl). The server may keep a copy for about 90 days and may
+            read by a third-party AI provider. For a pasted link, a screenshot
+            of the page is taken by a third-party service. The server may keep
+            a copy for about 90 days and may
             forward the receipt details to the operator. An approximate
             location is derived from your IP address.
           </DialogDescription>

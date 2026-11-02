@@ -1,6 +1,7 @@
 import { Capacitor } from "@capacitor/core";
 import { createRoot, type Root } from "react-dom/client";
 import { App } from "@/mobile/App";
+import { setPlatform, webPlatform } from "@/lib/platform";
 import { bootNativeShell, configureMobileApp, type MobileViteEnv } from "@/mobile/boot";
 import "@/mobile/mobile.css";
 
@@ -18,6 +19,11 @@ export async function startMobileApp(env: MobileViteEnv, isNative = Capacitor.is
   try {
     configureMobileApp(env);
     if (isNative) await bootNativeShell();
+    else if (import.meta.env.DEV && new URLSearchParams(window.location.search).has("native")) {
+      // Dev only (stripped from builds): `?native` in a desktop browser shows the
+      // iOS layout without the Capacitor bridge, so UI work does not need a phone.
+      setPlatform({ ...webPlatform, kind: "ios", isNative: true, showKofi: false });
+    }
     renderMobileRoot();
   } catch (error) {
     console.error("Mobile startup failed; continuing without blocking on boot.", error);

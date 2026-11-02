@@ -2,42 +2,21 @@ import React from "react";
 import { Coffee, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TipJar } from "@/components/tip-jar";
-import { getPublicShareOrigin } from "@/lib/app-config";
 import { getPlatform } from "@/lib/platform";
 
 export const KOFI_URL = "https://ko-fi.com/Y8Y21CC8IA";
 
+/**
+ * Web only. The iOS app has no footer: HomeScreen shows these links (plus the
+ * theme) in AppSettings instead.
+ */
 function AboutLinks() {
-  const privacy = `${getPublicShareOrigin()}/privacy`;
-  const support = `${getPublicShareOrigin()}/support`;
-  const native = getPlatform().isNative;
   const className = "inline-flex min-h-11 min-w-11 items-center px-2";
-
-  if (native) {
-    return (
-      <>
-        <button
-          type="button"
-          className={className}
-          onClick={() => void getPlatform().openExternalUrl(privacy)}
-        >
-          Privacy
-        </button>
-        <button
-          type="button"
-          className={className}
-          onClick={() => void getPlatform().openExternalUrl(support)}
-        >
-          Support
-        </button>
-      </>
-    );
-  }
 
   return (
     <>
-      {/* Root-relative on web: same origin as the page (previews, offline
-          shell) and identical on server and client, unlike the public origin. */}
+      {/* Root-relative: same origin as the page (previews, offline shell) and
+          identical on server and client, unlike the public origin. */}
       <a className={className} href="/privacy">
         Privacy
       </a>

@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { HomeScreen } from "@/components/home-screen";
+import { setPlatform, webPlatform } from "@/lib/platform";
 import { SESSION_STORAGE_KEY } from "@/lib/session-persistence";
 import { mockPeople, mockReceipt } from "@/test/test-utils";
 
@@ -91,5 +92,24 @@ describe("HomeScreen persistence", () => {
       Object.defineProperty(globalThis, "caches", cachesDescriptor);
     }
     window.history.replaceState(null, "", "/");
+  });
+});
+
+describe("HomeScreen platform chrome", () => {
+  afterEach(() => {
+    setPlatform(webPlatform);
+  });
+
+  it("shows the website footer and no settings button on the web", () => {
+    render(<HomeScreen />);
+    expect(screen.getByText("Free to use. No sign-up.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Settings" })).not.toBeInTheDocument();
+  });
+
+  it("replaces the footer with a settings button in the iOS app", () => {
+    setPlatform({ ...webPlatform, kind: "ios", isNative: true, showKofi: false, tips: null });
+    render(<HomeScreen />);
+    expect(screen.queryByText("Free to use. No sign-up.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument();
   });
 });

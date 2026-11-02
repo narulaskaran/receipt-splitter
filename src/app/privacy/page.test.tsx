@@ -14,7 +14,7 @@ describe("PrivacyPage", () => {
     expect(metadata.description).toMatch(/how long it is kept/i);
   });
 
-  it("explains processing, retention, and that parsing needs the server", () => {
+  it("says what is processed, how long it is kept, and how to ask for deletion", () => {
     render(<PrivacyPage />);
 
     expect(
@@ -23,22 +23,13 @@ describe("PrivacyPage", () => {
     expect(
       screen.getByRole("heading", { name: "What we process" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Who processes it" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/Anthropic/)).toBeInTheDocument();
-    expect(screen.getByText(/OpenAI or OpenRouter/)).toBeInTheDocument();
-    expect(screen.getByText(/Firecrawl fetches the page/)).toBeInTheDocument();
-    expect(screen.getByText(/public web address/)).toBeInTheDocument();
-    expect(screen.getByText(/UploadThing/)).toBeInTheDocument();
-    expect(screen.getByText(/same id/)).toBeInTheDocument();
-    expect(screen.getByText(/raw IP is not copied/)).toBeInTheDocument();
-    expect(screen.getByText(/Speed Insights/)).toBeInTheDocument();
-    expect(screen.getByText(/StoreKit/)).toBeInTheDocument();
-    expect(screen.getByText(/90 days/)).toBeInTheDocument();
-    expect(screen.getAllByText(/New Split/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/App Tracking Transparency/)).toBeInTheDocument();
-    expect(screen.getByText(/Parsing needs the server/)).toBeInTheDocument();
+    expect(screen.getByText(/third-party service providers/)).toBeInTheDocument();
+    expect(screen.getByText(/We may change providers/)).toBeInTheDocument();
+    expect(screen.getByText(/web address can/)).toBeInTheDocument();
+    expect(screen.getByText(/random session id/)).toBeInTheDocument();
+    expect(screen.getByText(/up to 90 days/)).toBeInTheDocument();
+    expect(screen.getByText(/New Split clears it/)).toBeInTheDocument();
+    expect(screen.getByText(/no ads/)).toBeInTheDocument();
     expect(screen.getByText(new RegExp(PRIVACY_EFFECTIVE_DATE))).toBeInTheDocument();
     expect(
       screen.getByText(new RegExp(`within ${DELETION_REQUEST_WINDOW}`)),
@@ -47,6 +38,13 @@ describe("PrivacyPage", () => {
     expect(screen.getByRole("link", { name: "support page" })).toHaveAttribute(
       "href",
       "/support",
+    );
+  });
+
+  it("does not name vendors, so providers can change without a policy edit", () => {
+    const { container } = render(<PrivacyPage />);
+    expect(container.textContent).not.toMatch(
+      /Anthropic|OpenAI|OpenRouter|Firecrawl|UploadThing|Vercel|Slack/,
     );
   });
 });

@@ -20,6 +20,8 @@ import { GroupManager } from "@/components/group-manager";
 import { ItemAssignment } from "@/components/item-assignment";
 import { ResultsSummary } from "@/components/results-summary";
 import { PersonItems } from "@/components/person-items";
+import { AppSettings } from "@/components/app-settings";
+import { getPlatform } from "@/lib/platform";
 import { SupportFooter, SupportBanner } from "@/components/support-links";
 import { ValidationErrors } from "@/components/validation-errors";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -596,11 +598,20 @@ export function HomeScreen({ storageReady = true }: { storageReady?: boolean }) 
 
   if (!storageReady) return null;
 
+  const native = getPlatform().isNative;
+
   return (
         <main className="container mx-auto min-w-0 max-w-4xl px-[16px] py-8 sm:px-4">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
         <div className="w-full sm:w-auto">
-          <h1 className="text-2xl font-semibold tracking-tight">Receipt Splitter</h1>
+          <div className="flex items-start justify-between gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight">Receipt Splitter</h1>
+            {native ? (
+              <div className="-mr-2.5 -mt-1.5">
+                <AppSettings />
+              </div>
+            ) : null}
+          </div>
           <p className="text-sm text-muted-foreground">
             Upload receipts, add people, and split the day
           </p>
@@ -784,9 +795,11 @@ export function HomeScreen({ storageReady = true }: { storageReady?: boolean }) 
         </TabsContent>
       </Tabs>
 
-      <SupportFooter>
-        <ThemeToggle />
-      </SupportFooter>
+      {native ? null : (
+        <SupportFooter>
+          <ThemeToggle />
+        </SupportFooter>
+      )}
     </main>
   );
 }
