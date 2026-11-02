@@ -485,6 +485,19 @@ describe('webhook-notifications', () => {
         expect(callBody.geolocation).toEqual(geolocation);
       });
 
+      it.each(['photo', 'ip'] as const)('passes geolocation.source "%s" through in the JSON webhook', async (source) => {
+        process.env.WEBHOOK_URL = 'https://example.com/webhook';
+        process.env.WEBHOOK_TYPE = 'json';
+
+        await sendReceiptParsedNotification(
+          mockReceipt, null, 'test-session-id', 'receipt.jpg', 'image/jpeg',
+          { country: 'DE', region: null, city: 'Ismaning', latitude: '48.32', longitude: '11.66', source }
+        );
+
+        const callBody = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+        expect(callBody.geolocation.source).toBe(source);
+      });
+
       it('handles null geolocation gracefully', async () => {
         process.env.WEBHOOK_URL = 'https://hooks.slack.com/test';
 
