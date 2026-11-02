@@ -5,6 +5,8 @@ import { toast } from "sonner";
 import imageCompression from "browser-image-compression";
 
 jest.mock("browser-image-compression", () => jest.fn());
+const mockGps = jest.fn();
+jest.mock("exifr", () => ({ gps: (file: File) => mockGps(file) }));
 
 describe("ReceiptUploader", () => {
   let mockOnReceiptParsed: jest.Mock;
@@ -171,6 +173,37 @@ describe("ReceiptUploader", () => {
       expect(global.fetch).not.toHaveBeenCalled();
       expect(onHandled).not.toHaveBeenCalled();
     });
+  });
+
+  it("sends GPS coordinates read from the original photo", async () => {
+    mockGps.mockResolvedValueOnce({ latitude: 48.32, longitude: 11.65 });
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ restaurant: "Test Restaurant", total: 100, items: [] }),
+    });
+
+    renderUploader();
+    const photo = new File(["img"], "receipt.jpg", { type: "image/jpeg" });
+    await userEvent.upload(getFileInput(), photo);
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+    const body = (global.fetch as jest.Mock).mock.calls[0][1].body as FormData;
+    expect(JSON.parse(body.get("photoLocation") as string)).toEqual({ latitude: 48.32, longitude: 11.65 });
+  });
+
+  it("uploads without a location when the photo has no readable GPS", async () => {
+    mockGps.mockRejectedValueOnce(new Error("corrupt EXIF"));
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ restaurant: "Test Restaurant", total: 100, items: [] }),
+    });
+
+    renderUploader();
+    await userEvent.upload(getFileInput(), new File(["img"], "receipt.jpg", { type: "image/jpeg" }));
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+    const body = (global.fetch as jest.Mock).mock.calls[0][1].body as FormData;
+    expect(body.get("photoLocation")).toBeNull();
   });
 
   it("accepts PDF files", async () => {

@@ -196,9 +196,9 @@ Notifications include restaurant name, items, totals, a link to the uploaded rec
 When webhook notifications are enabled, the following data may be collected and transmitted:
 - **Receipt parsing metadata**: Restaurant name, items, subtotals, tax, tip, and totals
 - **File upload URLs**: Public URLs for uploaded receipt files (90-day retention)
-- **Geolocation data**: Approximate location (city, region, country, latitude/longitude) based on IP address via Vercel's geolocation headers
+- **Geolocation data**: Approximate city and country derived from photo GPS metadata when available, otherwise location from Vercel IP headers
 
-Geolocation data is collected server-side using Vercel's IP geolocation service and is only included when:
+For uploaded photos, GPS coordinates in photo metadata are read before compression and sent to the server, which uses an offline lookup to find a nearby named place and country. Slack notifications show the city and country with a Google Maps pin; JSON webhooks also receive the coordinates. This approximate lookup uses geographic cells, not city boundaries or an exact nearest-city calculation. Photo location takes precedence over IP location; photos can lack GPS metadata or have it stripped when shared. Otherwise, geolocation is collected server-side using Vercel's IP geolocation service and is only included when:
 - Webhooks are configured (opt-in feature via `WEBHOOK_URL` environment variable)
 - The application is deployed on Vercel (local development returns no geolocation data)
 

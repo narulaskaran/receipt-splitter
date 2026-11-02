@@ -421,6 +421,7 @@ describe('webhook-notifications', () => {
 
         const bodyString = JSON.stringify(callBody);
         expect(bodyString).toContain('San Francisco, CA, US');
+        expect(bodyString).toContain('https://www.google.com/maps/search/?api=1&query=37.7749%2C-122.4194|Approximate IP location on Google Maps');
       });
 
       it('includes geolocation in JSON webhook when provided', async () => {
@@ -672,6 +673,7 @@ describe('webhook-notifications', () => {
 
         const bodyString = JSON.stringify(callBody);
         expect(bodyString).toContain('San Francisco, CA, US');
+        expect(bodyString).toContain('https://www.google.com/maps/search/?api=1&query=37.7749%2C-122.4194|Approximate IP location on Google Maps');
       });
 
       it('includes the LLM provider and model when provided', async () => {

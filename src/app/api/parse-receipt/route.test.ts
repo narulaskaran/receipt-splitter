@@ -607,6 +607,23 @@ beforeEach(() => {
   });
 });
 
+describe("photo location", () => {
+  it("looks up a nearby named place and preserves the photo coordinates for the map", async () => {
+    process.env.WEBHOOK_URL = "https://example.com/hook";
+    mockExtract.mockResolvedValue(modelResponse());
+    const request = makeRequestWithFile();
+    const form = await request.formData();
+    form.append("photoLocation", JSON.stringify({ latitude: 48.3243193, longitude: 11.658644 }));
+    request.formData = async () => form;
+    await POST(request);
+    expect(sendReceiptParsedNotification).toHaveBeenCalledWith(
+      expect.anything(), null, "test-session", "receipt.png", "image/png",
+      expect.objectContaining({ city: "Ismaning", country: "DE", latitude: "48.3243193", longitude: "11.658644", source: "photo" }),
+      expect.anything(), null
+    );
+  });
+});
+
 describe("currency flows through the parse response", () => {
   it("passes the prompt, file and currency-inclusive JSON schema to the extractor", async () => {
     mockExtract.mockResolvedValue(modelResponse());

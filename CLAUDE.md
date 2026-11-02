@@ -261,8 +261,9 @@ The application includes optional observability features that are designed to fa
 - Supports Slack-formatted messages (detected via `hooks.slack.com` URL)
 - Supports generic JSON webhooks for other integrations
 - Includes receipt details, file URL (if available), session ID, geolocation data, and the LLM provider/model that parsed it
-- Geolocation data (city, region, country, lat/long) is extracted from Vercel headers (`extractGeolocation()` in `parse-receipt/route.ts`)
-- Returns `null` in local development when Vercel headers are unavailable
+- Geolocation data (city, region, country, lat/long) is extracted from Vercel headers (`extractGeolocation()` in `parse-receipt/route.ts`), `source: "ip"`
+- Photo GPS wins when present: `ReceiptUploader` reads coordinates with `exifr` from the original file (before compression strips EXIF) and sends them as the `photoLocation` form field; `photoGeolocation()` resolves a place name offline (`offline-geocode-city`) and sets `source: "photo"`. Slack shows the place plus a Google Maps pin (`formatLocation()`)
+- IP geolocation is `null` in local development when Vercel headers are unavailable
 - PDF receipts are handled differently than images in Slack webhooks (linked vs. inlined)
 
 ### Cron Job (File Cleanup)

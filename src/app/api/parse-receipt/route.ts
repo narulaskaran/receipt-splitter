@@ -1,3 +1,4 @@
+import { getNearestCity } from "offline-geocode-city";
 import { NextRequest, NextResponse } from "next/server";
 import {
   sendReceiptParsedNotification,
@@ -43,9 +44,33 @@ function extractGeolocation(request: NextRequest): GeolocationData | null {
     country: country || null,
     region: region || null,
     city: city || null,
+    source: "ip",
     latitude: latitude || null,
     longitude: longitude || null,
   };
+}
+
+// Resolve a place name for the GPS coordinates the client read from the photo
+function photoGeolocation(raw: FormDataEntryValue | null): GeolocationData | null {
+  if (typeof raw !== "string" || raw.length >= 200) return null;
+  try {
+    const { latitude, longitude } = JSON.parse(raw);
+    const valid = (value: unknown, limit: number) =>
+      typeof value === "number" && Math.abs(value) <= limit; // NaN fails the comparison
+    if (!valid(latitude, 90) || !valid(longitude, 180)) return null;
+    const place = getNearestCity(latitude, longitude);
+    if (!place?.cityName) return null;
+    return {
+      city: place.cityName,
+      region: null,
+      country: place.countryIso2 || null,
+      latitude: String(latitude),
+      longitude: String(longitude),
+      source: "photo",
+    };
+  } catch {
+    return null; // Fall back to IP location
+  }
 }
 
 // Map a failed LLM extraction to a webhook notification and HTTP response
@@ -132,7 +157,7 @@ async function fileFromReceiptUrl(rawUrl: string): Promise<File> {
 export async function POST(request: NextRequest) {
   try {
     // Extract geolocation data from request headers
-    const geolocation = extractGeolocation(request);
+    let geolocation = extractGeolocation(request);
 
     // Resolve the configured LLM provider (validates its API key)
     let extractor: ReceiptExtractor;
@@ -152,6 +177,8 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     let file = formData.get("file") as File | null;
     const sessionId = (formData.get("sessionId") as string | null) || crypto.randomUUID();
+    // Coordinates are read client-side before compression, which can remove EXIF.
+    if (file) geolocation = photoGeolocation(formData.get("photoLocation")) ?? geolocation;
 
     // A pasted receipt link stands in for an uploaded file: a screenshot of the
     // page goes through the same pipeline from here on.

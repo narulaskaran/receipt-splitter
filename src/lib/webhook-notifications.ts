@@ -44,6 +44,22 @@ export interface ReceiptWebhookData {
 }
 
 /**
+ * Location text for Slack: place name plus a Google Maps pin when coordinates
+ * are valid. Empty when there is neither.
+ */
+function formatLocation(location: GeolocationData): string {
+  const { city, region, country, latitude, longitude, source } = location;
+  const parts = [[city, region, country].filter(Boolean).join(', ')];
+  const lat = parseFloat(latitude ?? '');
+  const lon = parseFloat(longitude ?? '');
+  if (Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
+    const label = source === 'photo' ? 'Photo location' : 'Approximate IP location';
+    parts.push(`<https://www.google.com/maps/search/?api=1&query=${lat}%2C${lon}|${label} on Google Maps>`);
+  }
+  return parts.filter(Boolean).join(' · ');
+}
+
+/**
  * Slack Block Kit types
  */
 interface SlackTextBlock {
@@ -152,11 +168,7 @@ class SlackFormatter implements WebhookPayloadFormatter {
 
     // Add geolocation section if available
     if (data.geolocation) {
-      const { city, region, country } = data.geolocation;
-      const locationParts = [city, region, country].filter(Boolean);
-      const locationText = locationParts.length > 0
-        ? locationParts.join(', ')
-        : 'Unknown';
+      const locationText = formatLocation(data.geolocation) || 'Unknown';
 
       blocks.push({
         type: 'section',
@@ -342,15 +354,14 @@ class SlackErrorFormatter implements ErrorPayloadFormatter {
 
     // Add geolocation if available
     if (context.geolocation) {
-      const { city, region, country } = context.geolocation;
-      const locationParts = [city, region, country].filter(Boolean);
-      if (locationParts.length > 0) {
+      const locationText = formatLocation(context.geolocation);
+      if (locationText) {
         blocks.push({
           type: 'section',
           fields: [
             {
               type: 'mrkdwn',
-              text: `*Location:*\n${locationParts.join(', ')}`,
+              text: `*Location:*\n${locationText}`,
             },
           ],
         });
