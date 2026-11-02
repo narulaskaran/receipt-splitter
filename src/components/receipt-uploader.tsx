@@ -333,7 +333,10 @@ export function ReceiptUploader({
   );
 
   const reportPermissionError = (error: PlatformPermissionError) => {
-    toast.error(`${error.message} Enable access in Settings.`);
+    // The native message already says where to enable access; add the hint
+    // only for adapters whose message does not.
+    const hint = /settings/i.test(error.message) ? "" : " Enable access in Settings.";
+    toast.error(`${error.message}${hint}`);
   };
 
   const requestCapture = useCallback(() => {

@@ -41,14 +41,11 @@ Guideline 5.1.2: get permission before a third party receives personal data for 
 
 The client stores the version of the disclosure the person accepted (`CONSENT_VERSION`). Sending a receipt is blocked until they accept the current version. If you decline, nothing is uploaded. Parsing still needs the server. There is no on-device parser.
 
-**Processor change means a new consent.** Switching the default from Anthropic to OpenAI or OpenRouter, adding a processor, or changing what is sent requires a bump of `CONSENT_VERSION` so a previous acceptance is not reused. Shipping the new provider behind the old version is a bug. `CONSENT_VERSION` is 1.
+**When to bump `CONSENT_VERSION`.** Bump it whenever the dialog's promises change or what is sent changes (new kinds of data, a new category of recipient), so a previous acceptance is not reused. Swapping one AI provider for another does not change what the dialog says ("a third-party AI provider"), so it needs no bump and no policy edit. Whether App Review expects the provider to be named is an open question; see the roadmap. `CONSENT_VERSION` is 1.
 
-The dialog (`src/components/ai-consent-dialog.tsx`) says the image, PDF, or pasted link goes to our server and an AI provider (Anthropic by default), that the server may keep a copy for about 90 days, that the operator is notified, and that location is derived from the IP address. It links to `/privacy` and `/support`. Two gaps, left in the dialog on purpose in this pass because that component is shared UI:
+The dialog (`src/components/ai-consent-dialog.tsx`) says the image, PDF, or pasted link goes to our server and a third-party AI provider, that the server may keep a copy for about 90 days, that the operator is notified, and that location is derived from the IP address. It links to `/privacy` and `/support`. The dialog and the public policy describe recipients by category (AI provider, screenshot service, file storage, hosting) and name no vendors. The named list for review is in [review-notes.md](review-notes.md).
 
-- A pasted link is also sent to Firecrawl. The dialog does not say that name. The privacy policy does.
-- "Notifies the operator" is unconditional in the dialog. The webhook runs only when `WEBHOOK_URL` is set.
-
-The privacy policy is the complete list. If you change the dialog so it names Firecrawl, or so the operator notification is described as optional, bump `CONSENT_VERSION` in the same change.
+One known gap, left on purpose: "notifies the operator" is unconditional in the dialog, but the webhook runs only when `WEBHOOK_URL` is set.
 
 - [ ] UNVERIFIED: On a device, decline consent and confirm no parse request leaves the phone. Accept, parse, then bump `CONSENT_VERSION` and confirm the prompt returns.
 
@@ -118,7 +115,7 @@ iOS copies prefixed keys through Capacitor Preferences (UserDefaults, reason CA9
 Checked 2026-10-31 in this worktree, by reading the handlers, not by submitting the form.
 
 - Default model provider is Anthropic (`DEFAULT_PROVIDER` in `src/lib/llm/index.ts`, model `claude-haiku-5-5` unless `RECEIPT_LLM_MODEL` is set). OpenAI and OpenRouter are used only when `RECEIPT_LLM_PROVIDER` says so. OpenRouter forwards the image upstream.
-- `@vercel/analytics` and `@vercel/speed-insights` are imported only from `src/app/layout.tsx`. `src/mobile/main.tsx` does not import them. A `dist-mobile` build was not produced in this pass. Re-check the built bundle before you answer Connect.
+- `@vercel/analytics` and `@vercel/speed-insights` are imported only from `src/app/layout.tsx`. `src/mobile/main.tsx` does not import them. `npm run mobile:build` and `scripts/check-mobile-bundle.mjs` (run in CI) check the built bundle. Re-check it before you answer Connect.
 - Firecrawl (`src/lib/receipt-screenshot.ts`) receives the pasted URL. This server downloads the screenshot Firecrawl returns and does not open the user's URL itself.
 - The parse client always sends `X-Client-Platform` (`web` or `ios`) and sends `X-Client-Version` when the mobile build has `VITE_APP_VERSION`.
 - Ko-fi is not rendered on iOS (`showKofi: false` in `src/mobile/native/platform.ts`). The website still links to Ko-fi.

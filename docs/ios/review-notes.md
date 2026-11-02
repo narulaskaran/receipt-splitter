@@ -37,8 +37,8 @@ You can photograph the attached image, or import it from Photos.
 
 The consent dialog ("Send this receipt to be read?") is the permission step
 before a receipt image, PDF, or pasted link leaves the device. Declining
-sends nothing. The privacy policy linked from that dialog is the full list
-of recipients.
+sends nothing. The privacy policy linked from that dialog describes
+recipients by category; the named list is under "Recipients" below.
 
 Privacy: https://split.narula.xyz/privacy
 Support: https://split.narula.xyz/support
@@ -89,7 +89,7 @@ Parsing, tax and tip math, and the share link are all in the app. The server is 
 
 There is no account. The app asks before a receipt is sent. Decline and no parse request is made.
 
-Recipients, when the user agrees: the API host (Vercel), the configured model provider (Anthropic by default; OpenAI or OpenRouter only if the operator switches), Firecrawl when the user pasted a link, UploadThing when file storage is configured, and a Slack or JSON webhook when the operator configured one. The webhook can include the receipt contents, a public file URL, the session id, IP-derived location, the model name, the pasted URL, and the client platform and version. Details are on `/privacy`.
+Recipients, when the user agrees: the API host (Vercel), the configured model provider (Anthropic by default; OpenAI or OpenRouter only if the operator switches), Firecrawl when the user pasted a link, UploadThing when file storage is configured, and a Slack or JSON webhook when the operator configured one. The webhook can include the receipt contents, a public file URL, the session id, IP-derived location, the model name, the pasted URL, and the client platform and version. The public policy at `/privacy` describes these by category.
 
 The iPhone binary does not include Vercel Web Analytics or Speed Insights. Those run on the website only. Do not add an App Tracking Transparency prompt. There is no ad tracking.
 

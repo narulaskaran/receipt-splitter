@@ -38,7 +38,7 @@ export function AppSettings() {
           <Settings className="h-5 w-5" />
         </Button>
       </SheetTrigger>
-      <SheetContent side="bottom" className="rounded-t-2xl pb-8">
+      <SheetContent side="bottom" className="rounded-t-2xl pb-[max(1.5rem,env(safe-area-inset-bottom))]">
         <SheetHeader>
           <SheetTitle>Settings</SheetTitle>
           <SheetDescription className="sr-only">
