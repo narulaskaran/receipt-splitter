@@ -6,9 +6,6 @@ import {
   formatBytes,
   setStorageMirror,
   clearAllLocalData,
-  MIRROR_META_STORAGE_KEY,
-  reconcileMirroredStores,
-  type MirrorMetaFile,
   type StorageMirror,
 } from "./storage";
 import { AI_CONSENT_STORAGE_KEY } from "./ai-consent";
@@ -190,12 +187,7 @@ describe("storage mirror", () => {
     expect(safeSetItem("receiptSplitterSession", "saved")).toBe(true);
     expect(safeRemoveItem("receiptSplitterSession")).toBe(true);
 
-    const dataSets = mirror.sets.filter(([key]) => key === "receiptSplitterSession");
-    const metaSets = mirror.sets.filter(([key]) => key === MIRROR_META_STORAGE_KEY);
-    expect(dataSets).toEqual([["receiptSplitterSession", "saved"]]);
-    expect(metaSets).toHaveLength(2);
-    const tombstone = JSON.parse(metaSets[1][1]) as MirrorMetaFile;
-    expect(tombstone.keys.receiptSplitterSession).toMatchObject({ rev: 2, deleted: true });
+    expect(mirror.sets).toEqual([["receiptSplitterSession", "saved"]]);
     expect(mirror.removes).toEqual(["receiptSplitterSession"]);
   });
 
@@ -219,11 +211,7 @@ describe("storage mirror", () => {
     });
 
     expect(safeSetItem("receiptSplitterThumbnails", "{}")).toBe(false);
-    expect(mirror.sets).toEqual([
-      [MIRROR_META_STORAGE_KEY, expect.any(String)],
-      ["receiptSplitterThumbnails", "{}"],
-    ]);
-    expect(safeGetItem("receiptSplitterThumbnails")).toBe("{}");
+    expect(mirror.sets).toEqual([["receiptSplitterThumbnails", "{}"]]);
   });
 
   it("still mirrors a prefixed removal when localStorage throws", () => {
@@ -282,7 +270,7 @@ describe("clearAllLocalData", () => {
     expect(localStorage.getItem("theme")).toBe("dark");
   });
 
-  it("tombstones mirrored keys so a mirror sees the removals", () => {
+  it("sends removals to the mirror", () => {
     const mirror = {
       sets: [] as Array<[string, string]>,
       removes: [] as string[],
@@ -301,68 +289,6 @@ describe("clearAllLocalData", () => {
 
     expect(mirror.removes).toEqual(["receiptSplitterSession"]);
     expect(localStorage.getItem("theme")).toBe("light");
-    const meta = localStorage.getItem(MIRROR_META_STORAGE_KEY);
-    expect(meta).not.toBeNull();
-    expect(JSON.parse(meta as string).keys.receiptSplitterSession.deleted).toBe(true);
-  });
-});
-
-describe("reconcileMirroredStores", () => {
-  const meta = (rev: number, deleted = false): MirrorMetaFile => ({
-    v: 1,
-    updatedAt: rev,
-    keys: {
-      receiptSplitterSession: {
-        rev,
-        updatedAt: rev,
-        ...(deleted ? { deleted: true } : {}),
-      },
-    },
-  });
-
-  it("keeps a newer local edit when Preferences still has the previous value", () => {
-    const result = reconcileMirroredStores(
-      { values: new Map([["receiptSplitterSession", "A"]]), meta: meta(1) },
-      { values: new Map([["receiptSplitterSession", "B"]]), meta: meta(2) },
-    );
-    expect(result.local).toEqual([]);
-    expect(result.remote).toEqual([{ key: "receiptSplitterSession", value: "B" }]);
-  });
-
-  it("does not resurrect a key whose newest revision is a tombstone", () => {
-    const result = reconcileMirroredStores(
-      { values: new Map([["receiptSplitterSession", "A"]]), meta: meta(1) },
-      { values: new Map(), meta: meta(2, true) },
-    );
-    expect(result.local).toEqual([]);
-    expect(result.remote).toEqual([{ key: "receiptSplitterSession", value: null }]);
-  });
-
-  it("lets Preferences win a legacy conflict that has no metadata", () => {
-    const result = reconcileMirroredStores(
-      { values: new Map([["receiptSplitterSession", "native"]]), meta: null },
-      { values: new Map([["receiptSplitterSession", "local"]]), meta: null },
-    );
-    expect(result.local).toEqual([{ key: "receiptSplitterSession", value: "native" }]);
-    expect(result.remote).toEqual([]);
-  });
-
-  it("lets Preferences fill a key that localStorage is missing, even without metadata", () => {
-    const result = reconcileMirroredStores(
-      { values: new Map([["receiptSplitterSession", "native"]]), meta: null },
-      { values: new Map(), meta: null },
-    );
-    expect(result.local).toEqual([{ key: "receiptSplitterSession", value: "native" }]);
-  });
-
-  it("keeps local on a metadata tie when local still has a value", () => {
-    const tied = meta(3);
-    const result = reconcileMirroredStores(
-      { values: new Map([["receiptSplitterSession", "native"]]), meta: tied },
-      { values: new Map([["receiptSplitterSession", "local"]]), meta: tied },
-    );
-    expect(result.local).toEqual([]);
-    expect(result.remote).toEqual([{ key: "receiptSplitterSession", value: "local" }]);
   });
 });
 

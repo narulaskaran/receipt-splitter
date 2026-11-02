@@ -111,7 +111,7 @@ The public privacy policy (effective October 31, 2026) states this. The in-app c
 | `receiptSplitterAiConsent` | `{ version }` of the accepted disclosure | No | Yes |
 | `theme` | `light`, `dark`, or `system` | No | No (prefix does not match) |
 
-iOS copies prefixed keys through Capacitor Preferences (UserDefaults, reason CA92.1). Preferences wins over WebView localStorage on launch. Safari's website data is not imported.
+iOS copies prefixed keys through Capacitor Preferences (UserDefaults, reason CA92.1). On launch, Preferences only fills keys the WebView no longer has; localStorage wins when both exist. Safari's website data is not imported.
 
 ## Code checked against this page
 
