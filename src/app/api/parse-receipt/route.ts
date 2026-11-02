@@ -50,12 +50,15 @@ function extractGeolocation(request: NextRequest): GeolocationData | null {
   };
 }
 
+// A real photoLocation payload is ~50 bytes; anything this long is not one
+const MAX_PHOTO_LOCATION_LENGTH = 200;
+
 // Resolve a place name for the GPS coordinates the client read from the photo.
 // The values are client-supplied, so they are range-checked, and they are
 // rounded to ~1 km before use so webhooks never carry an exact spot (a photo
 // taken at home would otherwise pin the home address).
 function photoGeolocation(raw: FormDataEntryValue | null): GeolocationData | null {
-  if (typeof raw !== "string" || raw.length >= 200) return null;
+  if (typeof raw !== "string" || raw.length >= MAX_PHOTO_LOCATION_LENGTH) return null;
   try {
     const parsed = JSON.parse(raw);
     const round = (value: unknown, limit: number) =>
@@ -186,7 +189,8 @@ export async function POST(request: NextRequest) {
     let file = formData.get("file") as File | null;
     const sessionId = (formData.get("sessionId") as string | null) || crypto.randomUUID();
     // Coordinates are read client-side before compression, which can remove EXIF.
-    if (file) geolocation = photoGeolocation(formData.get("photoLocation")) ?? geolocation;
+    // Location only feeds webhooks, so skip the lookup (first call decodes the city dataset) without one.
+    if (file && process.env.WEBHOOK_URL) geolocation = photoGeolocation(formData.get("photoLocation")) ?? geolocation;
 
     // A pasted receipt link stands in for an uploaded file: a screenshot of the
     // page goes through the same pipeline from here on.
