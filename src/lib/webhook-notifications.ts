@@ -52,8 +52,8 @@ function formatLocation(location: GeolocationData): string {
   const parts = [[city, region, country].filter(Boolean).join(', ')];
   const lat = parseFloat(latitude ?? '');
   const lon = parseFloat(longitude ?? '');
-  if (Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
-    const label = source === 'photo' ? 'Photo location' : 'Approximate IP location';
+  if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
+    const label = source === 'photo' ? 'Approximate photo location' : 'Approximate IP location';
     parts.push(`<https://www.google.com/maps/search/?api=1&query=${lat}%2C${lon}|${label} on Google Maps>`);
   }
   return parts.filter(Boolean).join(' · ');

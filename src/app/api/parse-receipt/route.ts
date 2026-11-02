@@ -50,14 +50,22 @@ function extractGeolocation(request: NextRequest): GeolocationData | null {
   };
 }
 
-// Resolve a place name for the GPS coordinates the client read from the photo
+// Resolve a place name for the GPS coordinates the client read from the photo.
+// The values are client-supplied, so they are range-checked, and they are
+// rounded to ~1 km before use so webhooks never carry an exact spot (a photo
+// taken at home would otherwise pin the home address).
 function photoGeolocation(raw: FormDataEntryValue | null): GeolocationData | null {
   if (typeof raw !== "string" || raw.length >= 200) return null;
   try {
-    const { latitude, longitude } = JSON.parse(raw);
-    const valid = (value: unknown, limit: number) =>
-      typeof value === "number" && Math.abs(value) <= limit; // NaN fails the comparison
-    if (!valid(latitude, 90) || !valid(longitude, 180)) return null;
+    const parsed = JSON.parse(raw);
+    const round = (value: unknown, limit: number) =>
+      typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= limit
+        ? Math.round(value * 100) / 100
+        : null;
+    const latitude = round(parsed?.latitude, 90);
+    const longitude = round(parsed?.longitude, 180);
+    // 0,0 is what some EXIF writers emit for "no fix"
+    if (latitude === null || longitude === null || (latitude === 0 && longitude === 0)) return null;
     const place = getNearestCity(latitude, longitude);
     if (!place?.cityName) return null;
     return {

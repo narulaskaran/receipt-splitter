@@ -206,6 +206,22 @@ describe("ReceiptUploader", () => {
     expect(body.get("photoLocation")).toBeNull();
   });
 
+  it("does not read GPS from PDFs", async () => {
+    mockGps.mockClear();
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ restaurant: "Test Restaurant", total: 100, items: [] }),
+    });
+
+    renderUploader();
+    await userEvent.upload(getFileInput(), new File(["pdf"], "receipt.pdf", { type: "application/pdf" }));
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledTimes(1));
+    expect(mockGps).not.toHaveBeenCalled();
+    const body = (global.fetch as jest.Mock).mock.calls[0][1].body as FormData;
+    expect(body.get("photoLocation")).toBeNull();
+  });
+
   it("accepts PDF files", async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,

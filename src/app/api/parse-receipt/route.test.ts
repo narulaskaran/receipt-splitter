@@ -608,19 +608,70 @@ beforeEach(() => {
 });
 
 describe("photo location", () => {
-  it("looks up a nearby named place and preserves the photo coordinates for the map", async () => {
+  const ipGeo = { country: "US", region: "CA", city: "San Francisco", latitude: "37.77", longitude: "-122.41" };
+
+  async function postWithPhotoLocation(photoLocation: string | null, headers: Record<string, string> = {}) {
     process.env.WEBHOOK_URL = "https://example.com/hook";
     mockExtract.mockResolvedValue(modelResponse());
     const request = makeRequestWithFile();
     const form = await request.formData();
+    if (photoLocation !== null) form.append("photoLocation", photoLocation);
+    const withHeaders = {
+      formData: async () => form,
+      headers: new Headers(headers),
+    } as unknown as Parameters<typeof POST>[0];
+    await POST(withHeaders);
+    return (sendReceiptParsedNotification as jest.Mock).mock.calls[0][5];
+  }
+
+  const sfHeaders = {
+    "x-vercel-ip-country": "US",
+    "x-vercel-ip-country-region": "CA",
+    "x-vercel-ip-city": "San Francisco",
+    "x-vercel-ip-latitude": "37.77",
+    "x-vercel-ip-longitude": "-122.41",
+  };
+
+  beforeEach(() => (sendReceiptParsedNotification as jest.Mock).mockClear());
+
+  it("looks up a nearby named place and rounds the coordinates to ~1 km", async () => {
+    const geo = await postWithPhotoLocation(JSON.stringify({ latitude: 48.3243193, longitude: 11.658644 }));
+    expect(geo).toEqual({
+      city: "Ismaning", region: null, country: "DE", latitude: "48.32", longitude: "11.66", source: "photo",
+    });
+  });
+
+  it("keeps the IP location when no photo location is sent", async () => {
+    const geo = await postWithPhotoLocation(null, sfHeaders);
+    expect(geo).toEqual({ ...ipGeo, source: "ip" });
+  });
+
+  it.each([
+    ["malformed JSON", "{not json"],
+    ["a JSON null", "null"],
+    ["out-of-range latitude", JSON.stringify({ latitude: 91, longitude: 10 })],
+    ["out-of-range longitude", JSON.stringify({ latitude: 10, longitude: 181 })],
+    ["string coordinates", JSON.stringify({ latitude: "48.3", longitude: "11.6" })],
+    ["missing longitude", JSON.stringify({ latitude: 48.3 })],
+    ["Null Island", JSON.stringify({ latitude: 0, longitude: 0 })],
+    ["an oversized payload", JSON.stringify({ latitude: 48.3, longitude: 11.6, pad: "x".repeat(200) })],
+    ["an ocean point with no place", JSON.stringify({ latitude: 0.001, longitude: 0.001 })],
+  ])("falls back to the IP location for %s", async (_label, payload) => {
+    const geo = await postWithPhotoLocation(payload, sfHeaders);
+    expect(geo).toEqual(expect.objectContaining({ city: "San Francisco", source: "ip" }));
+  });
+
+  it("ignores photoLocation for a pasted link", async () => {
+    process.env.WEBHOOK_URL = "https://example.com/hook";
+    mockExtract.mockResolvedValue(modelResponse());
+    (screenshotReceiptUrl as jest.Mock).mockResolvedValue({ data: Buffer.from("png"), mimeType: "image/png" });
+    const form = new FormData();
+    form.append("url", "https://example.com/receipt");
+    form.append("sessionId", "test-session");
     form.append("photoLocation", JSON.stringify({ latitude: 48.3243193, longitude: 11.658644 }));
-    request.formData = async () => form;
-    await POST(request);
-    expect(sendReceiptParsedNotification).toHaveBeenCalledWith(
-      expect.anything(), null, "test-session", "receipt.png", "image/png",
-      expect.objectContaining({ city: "Ismaning", country: "DE", latitude: "48.3243193", longitude: "11.658644", source: "photo" }),
-      expect.anything(), null
-    );
+    await POST({ formData: async () => form, headers: new Headers(sfHeaders) } as unknown as Parameters<typeof POST>[0]);
+    const geo = (sendReceiptParsedNotification as jest.Mock).mock.calls[0][5];
+    expect(geo).toEqual(expect.objectContaining({ city: "San Francisco", source: "ip" }));
   });
 });
 
