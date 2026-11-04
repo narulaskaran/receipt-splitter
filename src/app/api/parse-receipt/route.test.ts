@@ -634,10 +634,20 @@ describe("photo location", () => {
 
   beforeEach(() => (sendReceiptParsedNotification as jest.Mock).mockClear());
 
-  it("looks up a nearby named place and rounds the coordinates to ~1 km", async () => {
+  it("names the closest city and rounds the coordinates to ~1 km", async () => {
     const geo = await postWithPhotoLocation(JSON.stringify({ latitude: 48.3243193, longitude: 11.658644 }));
     expect(geo).toEqual({
-      city: "Ismaning", region: null, country: "DE", latitude: "48.32", longitude: "11.66", source: "photo",
+      city: "Neufahrn bei Freising", region: null, country: "DE", latitude: "48.32", longitude: "11.66", source: "photo",
+    });
+  });
+
+  it("names a US city with its state, using the photo rather than the IP location", async () => {
+    const geo = await postWithPhotoLocation(
+      JSON.stringify({ latitude: 47.6062, longitude: -122.3321 }),
+      { ...sfHeaders, "x-vercel-ip-city": "New%20York", "x-vercel-ip-country-region": "NY" }
+    );
+    expect(geo).toEqual({
+      city: "Seattle", region: "WA", country: "US", latitude: "47.61", longitude: "-122.33", source: "photo",
     });
   });
 
@@ -655,7 +665,7 @@ describe("photo location", () => {
     ["missing longitude", JSON.stringify({ latitude: 48.3 })],
     ["Null Island", JSON.stringify({ latitude: 0, longitude: 0 })],
     ["an oversized payload", JSON.stringify({ latitude: 48.3, longitude: 11.6, pad: "x".repeat(200) })],
-    ["an ocean point with no place", JSON.stringify({ latitude: 0.001, longitude: 0.001 })],
+    ["open ocean, far from any city", JSON.stringify({ latitude: 0.5, longitude: -30 })],
   ])("falls back to the IP location for %s", async (_label, payload) => {
     const geo = await postWithPhotoLocation(payload, sfHeaders);
     expect(geo).toEqual(expect.objectContaining({ city: "San Francisco", source: "ip" }));

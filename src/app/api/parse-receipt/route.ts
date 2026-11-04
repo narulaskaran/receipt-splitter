@@ -1,5 +1,5 @@
-import { getNearestCity } from "offline-geocode-city";
 import { NextRequest, NextResponse } from "next/server";
+import { nearestCity } from "@/lib/nearest-city";
 import {
   sendReceiptParsedNotification,
   sendErrorNotification,
@@ -57,7 +57,7 @@ const MAX_PHOTO_LOCATION_LENGTH = 200;
 // The values are client-supplied, so they are range-checked, and they are
 // rounded to ~1 km before use so webhooks never carry an exact spot (a photo
 // taken at home would otherwise pin the home address).
-function photoGeolocation(raw: FormDataEntryValue | null): GeolocationData | null {
+async function photoGeolocation(raw: FormDataEntryValue | null): Promise<GeolocationData | null> {
   if (typeof raw !== "string" || raw.length > MAX_PHOTO_LOCATION_LENGTH) return null;
   try {
     const parsed = JSON.parse(raw);
@@ -69,12 +69,12 @@ function photoGeolocation(raw: FormDataEntryValue | null): GeolocationData | nul
     const longitude = round(parsed?.longitude, 180);
     // 0,0 is what some EXIF writers emit for "no fix"
     if (latitude === null || longitude === null || (latitude === 0 && longitude === 0)) return null;
-    const place = getNearestCity(latitude, longitude);
-    if (!place?.cityName) return null;
+    const place = await nearestCity(latitude, longitude);
+    if (!place) return null;
     return {
-      city: place.cityName,
-      region: null,
-      country: place.countryIso2 || null,
+      city: place.city,
+      region: place.region || null,
+      country: place.country,
       latitude: String(latitude),
       longitude: String(longitude),
       source: "photo",
@@ -189,8 +189,8 @@ export async function POST(request: NextRequest) {
     let file = formData.get("file") as File | null;
     const sessionId = (formData.get("sessionId") as string | null) || crypto.randomUUID();
     // Coordinates are read client-side before compression, which can remove EXIF.
-    // Location only feeds webhooks, so skip the lookup (first call decodes the city dataset) without one.
-    if (file && process.env.WEBHOOK_URL) geolocation = photoGeolocation(formData.get("photoLocation")) ?? geolocation;
+    // Location only feeds webhooks, so skip the lookup (the city table loads on first use) without one.
+    if (file && process.env.WEBHOOK_URL) geolocation = (await photoGeolocation(formData.get("photoLocation"))) ?? geolocation;
 
     // A pasted receipt link stands in for an uploaded file: a screenshot of the
     // page goes through the same pipeline from here on.
