@@ -671,6 +671,22 @@ describe("photo location", () => {
     expect(geo).toEqual(expect.objectContaining({ city: "San Francisco", source: "ip" }));
   });
 
+  it("puts the photo location on error webhooks too", async () => {
+    mockExtract.mockRejectedValue(new LLMError("api_error", "anthropic", "boom", { status: 500 }));
+    process.env.WEBHOOK_URL = "https://example.com/hook";
+    const request = makeRequestWithFile();
+    const form = await request.formData();
+    form.append("photoLocation", JSON.stringify({ latitude: 47.6062, longitude: -122.3321 }));
+    await POST({ formData: async () => form, headers: new Headers(sfHeaders) } as unknown as Parameters<typeof POST>[0]);
+    expect(mockSendErrorNotification).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+      expect.objectContaining({
+        geolocation: expect.objectContaining({ city: "Seattle", region: "WA", source: "photo" }),
+      })
+    );
+  });
+
   it("ignores photoLocation for a pasted link", async () => {
     process.env.WEBHOOK_URL = "https://example.com/hook";
     mockExtract.mockResolvedValue(modelResponse());

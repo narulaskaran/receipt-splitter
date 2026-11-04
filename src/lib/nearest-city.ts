@@ -8,7 +8,10 @@ export interface NearestCity {
 
 // A point this far from every known city is open country or sea, where a city
 // name would mislead more than help
-const MAX_DISTANCE_KM = 100;
+const MAX_DISTANCE_KM = 50;
+// One degree of latitude is ~111 km, so rows this many degrees away in latitude
+// can be skipped without any trigonometry
+const MAX_LATITUDE_DELTA = Math.ceil(MAX_DISTANCE_KM / 111);
 
 const EARTH_RADIUS_KM = 6371;
 const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
@@ -39,6 +42,7 @@ export async function nearestCity(latitude: number, longitude: number): Promise<
   let best: (typeof cities)[number] | null = null;
   let bestDistance = MAX_DISTANCE_KM;
   for (const row of cities) {
+    if (Math.abs(row[1] - latitude) > MAX_LATITUDE_DELTA) continue;
     const distance = distanceKm(latitude, longitude, row[1], row[2]);
     if (distance < bestDistance) {
       best = row;

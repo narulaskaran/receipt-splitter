@@ -19,6 +19,13 @@ describe("nearestCity", () => {
     expect(await nearestCity(0, -30)).toBeNull();
   });
 
+  it("names a point within the cutoff but not one beyond it", async () => {
+    // Off the Washington coast: Seattle's metro is over 100 km east, nothing is closer than 50 km
+    expect(await nearestCity(47.9, -125.5)).toBeNull();
+    // Rural Puget Sound water ~25 km from the nearest city centre is still named
+    expect((await nearestCity(47.75, -122.6))?.country).toBe("US");
+  });
+
   it("works across the antimeridian", async () => {
     // Just east of the date line, near Suva, Fiji
     expect((await nearestCity(-18.14, 178.44))?.country).toBe("FJ");
