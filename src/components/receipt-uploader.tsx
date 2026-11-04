@@ -136,9 +136,25 @@ async function postReceipt(formData: FormData): Promise<Receipt> {
   return response.json();
 }
 
-function parseReceiptFile(file: File): Promise<Receipt> {
+async function parseReceiptFile(file: File, original: File): Promise<Receipt> {
   const formData = new FormData();
   formData.append("file", file);
+  if (original.type.startsWith("image/")) {
+    try {
+      const { gps } = await import("exifr");
+      const coordinates = await gps(original);
+      if (coordinates) {
+        // Rounded to ~1 km here so precise coordinates never leave the browser
+        const round = (value: number) => Math.round(value * 100) / 100;
+        formData.append(
+          "photoLocation",
+          JSON.stringify({ latitude: round(coordinates.latitude), longitude: round(coordinates.longitude) })
+        );
+      }
+    } catch {
+      // Missing or unreadable metadata should not prevent an upload.
+    }
+  }
   return postReceipt(formData);
 }
 
@@ -236,7 +252,7 @@ export function ReceiptUploader({
             const prepared = await prepareReceiptFile(file, setIsCompressing);
             if (!prepared) continue;
 
-            const receipt = await parseReceiptFile(prepared);
+            const receipt = await parseReceiptFile(prepared, file);
             const acceptedId = onReceiptParsed(receipt);
             const accepted = acceptedId !== false && acceptedId !== undefined;
             if (!accepted) continue;
