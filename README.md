@@ -1,158 +1,33 @@
 # Receipt Splitter
 
-A web application for easily splitting receipts among friends and groups. No app installation or account required.
+A web app for easily splitting receipts among friends. No app installation or account required.
 
 ## Features
 
-- **AI-Powered Receipt Parsing**: Upload a receipt image to automatically parse items, subtotal, tax, and tip using Claude AI
-- **Advanced People Management**: Add people who shared the receipt with unique names and IDs
-- **Group Organization**: Create named groups with emoji identifiers for better organization
-- **Flexible Item Assignment**:
-  - Assign items to individuals
-  - Split items among multiple people with percentage-based splitting
-  - Assign items to entire groups
-- **Intelligent Calculations**: Calculate tax and tip proportionally based on item costs
-- **Enhanced Receipt Sharing**:
-  - Generate shareable URLs with comprehensive split data
-  - Include names, amounts, totals, notes, phone numbers, and dates
-  - Advanced validation with detailed error reporting
-- **Split Payment Page**: Dedicated `/split` route where recipients can view their individual amounts
-- **Venmo Integration**: Direct payment links for each person with phone number validation
-- **Mobile-First Design**: Responsive design optimized for all devices with touch-friendly interface
-- **Session Persistence**: Automatic saving and restoration of your split session
-- **Theme Support**: Automatic light/dark mode based on system preferences with manual override
-- **Ko-fi Integration**: Support the project via donations
-
-## Technology Stack
-
-- **Framework**: Next.js 16.3.0 with App Router
-- **Language**: TypeScript with strict type checking
-- **Styling**: Tailwind CSS with custom CSS variables
-- **UI Components**: shadcn/ui component library
-- **AI Integration**: Anthropic Claude API for receipt parsing
-- **State Management**: React hooks with localStorage persistence
-- **Validation**: Custom validation with detailed error reporting
-- **Payment Integration**: Venmo payment link generation
-- **Testing**: Jest with React Testing Library, Playwright for visual testing
-- **Deployment**: Vercel with automatic deployments
-- **Analytics**: Vercel Web Analytics and SpeedInsights
+- **AI Receipt Parsing**: Upload a receipt photo or PDF, or paste a receipt link, and an LLM will parses line items, subtotal, tax, and tip.
+- **Flexible Item Assignment**: Assign items to individuals or groups of people. Split by percentage or amount.
+- **Proportional Tax and Tip**: Calculated from each person's costs.
+- **Receipt Sharing**: Share a link of the split receipt with your friends so they can see how much they owe.
+- **Venmo Integration**: Deep links into Venmo to prefill payment amount, receipient, and details.
 
 ## Development
 
-### Prerequisites
-
-- Node.js 18+
-- npm or yarn
-- Anthropic API key for receipt parsing
-
 ### Setup
 
-1. Clone the repository
-
 ```bash
-git clone https://github.com/yourusername/receipt-splitter.git
-cd receipt-splitter
-```
-
-2. Install dependencies
-
-```bash
+git clone https://github.com/yourusername/receipt-splitter.git && cd receipt-splitter
 npm install
-```
-
-3. Create a `.env.local` file in the root directory with your Anthropic API key:
-
-```
-ANTHROPIC_API_KEY=your_api_key_here
-```
-
-4. Start the development server
-
-```bash
-npm run dev
-```
-
-5. Open [http://localhost:3000](http://localhost:3000) in your browser
-
-### Testing
-
-Run the test suite with:
-
-```bash
-npm test
-```
-
-Run linting checks:
-
-```bash
-npm run lint
-```
-
-Build for production:
-
-```bash
-npm run build
+cp .env.example .env.local   # then add your ANTHROPIC_API_KEY
+npm run dev                  # http://localhost:3000
 ```
 
 ### Visual Testing
 
-The project includes a screenshot harness for capturing UI states across multiple viewports.
+There is a screenshots command to help quickly audit visual changes. With `npm run dev` running, `npm run screenshots -- --mock-data --tab all` to inject synthetic data into the web app and capture screenshots of each tab at different viewport sizes. 
 
-**Before Making Visual Changes:**
+## Configuration
 
-1. Start dev server: `npm run dev`
-2. Capture baseline: `npm run screenshots -- --mock-data --tab all`
-3. Make changes and update tests
-4. Capture new screenshots: `npm run screenshots -- --mock-data --tab all`
-5. Manually compare screenshots in `/screenshots` directory
-
-**Available Commands:**
-
-```bash
-# Screenshot all tabs with mock data
-npm run screenshots -- --mock-data --tab all
-
-# Screenshot specific tab
-npm run screenshots -- --mock-data --tab results
-
-# Screenshot /split route
-npm run screenshots -- --route /split --mock-data
-
-# Custom output directory
-npm run screenshots -- --mock-data --output ./my-screenshots
-```
-
-**What Gets Captured:**
-
-- 7 viewport sizes: mobile-small (320px), mobile (375px), mobile-large (414px), tablet (768px), tablet-landscape (1024px), desktop (1280px), and desktop-large (1920px)
-- All tabs: upload, people, assign, results
-- Full-page screenshots with mock data
-- Screenshots saved to `/screenshots` directory (gitignored)
-
-## Key Components
-
-### Core Application
-
-- **Main Page**: Tabbed interface with session management and responsive design
-- **Receipt Uploader**: Drag & drop image upload with AI parsing
-- **People Manager**: Add/remove people with validation
-- **Group Manager**: Create and manage groups with emoji identifiers
-- **Item Assignment**: Flexible assignment with an intuitive touch-friendly interface
-- **Results Summary**: Final calculations with sharing and Venmo integration
-
-### Split Sharing
-
-- **URL Generation**: Create shareable links from the results page
-- **Split Page**: Dedicated route for recipients to view their amounts
-- **Payment Cards**: Individual payment display with Venmo integration
-- **Validation**: Comprehensive data validation and error handling
-
-### Utilities
-
-- **Receipt Utils**: Tax/tip calculations and person totals
-- **Split Sharing**: URL serialization/deserialization with validation
-- **Venmo Utils**: Payment link generation and validation
-- **Emoji Utils**: Group emoji management system
+Environment variables are documented in [`.env.example`](.env.example), including which are required. Set them in `.env.local` for development and in your Vercel project settings for deployment.
 
 ## iOS app
 
@@ -175,91 +50,24 @@ Then open `ios/App/App.xcodeproj` on a Mac. Do not commit a `server.url` develop
 
 Public privacy and support pages, also used as the App Store links, are `/privacy` and `/support`.
 
-## Deployment
-
-The application is configured for automatic deployment on Vercel. Just connect your GitHub repository to Vercel and it will automatically deploy when changes are pushed to the main branch.
-
-Make sure to add your Anthropic API key as an environment variable in your Vercel project settings.
-
-## Observability (Optional)
-
-The application includes optional observability features for monitoring uploads and debugging.
+## Observability 
 
 ### File Storage (UploadThing)
 
-Receipt files are automatically uploaded to UploadThing before parsing (so failed parses keep the file too), providing:
-- Public URLs for files that can be displayed in webhook notifications
-- Automatic 90-day retention with daily cleanup via Vercel Cron
-
-**Setup:**
-1. Create an UploadThing account at https://uploadthing.com
-2. Create a new project and copy your API token
-3. Add to Vercel environment variables:
-   ```
-   UPLOADTHING_TOKEN=your_token_here
-   ```
+Receipt files are uploaded to UploadThing for up to 90 days for observability and debugging.
 
 ### Webhook Notifications
 
-Get notified when receipts are parsed via Slack or generic JSON webhooks:
+Get notified when receipts are parsed (or fail to parse) via Slack or a generic JSON webhook. For Slack, [create a webhook](https://api.slack.com/messaging/webhooks) and set `WEBHOOK_URL` to its `https://hooks.slack.com/services/...` URL.
 
-**Slack Setup:**
-1. Create a Slack webhook: https://api.slack.com/messaging/webhooks
-2. Add to Vercel environment variables:
-   ```
-   WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
-   ```
+Notifications include restaurant name, items, totals, a link to the uploaded receipt file (image or PDF), and approximate location (if available).
 
-Notifications include restaurant name, items, totals, a link to the uploaded receipt file (image or PDF), and geolocation data (if available).
-
-#### Privacy & Data Collection
-
-When webhook notifications are enabled, the following data may be collected and transmitted:
-- **Receipt parsing metadata**: Restaurant name, items, subtotals, tax, tip, and totals
-- **File upload URLs**: Public URLs for uploaded receipt files (90-day retention)
-- **Geolocation data**: Approximate location (city, region, country, latitude/longitude) based on IP address via Vercel's geolocation headers
-
-Geolocation data is collected server-side using Vercel's IP geolocation service and is only included when:
-- Webhooks are configured (opt-in feature via `WEBHOOK_URL` environment variable)
-- The application is deployed on Vercel (local development returns no geolocation data)
-
-This data is sent to your configured webhook endpoint and is not stored by the Receipt Splitter application itself.
+Location info captures city and country. It is pulled from the photo's GPS metadata when present and otherwise falls back to Vercel's IP geolocation service. Photo GPS metadata is rounded to a 1 km radius to obfuscate precise coordinates. 
 
 ### Automatic File Cleanup
 
-A Vercel Cron job runs daily at 3 AM UTC to delete files older than 90 days:
-- Endpoint: `/api/cron/cleanup-old-receipts`
-- Schedule: `0 3 * * *` (configured in `vercel.json`)
-
-**Security:**
-`CRON_SECRET` is **required in production** (the job returns 500 if it is missing). In development it remains optional. Vercel automatically includes the secret in the `Authorization` header for scheduled cron runs. The job paginates through all UploadThing files before deleting entries older than 90 days.
-
-### Environment Variables Summary
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `ANTHROPIC_API_KEY` | Yes (default provider) | Claude API key for receipt parsing |
-| `RECEIPT_LLM_PROVIDER` | No | Receipt parsing provider: `anthropic` (default), `openai`, or `openrouter`. Receipt images are sent to the selected provider |
-| `RECEIPT_LLM_MODEL` | No | Override the provider's default model (update or unset it when changing provider) |
-| `OPENAI_API_KEY` | If provider is `openai` | OpenAI API key |
-| `OPENROUTER_API_KEY` | If provider is `openrouter` | OpenRouter API key |
-| `UPLOADTHING_TOKEN` | No | UploadThing API token for file storage |
-| `WEBHOOK_URL` | No | Slack or generic webhook URL for notifications |
-| `CRON_SECRET` | Yes (production) | Secret for cron job authentication |
-| `NATIVE_APP_ORIGINS` | No | Comma-separated extra CORS origins for `POST /api/v1/parse-receipt` |
-| `NEXT_PUBLIC_SHARE_ORIGIN` | No | Canonical public origin for `/split` links on the web. Overrides the page origin. If unset, web links use the page origin, then `https://split.narula.xyz` |
-| `NEXT_PUBLIC_SUPPORT_EMAIL` | No | Contact address on `/privacy` and `/support`. Unset pages say to use the address in the App Store listing |
-| `VITE_API_ORIGIN` | Mobile build | HTTPS origin of the API the iOS app calls |
-| `VITE_PUBLIC_ORIGIN` | Mobile build | Public website origin used in share links from the iOS app. Never a `capacitor://` origin |
-| `VITE_APP_VERSION` | Mobile build | Marketing version sent as `X-Client-Version` |
-| `VITE_TIP_PRODUCT_IDS` | No | Comma-separated StoreKit tip product IDs. Overrides the defaults in `src/lib/tip-products.ts` |
+A daily Vercel Cron job (`/api/cron/cleanup-old-receipts`) deletes files on UploadThing that are older than 90 days. `CRON_SECRET` is required in production (the job returns 500 without it); Vercel sends it in the `Authorization` header on scheduled runs.
 
 ## License
 
 MIT
-
-## Acknowledgements
-
-- [shadcn/ui](https://ui.shadcn.com/) for the beautiful UI components
-- [Anthropic Claude](https://www.anthropic.com/) for the receipt parsing capabilities
-- [Tab](https://www.tabapp.co/) for inspiration

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { nearestCity } from "@/lib/nearest-city";
 import {
   sendReceiptParsedNotification,
   sendErrorNotification,
@@ -44,9 +45,44 @@ function extractGeolocation(request: NextRequest): GeolocationData | null {
     country: country || null,
     region: region || null,
     city: city || null,
+    source: "ip",
     latitude: latitude || null,
     longitude: longitude || null,
   };
+}
+
+// A real photoLocation payload is ~50 bytes; anything this long is not one
+const MAX_PHOTO_LOCATION_LENGTH = 200;
+
+// Resolve a place name for the GPS coordinates the client read from the photo.
+// The values are client-supplied, so they are range-checked, and they are
+// rounded to ~1 km before use so webhooks never carry an exact spot (a photo
+// taken at home would otherwise pin the home address).
+async function photoGeolocation(raw: FormDataEntryValue | null): Promise<GeolocationData | null> {
+  if (typeof raw !== "string" || raw.length > MAX_PHOTO_LOCATION_LENGTH) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    const round = (value: unknown, limit: number) =>
+      typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= limit
+        ? Math.round(value * 100) / 100
+        : null;
+    const latitude = round(parsed?.latitude, 90);
+    const longitude = round(parsed?.longitude, 180);
+    // 0,0 is what some EXIF writers emit for "no fix"
+    if (latitude === null || longitude === null || (latitude === 0 && longitude === 0)) return null;
+    const place = await nearestCity(latitude, longitude);
+    if (!place) return null;
+    return {
+      city: place.city,
+      region: place.region || null,
+      country: place.country,
+      latitude: String(latitude),
+      longitude: String(longitude),
+      source: "photo",
+    };
+  } catch {
+    return null; // Fall back to IP location
+  }
 }
 
 type Fail = (
@@ -178,7 +214,7 @@ export async function handleParseReceipt(
   const client = parseClientMetadata(request);
 
   try {
-    const geolocation = extractGeolocation(request);
+    let geolocation = extractGeolocation(request);
 
     let extractor: ReceiptExtractor;
     try {
@@ -198,6 +234,9 @@ export async function handleParseReceipt(
     let file = formData.get("file") as File | null;
     const sessionId =
       (formData.get("sessionId") as string | null) || crypto.randomUUID();
+    // Coordinates are read client-side before compression, which can remove EXIF.
+    // Location only feeds webhooks, so skip the lookup (the city table loads on first use) without one.
+    if (file && process.env.WEBHOOK_URL) geolocation = (await photoGeolocation(formData.get("photoLocation"))) ?? geolocation;
 
     const receiptUrl = formData.get("url");
     let sourceUrl: string | null = null;

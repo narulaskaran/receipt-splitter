@@ -78,8 +78,9 @@ export interface ReceiptState {
   error: string | null;
 }
 
-// Geolocation data from Vercel headers
+// Location from photo metadata or Vercel headers
 export interface GeolocationData {
+  source?: "photo" | "ip";
   country: string | null;      // x-vercel-ip-country
   region: string | null;        // x-vercel-ip-country-region
   city: string | null;          // x-vercel-ip-city

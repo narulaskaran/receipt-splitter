@@ -443,6 +443,39 @@ describe('webhook-notifications', () => {
     });
 
     describe('with geolocation data', () => {
+      it.each([
+        ['photo', 'Approximate photo location'],
+        ['ip', 'Approximate IP location'],
+      ] as const)('labels the map pin for a %s location', async (source, label) => {
+        process.env.WEBHOOK_URL = 'https://hooks.slack.com/test';
+
+        await sendReceiptParsedNotification(
+          mockReceipt, null, 'test-session-id', 'receipt.jpg', 'image/jpeg',
+          { country: 'DE', region: null, city: 'Ismaning', latitude: '48.32', longitude: '11.66', source }
+        );
+
+        const body = (global.fetch as jest.Mock).mock.calls[0][1].body;
+        expect(body).toContain(`Ismaning, DE · <https://www.google.com/maps/search/?api=1&query=48.32%2C11.66|${label} on Google Maps>`);
+      });
+
+      it.each([
+        ['null', null, null],
+        ['empty', '', ''],
+        ['NaN', 'abc', 'def'],
+        ['out of range', '91', '10'],
+      ])('shows only the place name when coordinates are %s', async (_label, latitude, longitude) => {
+        process.env.WEBHOOK_URL = 'https://hooks.slack.com/test';
+
+        await sendReceiptParsedNotification(
+          mockReceipt, null, 'test-session-id', 'receipt.jpg', 'image/jpeg',
+          { country: 'US', region: 'CA', city: 'San Francisco', latitude, longitude }
+        );
+
+        const body = (global.fetch as jest.Mock).mock.calls[0][1].body;
+        expect(body).toContain('San Francisco, CA, US');
+        expect(body).not.toContain('google.com/maps');
+      });
+
       it('includes geolocation in Slack webhook when provided', async () => {
         process.env.WEBHOOK_URL = 'https://hooks.slack.com/test';
 
@@ -469,6 +502,7 @@ describe('webhook-notifications', () => {
 
         const bodyString = JSON.stringify(callBody);
         expect(bodyString).toContain('San Francisco, CA, US');
+        expect(bodyString).toContain('https://www.google.com/maps/search/?api=1&query=37.7749%2C-122.4194|Approximate IP location on Google Maps');
       });
 
       it('includes geolocation in JSON webhook when provided', async () => {
@@ -497,6 +531,19 @@ describe('webhook-notifications', () => {
         );
 
         expect(callBody.geolocation).toEqual(geolocation);
+      });
+
+      it.each(['photo', 'ip'] as const)('passes geolocation.source "%s" through in the JSON webhook', async (source) => {
+        process.env.WEBHOOK_URL = 'https://example.com/webhook';
+        process.env.WEBHOOK_TYPE = 'json';
+
+        await sendReceiptParsedNotification(
+          mockReceipt, null, 'test-session-id', 'receipt.jpg', 'image/jpeg',
+          { country: 'DE', region: null, city: 'Ismaning', latitude: '48.32', longitude: '11.66', source }
+        );
+
+        const callBody = JSON.parse((global.fetch as jest.Mock).mock.calls[0][1].body);
+        expect(callBody.geolocation.source).toBe(source);
       });
 
       it('handles null geolocation gracefully', async () => {
@@ -720,6 +767,25 @@ describe('webhook-notifications', () => {
 
         const bodyString = JSON.stringify(callBody);
         expect(bodyString).toContain('San Francisco, CA, US');
+        expect(bodyString).toContain('https://www.google.com/maps/search/?api=1&query=37.7749%2C-122.4194|Approximate IP location on Google Maps');
+      });
+
+      it('links a photo location on error notifications', async () => {
+        await sendErrorNotification('llm_api_error', 'boom', {
+          geolocation: { country: 'DE', region: null, city: 'Ismaning', latitude: '48.32', longitude: '11.66', source: 'photo' },
+        });
+
+        const body = (global.fetch as jest.Mock).mock.calls[0][1].body;
+        expect(body).toContain('Approximate photo location on Google Maps');
+      });
+
+      it('omits the location section when there is no place name or coordinates', async () => {
+        await sendErrorNotification('llm_api_error', 'boom', {
+          geolocation: { country: null, region: null, city: null, latitude: null, longitude: null },
+        });
+
+        const body = (global.fetch as jest.Mock).mock.calls[0][1].body;
+        expect(body).not.toContain('Location:');
       });
 
       it('includes the LLM provider and model when provided', async () => {
