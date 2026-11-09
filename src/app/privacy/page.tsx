@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     "What Receipt Splitter processes, who receives it, how long it is kept, and how to ask for deletion.",
 };
 
-export const PRIVACY_EFFECTIVE_DATE = "October 31, 2026";
+export const PRIVACY_EFFECTIVE_DATE = "November 9, 2026";
 export const DELETION_REQUEST_WINDOW = "30 days";
 
 export default function PrivacyPage() {
@@ -34,7 +34,7 @@ export default function PrivacyPage() {
           </li>
           <li>
             A copy of the receipt file may be kept with a file-storage
-            provider. A daily cleanup deletes it once it is 90 days old. Anyone
+            provider. A daily cleanup deletes copies older than 90 days. Anyone
             who has the file&apos;s web address can open it.
           </li>
           <li>

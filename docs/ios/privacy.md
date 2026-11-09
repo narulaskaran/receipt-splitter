@@ -12,7 +12,7 @@ There is no account. Receipt photos are not tied to an account.
 | --- | --- | --- | --- | --- | --- |
 | Photos or Videos | Yes | No | No | App Functionality | The receipt image or PDF is sent to the API when the user agrees to parse it. |
 | Other User Content | Yes | No | No | App Functionality | Parsed line items, and the pasted receipt URL. |
-| Coarse Location | Yes | No | No | App Functionality and Analytics | On a parse request the server uses an approximate location: when the receipt image includes GPS metadata (read client-side, rounded to about 1 km) that value is preferred for operator notifications; otherwise Vercel derives city, region, country, and coordinates from the request IP. The raw IP is not copied into the webhook. A JSON webhook can include coordinates; Slack can show the nearest city and a maps link for photo-based location. The app does not request Core Location. Photo library and camera usage strings explain that photo metadata may be included. The manifest lists both purposes. Match Connect to the manifest. This is the operator notification, not Vercel Web Analytics. |
+| Coarse Location | Yes | No | No | App Functionality and Analytics | On a parse request the server uses an approximate location: when the receipt image includes GPS metadata (read client-side, rounded to about 1 km) that value is preferred for operator notifications; otherwise Vercel derives city, region, country, and coordinates from the request IP. The raw IP is not copied into the webhook. A JSON webhook can include coordinates; Slack shows the place and a maps link to the approximate coordinates. The app does not request Core Location. The photo-library usage string says an approximate photo location may be included. The manifest lists both purposes. Match Connect to the manifest. This is the operator notification, not Vercel Web Analytics. |
 | Phone Number | Yes, only if the sender puts a US Venmo number in a share link | Yes | No | App Functionality | The number sits in the `/split` query string. Anyone with the link can read it. Opening the link sends it to the host in the URL. There is no account, but the number itself identifies a person, so answer **linked**. |
 | Product Interaction | No, for the iOS app | — | — | — | `@vercel/analytics` and `@vercel/speed-insights` are mounted in `src/app/layout.tsx` (the Next.js website). They are not part of the static iOS bundle. Do not declare product interaction for the iPhone app unless you add analytics to that bundle. |
 
@@ -94,7 +94,7 @@ Success payload:
 
 Error payload (`sendErrorNotification`): the comment at the top of the file matches the code. Parsed item names and prices are omitted. The file URL, session id, geolocation, provider/model, pasted URL, file name, MIME type, client platform, client version, and the error text can still be included. The file URL is the image or PDF.
 
-The public privacy policy (effective October 31, 2026) states this. The in-app consent dialog does not. See Consent below.
+The public privacy policy (effective November 9, 2026) states this. The in-app consent dialog does not. See Consent below.
 
 ## On-device keys
 

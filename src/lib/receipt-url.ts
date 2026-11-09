@@ -37,7 +37,14 @@ const CONTROL_CHARS = /[\u0000-\u001f\u007f]/g;
 
 /** Safe label for a pasted string that did not normalize to a URL (webhooks / Slack). */
 export function neutralizeInvalidReceiptLink(input: string): string {
-  let cleaned = input.replace(CONTROL_CHARS, " ").replace(MRKDWN_CHARS, "");
+  // ASCII only (no bidi or zero-width tricks), and defanged so chat clients do
+  // not auto-link a URL or domain inside the echoed text.
+  let cleaned = input
+    .replace(CONTROL_CHARS, " ")
+    .replace(/[^\x20-\x7e]/g, "")
+    .replace(MRKDWN_CHARS, "")
+    .replace(/:\/\//g, "[://]")
+    .replace(/\./g, "[.]");
   cleaned = cleaned.replace(/\s+/g, " ").trim();
   if (!cleaned) return INVALID_LINK_PREFIX;
   const capped = cleaned.slice(0, 200);

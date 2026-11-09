@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { toast } from "sonner";
 
@@ -112,8 +112,29 @@ describe("TipJar", () => {
     await user.click(screen.getByRole("button", { name: "Leave a tip" }));
     await user.click(await screen.findByRole("button", { name: /Small tip/ }));
     expect(await screen.findByText("Waiting for approval…")).toBeInTheDocument();
-    tipCompleted?.();
+    act(() => tipCompleted?.());
     expect(await screen.findByText("Thank you!")).toBeInTheDocument();
+
+    // Still shown after the sheet is closed and reopened
+    await user.keyboard("{Escape}");
+    await user.click(screen.getByRole("button", { name: "Leave a tip" }));
+    expect(await screen.findByText("Thank you!")).toBeInTheDocument();
+  });
+
+  it("ignores a completion event when no tip is waiting for approval", async () => {
+    const user = userEvent.setup();
+    let tipCompleted: (() => void) | undefined;
+    installTips({
+      onTipCompleted: jest.fn((cb: () => void) => {
+        tipCompleted = cb;
+        return () => {};
+      }),
+    });
+    render(<TipJar />);
+    await user.click(screen.getByRole("button", { name: "Leave a tip" }));
+    await screen.findByRole("button", { name: /Small tip/ });
+    act(() => tipCompleted?.());
+    expect(screen.queryByText("Thank you!")).not.toBeInTheDocument();
   });
 
   it("shows a pending approval and stays quiet on cancel", async () => {

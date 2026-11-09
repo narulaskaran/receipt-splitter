@@ -12,7 +12,7 @@ test.describe("legal pages", () => {
     await expect(
       page.getByRole("heading", { name: "What we process" }),
     ).toBeVisible();
-    await expect(page.getByText(/up to 90 days/)).toBeVisible();
+    await expect(page.getByText(/older than 90 days/)).toBeVisible();
     await expect(page.getByText(/third-party service providers/)).toBeVisible();
     await expect(
       page.getByRole("link", { name: "support page" }),

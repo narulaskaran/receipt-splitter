@@ -41,7 +41,7 @@ The cron is `0 3 * * *` in `vercel.json`, hitting `/api/cron/cleanup-old-receipt
 
 ## Webhooks
 
-Success and failure notifications include receipt contents (merchant, items, amounts), the file URL when upload worked, the session id, and approximate location from Vercel's IP headers. That is the receipt itself, posted into Slack or whatever `WEBHOOK_URL` points at.
+Success and failure notifications include receipt contents (merchant, items, amounts), the file URL when upload worked, the session id, and an approximate location (the photo's GPS metadata rounded to about 1 km when present, otherwise Vercel's IP headers). That is the receipt itself, posted into Slack or whatever `WEBHOOK_URL` points at.
 
 - [ ] UNVERIFIED: Point `WEBHOOK_URL` at a private channel, not a public one.
 - [ ] UNVERIFIED: Set that workspace's retention so messages do not live longer than you are willing to keep receipt images and names. The 90-day UploadThing job does not delete Slack messages.

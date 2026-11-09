@@ -54,7 +54,7 @@ Claims this text does not make, because the code does not support them: offline 
 | Marketing URL | https://split.narula.xyz |
 | Privacy Policy URL | https://split.narula.xyz/privacy |
 
-Both `/privacy` and `/support` must load on the production host before you submit, and they must show the copy in this repo (privacy policy effective October 31, 2026). Set `NEXT_PUBLIC_SUPPORT_EMAIL` on that deployment so the pages show a real address instead of "the contact address listed in the App Store listing". Put the same address in App Store Connect.
+Both `/privacy` and `/support` must load on the production host before you submit, and they must show the copy in this repo (privacy policy effective November 9, 2026). Set `NEXT_PUBLIC_SUPPORT_EMAIL` on that deployment so the pages show a real address instead of "the contact address listed in the App Store listing". Put the same address in App Store Connect.
 
 ## Categories
 

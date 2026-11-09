@@ -48,3 +48,10 @@ describe("neutralizeInvalidReceiptLink", () => {
     expect(out.length).toBeLessThanOrEqual("invalid link: ".length + 200);
   });
 });
+
+describe("neutralizeInvalidReceiptLink defanging", () => {
+  it("leaves nothing a chat client would auto-link or reorder", () => {
+    const out = neutralizeInvalidReceiptLink("see https://evil.example/phish ‮​now");
+    expect(out).toBe("invalid link: see https[://]evil[.]example/phish now");
+  });
+});

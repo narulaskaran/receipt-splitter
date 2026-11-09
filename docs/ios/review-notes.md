@@ -89,13 +89,13 @@ Parsing, tax and tip math, and the share link are all in the app. The server is 
 
 There is no account. The app asks before a receipt is sent. Decline and no parse request is made.
 
-Recipients, when the user agrees: the API host (Vercel), the configured model provider (Anthropic by default; OpenAI or OpenRouter only if the operator switches), Firecrawl when the user pasted a link, UploadThing when file storage is configured, and a Slack or JSON webhook when the operator configured one. The webhook can include the receipt contents, a public file URL, the session id, IP-derived location, the model name, the pasted URL, and the client platform and version. The public policy at `/privacy` describes these by category.
+Recipients, when the user agrees: the API host (Vercel), the configured model provider (Anthropic by default; OpenAI or OpenRouter only if the operator switches), Firecrawl when the user pasted a link, UploadThing when file storage is configured, and a Slack or JSON webhook when the operator configured one. The webhook can include the receipt contents, a public file URL, the session id, an approximate location (from the photo's metadata when present, otherwise from the IP), the model name, the pasted URL, and the client platform and version. The public policy at `/privacy` describes these by category.
 
 The iPhone binary does not include Vercel Web Analytics or Speed Insights. Those run on the website only. Do not add an App Tracking Transparency prompt. There is no ad tracking.
 
-Location is coarse and derived from the request IP by Vercel. The app does not request location permission. A location purpose string would not disclose this.
+Location is coarse. It comes from the photo's location metadata when the chosen photo has it (rounded to about 1 km in the app before sending), and otherwise from the request IP by Vercel. The app does not request location permission. The photo-library purpose string mentions the photo location.
 
-Before upload, the privacy manifest must match [privacy.md](privacy.md). The committed `PrivacyInfo.xcprivacy` still lists Product Interaction. The iOS bundle does not collect that. Do not submit until that entry is removed or analytics are actually added to the iOS binary and the privacy page is updated in the same release.
+Before upload, the privacy manifest must match [privacy.md](privacy.md). The committed `PrivacyInfo.xcprivacy` does not list Product Interaction, because the iOS bundle has no analytics. If analytics are ever added to the iOS binary, add the entry and update the privacy page in the same release.
 
 The consent dialog says the operator is notified. A webhook is sent only when `WEBHOOK_URL` is set. The dialog and the privacy policy describe recipients by category and do not name vendors, so changing the AI provider or the screenshot service needs no dialog or policy edit. Bump `CONSENT_VERSION` in the same change as any edit to what the dialog promises, so a previous acceptance is not reused.
 

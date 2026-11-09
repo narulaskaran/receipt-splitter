@@ -18,6 +18,8 @@ import type { TipJar as TipJarApi, TipProduct } from "@/lib/platform";
 type Phase = "idle" | "loading" | "purchasing" | "success" | "pending";
 
 const UNAVAILABLE = "Tips aren't available right now";
+const THANKS = "Thank you!";
+const PENDING = "Waiting for approval…";
 
 function TipJarPanel({ tips }: { tips: TipJarApi }) {
   const [open, setOpen] = useState(false);
@@ -29,7 +31,8 @@ function TipJarPanel({ tips }: { tips: TipJarApi }) {
     if (!open) return;
     let cancelled = false;
     setPhase("loading");
-    setNotice(null);
+    // Keep a thank-you that arrived while the sheet was closed (deferred approval)
+    setNotice((current) => (current === THANKS ? current : null));
     void tips.loadProducts().then((loaded) => {
       if (cancelled) return;
       setProducts(loaded);
@@ -41,9 +44,11 @@ function TipJarPanel({ tips }: { tips: TipJarApi }) {
   }, [open, tips]);
 
   useEffect(() => {
+    // A deferred approval (Ask to Buy) only resolves a tip that is waiting;
+    // a purchase in flight reports its own result.
     const unsubscribe = tips.onTipCompleted?.(() => {
-      setPhase("success");
-      setNotice("Thank you!");
+      setPhase((current) => (current === "pending" ? "success" : current));
+      setNotice((current) => (current === PENDING ? THANKS : current));
     });
     return () => unsubscribe?.();
   }, [tips]);
@@ -56,12 +61,12 @@ function TipJarPanel({ tips }: { tips: TipJarApi }) {
     const result = await tips.purchase(productId);
     if (result.status === "success") {
       setPhase("success");
-      setNotice("Thank you!");
+      setNotice(THANKS);
       return;
     }
     if (result.status === "pending") {
       setPhase("pending");
-      setNotice("Waiting for approval…");
+      setNotice(PENDING);
       return;
     }
     if (result.status === "cancelled") {
