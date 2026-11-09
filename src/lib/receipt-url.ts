@@ -30,3 +30,16 @@ export function normalizeReceiptUrl(input: string): string | null {
   if (!url.hostname.includes(".")) return null;
   return url.href;
 }
+
+const INVALID_LINK_PREFIX = "invalid link";
+const MRKDWN_CHARS = /[<>|`*_~@!&]/g;
+const CONTROL_CHARS = /[\u0000-\u001f\u007f]/g;
+
+/** Safe label for a pasted string that did not normalize to a URL (webhooks / Slack). */
+export function neutralizeInvalidReceiptLink(input: string): string {
+  let cleaned = input.replace(CONTROL_CHARS, " ").replace(MRKDWN_CHARS, "");
+  cleaned = cleaned.replace(/\s+/g, " ").trim();
+  if (!cleaned) return INVALID_LINK_PREFIX;
+  const capped = cleaned.slice(0, 200);
+  return `${INVALID_LINK_PREFIX}: ${capped}`;
+}

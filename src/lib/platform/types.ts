@@ -41,6 +41,8 @@ export interface TipJar {
   loadProducts(): Promise<TipProduct[]>;
   /** Consumable, repeatable purchase. Resolves after the transaction is verified and finished. */
   purchase(productId: string): Promise<TipPurchaseResult>;
+  /** Ask to Buy / deferred approval: fires when the native layer finishes the transaction later. */
+  onTipCompleted?(callback: () => void): () => void;
 }
 
 export interface PlatformAdapter {

@@ -15,7 +15,7 @@ Versioned HTTP API for parsing receipt images and pasted receipt links. Intended
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `file` | File | Receipt image (JPEG, PNG, GIF, WebP, HEIC) or PDF |
+| `file` | File | Receipt image (JPEG, PNG, GIF, WebP) or PDF |
 | `url` | string | Pasted receipt link (screenshot via Firecrawl); ignored if `file` is present |
 | `sessionId` | string | Optional client session UUID; server generates one if omitted |
 
@@ -79,7 +79,7 @@ All v1 error responses include the same CORS and `X-API-Version` headers as succ
 ## CORS and origins
 
 - Default allowed origin: `capacitor://localhost`
-- Additional origins: comma-separated `NATIVE_APP_ORIGINS` env var
+- Additional origins: comma-separated `NATIVE_APP_ORIGINS` env var (entries are trimmed; `*` is ignored; trailing slashes on origins are normalized; entries with a path, query, hash, or whitespace are ignored and logged once)
 - Non-production (`NODE_ENV !== 'production'`): also `http://localhost:*` and `http://127.0.0.1:*`
 - Never reflects `*` or an unlisted origin
 - Disallowed preflight: `403` JSON `{ "error": "Origin not allowed" }` with no CORS headers

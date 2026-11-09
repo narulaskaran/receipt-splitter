@@ -12,7 +12,7 @@ There is no account. Receipt photos are not tied to an account.
 | --- | --- | --- | --- | --- | --- |
 | Photos or Videos | Yes | No | No | App Functionality | The receipt image or PDF is sent to the API when the user agrees to parse it. |
 | Other User Content | Yes | No | No | App Functionality | Parsed line items, and the pasted receipt URL. |
-| Coarse Location | Yes | No | No | App Functionality and Analytics | Vercel derives city, region, country, and coordinates from the request IP on a parse request. The raw IP is not copied into the webhook. A JSON webhook includes the coordinates. A Slack webhook shows city, region, and country. Vercel's firewall also uses the IP to rate-limit parse requests. This is not GPS. The app must not request location permission. A location-permission string would not disclose this. The manifest lists both purposes. Match Connect to the manifest. This is the operator notification, not Vercel Web Analytics. |
+| Coarse Location | Yes | No | No | App Functionality and Analytics | On a parse request the server uses an approximate location: when the receipt image includes GPS metadata (read client-side, rounded to about 1 km) that value is preferred for operator notifications; otherwise Vercel derives city, region, country, and coordinates from the request IP. The raw IP is not copied into the webhook. A JSON webhook can include coordinates; Slack can show the nearest city and a maps link for photo-based location. The app does not request Core Location. Photo library and camera usage strings explain that photo metadata may be included. The manifest lists both purposes. Match Connect to the manifest. This is the operator notification, not Vercel Web Analytics. |
 | Phone Number | Yes, only if the sender puts a US Venmo number in a share link | Yes | No | App Functionality | The number sits in the `/split` query string. Anyone with the link can read it. Opening the link sends it to the host in the URL. There is no account, but the number itself identifies a person, so answer **linked**. |
 | Product Interaction | No, for the iOS app | — | — | — | `@vercel/analytics` and `@vercel/speed-insights` are mounted in `src/app/layout.tsx` (the Next.js website). They are not part of the static iOS bundle. Do not declare product interaction for the iPhone app unless you add analytics to that bundle. |
 
@@ -20,9 +20,8 @@ The session id is not a fresh id per request. `getSessionId()` in `src/lib/sessi
 
 Names, amounts, the total, the currency, the note, an optional date, an optional US Venmo phone number, and (when there is more than one receipt) per-receipt labels and amounts are in the share link. Item assignments are not. They are the same "other user content" case as the receipt text. Anyone with the link can read them, and opening the link sends that query string to the host. The Venmo phone number is the field to mark linked, because the number itself identifies a person. Friend names are not the app user's account name. Keep them under Other User Content unless you choose to also check Name. Checking both would double-count the same URL.
 
-`ios/App/App/PrivacyInfo.xcprivacy` is marked DRAFT in the file. It currently lists Product Interaction, and coarse location with both App Functionality and Analytics. Before upload, reconcile it with this table. This pass did not edit the manifest (native project is owned elsewhere):
+`ios/App/App/PrivacyInfo.xcprivacy` is marked DRAFT in the file. Product Interaction is not listed (the iOS bundle has no analytics SDK). Coarse location lists both App Functionality and Analytics. Before upload, reconcile the manifest with this table.
 
-- [ ] UNVERIFIED: Remove Product Interaction from the privacy manifest if the iOS binary still has no analytics SDK.
 - [ ] UNVERIFIED: Add a phone-number / contact-info entry if you declare the Venmo phone number as collected.
 - [ ] UNVERIFIED: Confirm the manifest's collected-data types match the Connect form exactly.
 
@@ -43,7 +42,7 @@ The client stores the version of the disclosure the person accepted (`CONSENT_VE
 
 **When to bump `CONSENT_VERSION`.** Bump it whenever the dialog's promises change or what is sent changes (new kinds of data, a new category of recipient), so a previous acceptance is not reused. Swapping one AI provider for another does not change what the dialog says ("a third-party AI provider"), so it needs no bump and no policy edit. Whether App Review expects the provider to be named is an open question; see the roadmap. `CONSENT_VERSION` is 1.
 
-The dialog (`src/components/ai-consent-dialog.tsx`) says the image, PDF, or pasted link goes to our server and a third-party AI provider, that the server may keep a copy for about 90 days, that the operator is notified, and that location is derived from the IP address. It links to `/privacy` and `/support`. The dialog and the public policy describe recipients by category (AI provider, screenshot service, file storage, hosting) and name no vendors. The named list for review is in [review-notes.md](review-notes.md).
+The dialog (`src/components/ai-consent-dialog.tsx`) says the image, PDF, or pasted link goes to our server and a third-party AI provider, that the server may keep a copy for about 90 days, that the operator is notified, and that an approximate location comes from photo metadata when present (about 1 km) or otherwise from the IP address. It links to `/privacy` and `/support`. The public privacy policy at `/privacy` matches this. The dialog and the public policy describe recipients by category (AI provider, screenshot service, file storage, hosting) and name no vendors. The named list for review is in [review-notes.md](review-notes.md).
 
 One known gap, left on purpose: "notifies the operator" is unconditional in the dialog, but the webhook runs only when `WEBHOOK_URL` is set.
 
@@ -91,7 +90,7 @@ Success payload:
 - Slack formats amounts with the currency symbol. The JSON payload does not include the currency code. Do not tell a user the JSON body contains the currency code.
 - File name, MIME type, and the UploadThing URL when the upload worked.
 - Session id, LLM provider and model, pasted `sourceUrl` when the receipt came from a link, `clientPlatform` (`web` or `ios`), and `clientVersion` when the client sent one.
-- Geolocation object (country, region, city, latitude, longitude). Slack renders city, region, and country only.
+- Geolocation object (country, region, city, latitude, longitude). It also carries `source` (`ip` or `photo`). Slack renders city, region, and country, plus a maps link to the rounded coordinates when the location came from the photo.
 
 Error payload (`sendErrorNotification`): the comment at the top of the file matches the code. Parsed item names and prices are omitted. The file URL, session id, geolocation, provider/model, pasted URL, file name, MIME type, client platform, client version, and the error text can still be included. The file URL is the image or PDF.
 

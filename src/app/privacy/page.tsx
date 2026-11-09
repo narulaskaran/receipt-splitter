@@ -33,21 +33,22 @@ export default function PrivacyPage() {
             screenshot service). We may change providers.
           </li>
           <li>
-            A copy of the receipt file may be kept with a file-storage provider
-            for up to 90 days. Anyone who has the file&apos;s web address can
-            open it.
+            A copy of the receipt file may be kept with a file-storage
+            provider. A daily cleanup deletes it once it is 90 days old. Anyone
+            who has the file&apos;s web address can open it.
           </li>
           <li>
             The server also receives a random session id (not an account),
             whether the request came from the website or the iPhone app, and an
-            approximate location from your IP address (not GPS). Our hosting
-            provider sees your IP address. The website uses basic analytics;
-            the iPhone app does not.
+            approximate location from your photo&apos;s location metadata when
+            the photo includes it (rounded to about 1 km), otherwise from your IP
+            address. Our hosting provider sees your IP address. The website uses
+            basic analytics; the iPhone app does not.
           </li>
           <li>
-            We may send the owner a notification with what was read from the
-            receipt and the details above. It is not sent to the people in your
-            split.
+            We may send the site owner a notification with what was read from the
+            receipt, including that approximate location when available. It is not
+            sent to the people in your split.
           </li>
           <li>
             A share link holds the split (names, amounts, a note, the date, and

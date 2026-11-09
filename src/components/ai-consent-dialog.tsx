@@ -48,8 +48,9 @@ export function AiConsentDialog({
             read by a third-party AI provider. For a pasted link, a screenshot
             of the page is taken by a third-party service. The server may keep
             a copy for about 90 days and may
-            forward the receipt details to the operator. An approximate
-            location is derived from your IP address.
+            forward the receipt details to the operator. An approximate location
+            comes from photo metadata when present (about 1 km) or otherwise your
+            IP address.
           </DialogDescription>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">

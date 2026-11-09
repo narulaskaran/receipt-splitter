@@ -2,12 +2,50 @@ import { NextResponse } from "next/server";
 
 const DEFAULT_NATIVE_ORIGINS = ["capacitor://localhost"];
 
+let cachedOriginsEnv: string | undefined;
+let cachedExtraOrigins: string[] = [];
+
+function isValidOriginEntry(entry: string): string | null {
+  if (entry === "*" || /\s/.test(entry)) return null;
+  try {
+    const url = new URL(entry);
+    if (url.search || url.hash) return null;
+    const path = url.pathname;
+    if (path !== "" && path !== "/") return null;
+    if (url.protocol === "http:" || url.protocol === "https:") {
+      return url.origin;
+    }
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return null;
+  }
+}
+
+/** Valid, normalized origins from a NATIVE_APP_ORIGINS value, plus the entries that were dropped. */
+export function parseNativeAppOrigins(env: string): { origins: string[]; ignored: string[] } {
+  const origins: string[] = [];
+  const ignored: string[] = [];
+  for (const part of env.split(",")) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const normalized = isValidOriginEntry(trimmed);
+    if (!normalized) ignored.push(trimmed);
+    else if (!origins.includes(normalized)) origins.push(normalized);
+  }
+  return { origins, ignored };
+}
+
 function configuredNativeOrigins(): string[] {
-  const extra =
-    process.env.NATIVE_APP_ORIGINS?.split(",")
-      .map((s) => s.trim())
-      .filter(Boolean) ?? [];
-  return [...DEFAULT_NATIVE_ORIGINS, ...extra];
+  const env = process.env.NATIVE_APP_ORIGINS ?? "";
+  if (env !== cachedOriginsEnv) {
+    const { origins, ignored } = parseNativeAppOrigins(env);
+    if (ignored.length > 0) {
+      console.warn(`[CORS] Ignoring invalid NATIVE_APP_ORIGINS entries: ${ignored.join(", ")}`);
+    }
+    cachedOriginsEnv = env;
+    cachedExtraOrigins = origins;
+  }
+  return [...DEFAULT_NATIVE_ORIGINS, ...cachedExtraOrigins];
 }
 
 function isLocalDevHttpOrigin(origin: string): boolean {

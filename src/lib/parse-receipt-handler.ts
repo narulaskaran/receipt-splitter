@@ -11,7 +11,8 @@ import { MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_MB } from "@/lib/constants";
 import { type GeolocationData } from "@/types";
 import { fixMultiQuantityPrices } from "@/lib/receipt-utils";
 import { screenshotReceiptUrl, ReceiptUrlError } from "@/lib/receipt-screenshot";
-import { normalizeReceiptUrl } from "@/lib/receipt-url";
+import { normalizeReceiptUrl, neutralizeInvalidReceiptLink } from "@/lib/receipt-url";
+import { sanitizeSessionId } from "@/lib/session";
 import { DEFAULT_CURRENCY, isSupportedCurrency } from "@/lib/currency";
 import { receiptSchema, receiptJsonSchema } from "@/lib/receipt-schema";
 import {
@@ -232,8 +233,7 @@ export async function handleParseReceipt(
 
     const formData = await request.formData();
     let file = formData.get("file") as File | null;
-    const sessionId =
-      (formData.get("sessionId") as string | null) || crypto.randomUUID();
+    const sessionId = sanitizeSessionId(formData.get("sessionId"));
     // Coordinates are read client-side before compression, which can remove EXIF.
     // Location only feeds webhooks, so skip the lookup (the city table loads on first use) without one.
     if (file && process.env.WEBHOOK_URL) geolocation = (await photoGeolocation(formData.get("photoLocation"))) ?? geolocation;
@@ -242,7 +242,8 @@ export async function handleParseReceipt(
     let sourceUrl: string | null = null;
     if (!file && typeof receiptUrl === "string" && receiptUrl.trim()) {
       sourceUrl =
-        normalizeReceiptUrl(receiptUrl) ?? receiptUrl.trim().slice(0, 500);
+        normalizeReceiptUrl(receiptUrl) ??
+        neutralizeInvalidReceiptLink(receiptUrl);
       try {
         file = await fileFromReceiptUrl(receiptUrl);
       } catch (error) {

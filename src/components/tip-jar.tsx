@@ -40,6 +40,14 @@ function TipJarPanel({ tips }: { tips: TipJarApi }) {
     };
   }, [open, tips]);
 
+  useEffect(() => {
+    const unsubscribe = tips.onTipCompleted?.(() => {
+      setPhase("success");
+      setNotice("Thank you!");
+    });
+    return () => unsubscribe?.();
+  }, [tips]);
+
   const busy = phase === "loading" || phase === "purchasing";
 
   async function onPurchase(productId: string) {

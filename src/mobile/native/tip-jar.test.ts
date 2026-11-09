@@ -6,11 +6,13 @@ import { TIP_PLUGIN_TIMEOUT_MS, createNativeTipJar } from "./tip-jar";
 
 const mockGetProducts = jest.fn();
 const mockPurchase = jest.fn();
+const mockAddListener = jest.fn();
 
 jest.mock("@capacitor/core", () => ({
   registerPlugin: jest.fn(() => ({
     getProducts: (...args: unknown[]) => mockGetProducts(...args),
     purchase: (...args: unknown[]) => mockPurchase(...args),
+    addListener: (...args: unknown[]) => mockAddListener(...args),
   })),
 }));
 
@@ -38,6 +40,8 @@ describe("createNativeTipJar", () => {
   beforeEach(() => {
     mockGetProducts.mockReset();
     mockPurchase.mockReset();
+    mockAddListener.mockReset();
+    mockAddListener.mockResolvedValue({ remove: jest.fn() });
   });
 
   it("returns products in the configured order and drops unknown ids", async () => {
@@ -145,6 +149,28 @@ describe("createNativeTipJar", () => {
     mockGetProducts.mockResolvedValue({ products: [] });
     await createNativeTipJar([...DEFAULT_TIP_PRODUCT_IDS]).loadProducts();
     expect(mockGetProducts).toHaveBeenCalledWith({ ids: [...DEFAULT_TIP_PRODUCT_IDS] });
+  });
+
+  it("subscribes to tipCompleted and unsubscribes", async () => {
+    const remove = jest.fn();
+    mockAddListener.mockResolvedValue({ remove });
+    const jar = createNativeTipJar(ids);
+    const onDone = jest.fn();
+    const unsub = jar.onTipCompleted?.(onDone);
+    expect(mockAddListener).toHaveBeenCalledWith(
+      "tipCompleted",
+      expect.any(Function)
+    );
+    const listener = mockAddListener.mock.calls[0][1] as (data: {
+      status?: string;
+    }) => void;
+    listener({ status: "pending" });
+    expect(onDone).not.toHaveBeenCalled();
+    listener({ status: "success" });
+    expect(onDone).toHaveBeenCalledTimes(1);
+    await Promise.resolve();
+    unsub?.();
+    expect(remove).toHaveBeenCalled();
   });
 
   it("resolves a hanging purchase only after the timeout, not before", async () => {

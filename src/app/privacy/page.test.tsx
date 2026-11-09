@@ -27,7 +27,8 @@ describe("PrivacyPage", () => {
     expect(screen.getByText(/We may change providers/)).toBeInTheDocument();
     expect(screen.getByText(/web address can/)).toBeInTheDocument();
     expect(screen.getByText(/random session id/)).toBeInTheDocument();
-    expect(screen.getByText(/up to 90 days/)).toBeInTheDocument();
+    expect(screen.getByText(/90 days old/)).toBeInTheDocument();
+    expect(screen.getByText(/photo's location metadata/i)).toBeInTheDocument();
     expect(screen.getByText(/New Split clears it/)).toBeInTheDocument();
     expect(screen.getByText(/no ads/)).toBeInTheDocument();
     expect(screen.getByText(new RegExp(PRIVACY_EFFECTIVE_DATE))).toBeInTheDocument();

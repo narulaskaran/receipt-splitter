@@ -98,6 +98,24 @@ describe("TipJar", () => {
     expect(tips.purchase).toHaveBeenLastCalledWith("tip.large");
   });
 
+  it("thanks the user when a deferred tip completes after pending", async () => {
+    const user = userEvent.setup();
+    let tipCompleted: (() => void) | undefined;
+    installTips({
+      purchase: jest.fn(async () => ({ status: "pending" as const })),
+      onTipCompleted: jest.fn((cb: () => void) => {
+        tipCompleted = cb;
+        return () => {};
+      }),
+    });
+    render(<TipJar />);
+    await user.click(screen.getByRole("button", { name: "Leave a tip" }));
+    await user.click(await screen.findByRole("button", { name: /Small tip/ }));
+    expect(await screen.findByText("Waiting for approval…")).toBeInTheDocument();
+    tipCompleted?.();
+    expect(await screen.findByText("Thank you!")).toBeInTheDocument();
+  });
+
   it("shows a pending approval and stays quiet on cancel", async () => {
     const user = userEvent.setup();
     const tips = installTips({

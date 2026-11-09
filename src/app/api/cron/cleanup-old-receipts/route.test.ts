@@ -98,7 +98,7 @@ describe("cleanup-old-receipts cron", () => {
     );
   });
 
-  it("continues when a delete batch fails", async () => {
+  it("returns 500 when a delete batch fails", async () => {
     process.env.CRON_SECRET = "secret";
     const keys = Array.from({ length: 150 }, (_, i) => `k${i}`);
     mockList.mockResolvedValue({
@@ -115,7 +115,79 @@ describe("cleanup-old-receipts cron", () => {
     const res = await GET(makeRequest("Bearer secret"));
     const body = await res.json();
 
+    expect(res.status).toBe(500);
     expect(mockDelete).toHaveBeenCalledTimes(2);
+    expect(body.success).toBe(false);
     expect(body.deleted).toBe(100);
+    expect(body.failed).toBe(50);
+    expect(sendErrorNotification).toHaveBeenCalledWith(
+      "cleanup_delete_failure",
+      expect.stringContaining("50")
+    );
+  });
+
+  it("stops deleting when the elapsed-time guard trips", async () => {
+    jest.useFakeTimers();
+    process.env.CRON_SECRET = "secret";
+    const keys = Array.from({ length: 250 }, (_, i) => `k${i}`);
+    mockList.mockResolvedValue({
+      files: keys.map((key) => ({
+        key,
+        customId: null,
+        name: key,
+        uploadedAt: oldDate(100),
+      })),
+      hasMore: false,
+    });
+    mockDelete.mockResolvedValue(true);
+
+    const started = Date.now();
+    jest.setSystemTime(started);
+    const requestPromise = GET(makeRequest("Bearer secret"));
+    jest.setSystemTime(started + 241_000);
+    await jest.runAllTimersAsync();
+    const res = await requestPromise;
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.partial).toBe(true);
+    expect(body.deleted).toBeLessThan(250);
+    expect(sendErrorNotification).toHaveBeenCalledWith(
+      "cleanup_partial",
+      expect.stringContaining("partial")
+    );
+    jest.useRealTimers();
+  });
+
+  it("sends a partial notification when listing stops early", async () => {
+    process.env.CRON_SECRET = "secret";
+    const many = Array.from({ length: 500 }, (_, i) => ({
+      key: `k${i}`,
+      customId: null,
+      name: `k${i}`,
+      uploadedAt: oldDate(1),
+    }));
+    mockList
+      .mockResolvedValueOnce({ files: many, hasMore: true })
+      .mockResolvedValueOnce({ files: many, hasMore: true })
+      .mockResolvedValueOnce({ files: many, hasMore: true })
+      .mockResolvedValueOnce({ files: many, hasMore: true })
+      .mockResolvedValueOnce({ files: many, hasMore: true })
+      .mockResolvedValueOnce({ files: many, hasMore: true });
+
+    jest.useFakeTimers();
+    const started = Date.now();
+    jest.setSystemTime(started);
+    const requestPromise = GET(makeRequest("Bearer secret"));
+    jest.setSystemTime(started + 241_000);
+    const res = await requestPromise;
+    const body = await res.json();
+
+    expect(body.partial).toBe(true);
+    expect(sendErrorNotification).toHaveBeenCalledWith(
+      "cleanup_partial",
+      expect.stringMatching(/listed|deleted/i)
+    );
+    jest.useRealTimers();
   });
 });

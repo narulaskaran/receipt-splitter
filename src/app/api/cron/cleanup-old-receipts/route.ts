@@ -10,6 +10,13 @@ const LIST_PAGE_SIZE = 500;
 const MAX_PAGES = 50;
 const MAX_ELAPSED_MS = 240_000;
 
+function notifyPartialRun(checked: number, deleted: number): void {
+  sendErrorNotification(
+    'cleanup_partial',
+    `Cleanup stopped early: listed ${checked} file(s), deleted ${deleted}, partial listing or delete guard tripped`
+  ).catch(() => {});
+}
+
 function isProductionEnvironment(): boolean {
   return (
     process.env.VERCEL_ENV === 'production' ||
@@ -104,6 +111,7 @@ export async function GET(request: NextRequest) {
 
     if (checked === 0 && keysToDelete.length === 0 && pages <= 1) {
       console.log('[Cleanup] No files found');
+      if (partial) notifyPartialRun(0, 0);
       return NextResponse.json({
         success: true,
         message: 'No files to process',
@@ -111,6 +119,7 @@ export async function GET(request: NextRequest) {
         checked: 0,
         pages,
         partial,
+        failed: 0,
       });
     }
 
@@ -119,6 +128,7 @@ export async function GET(request: NextRequest) {
     );
 
     if (keysToDelete.length === 0) {
+      if (partial) notifyPartialRun(checked, 0);
       return NextResponse.json({
         success: true,
         message: `No files older than ${RETENTION_DAYS} days`,
@@ -127,12 +137,21 @@ export async function GET(request: NextRequest) {
         cutoffDate: cutoffDate.toISOString(),
         pages,
         partial,
+        failed: 0,
       });
     }
 
     let totalDeleted = 0;
+    let failedBatches = 0;
+    let failed = 0;
 
     for (let i = 0; i < keysToDelete.length; i += BATCH_SIZE) {
+      if (Date.now() - startedAt > MAX_ELAPSED_MS) {
+        partial = true;
+        console.warn('[Cleanup] Stopping delete batches: elapsed time guard');
+        break;
+      }
+
       const batch = keysToDelete.slice(i, i + BATCH_SIZE);
       const success = await deleteReceiptFiles(batch);
 
@@ -142,6 +161,8 @@ export async function GET(request: NextRequest) {
           `[Cleanup] Deleted batch ${Math.floor(i / BATCH_SIZE) + 1}: ${batch.length} files`
         );
       } else {
+        failedBatches += 1;
+        failed += batch.length;
         console.error(
           `[Cleanup] Failed to delete batch ${Math.floor(i / BATCH_SIZE) + 1}`
         );
@@ -152,14 +173,34 @@ export async function GET(request: NextRequest) {
       `[Cleanup] Cleanup complete. Deleted ${totalDeleted} of ${keysToDelete.length} files.`
     );
 
-    return NextResponse.json({
-      success: true,
+    const body = {
       message: `Deleted ${totalDeleted} files older than ${RETENTION_DAYS} days`,
       deleted: totalDeleted,
       checked,
       cutoffDate: cutoffDate.toISOString(),
       pages,
       partial,
+      failed,
+    };
+
+    if (failedBatches > 0) {
+      sendErrorNotification(
+        'cleanup_delete_failure',
+        `Cleanup delete failures: ${failed} file(s) in ${failedBatches} batch(es); deleted ${totalDeleted} of ${keysToDelete.length} listed for removal`
+      ).catch(() => {});
+      return NextResponse.json(
+        { ...body, success: false, error: 'Cleanup delete failures' },
+        { status: 500 }
+      );
+    }
+
+    if (partial) {
+      notifyPartialRun(checked, totalDeleted);
+    }
+
+    return NextResponse.json({
+      ...body,
+      success: true,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

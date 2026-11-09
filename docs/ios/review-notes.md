@@ -67,7 +67,7 @@ Local `ios/App/Tips.storekit` prices (0.99 / 2.99 / 4.99 USD) are for Xcode. San
 
 `src/components/ai-consent-dialog.tsx` asks "Send this receipt to be read?" before a parse. Agree stores `receiptSplitterAiConsent` with `CONSENT_VERSION` (currently 1) and the request proceeds. Don't send, or dismissing the dialog, stores nothing and uploads nothing. A later parse on the same install reuses that acceptance until `CONSENT_VERSION` is increased.
 
-The dialog says the image, PDF, or pasted link goes to our server and a third-party AI provider, that the server may keep a copy for about 90 days, that the operator is notified, and that an approximate location comes from the IP address. It links to `/privacy` and `/support`. Neither the dialog nor the privacy policy names vendors; both describe recipients by category (AI provider, screenshot service, file storage, hosting). The named list for review is below. See [privacy.md](privacy.md).
+The dialog says the image, PDF, or pasted link goes to our server and a third-party AI provider, that the server may keep a copy for about 90 days, that the operator is notified, and that an approximate location comes from photo metadata when the photo includes it (rounded to about 1 km) or otherwise from the IP address. It links to `/privacy` and `/support`. Neither the dialog nor the privacy policy names vendors; both describe recipients by category (AI provider, screenshot service, file storage, hosting). The named list for review is below. See [privacy.md](privacy.md).
 
 ## Anticipated questions
 

@@ -1,4 +1,4 @@
-import { normalizeReceiptUrl } from "./receipt-url";
+import { normalizeReceiptUrl, neutralizeInvalidReceiptLink } from "./receipt-url";
 
 describe("normalizeReceiptUrl", () => {
   it("accepts http and https links", () => {
@@ -28,5 +28,23 @@ describe("normalizeReceiptUrl", () => {
     `https://example.com/${"a".repeat(2100)}`,
   ])("rejects %j", (input) => {
     expect(normalizeReceiptUrl(input)).toBeNull();
+  });
+});
+
+describe("neutralizeInvalidReceiptLink", () => {
+  it("strips Slack mrkdwn and control characters", () => {
+    const raw = "x\n<!channel> <https://evil.example|open>";
+    const out = neutralizeInvalidReceiptLink(raw);
+    expect(out).not.toMatch(/[<>|\n]/);
+    expect(out.startsWith("invalid link:")).toBe(true);
+  });
+
+  it("returns a fixed label when nothing remains", () => {
+    expect(neutralizeInvalidReceiptLink("<<<")).toBe("invalid link");
+  });
+
+  it("caps long input", () => {
+    const out = neutralizeInvalidReceiptLink("a".repeat(300));
+    expect(out.length).toBeLessThanOrEqual("invalid link: ".length + 200);
   });
 });

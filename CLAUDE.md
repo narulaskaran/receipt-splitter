@@ -225,7 +225,7 @@ Optional (for observability features):
 UPLOADTHING_TOKEN=your_token_here      # File storage for receipts
 WEBHOOK_URL=https://hooks.slack.com/...  # Slack/webhook notifications
 CRON_SECRET=your_secret_here            # Cron job authentication (required in production)
-NATIVE_APP_ORIGINS=                       # Extra CORS origins for POST /api/v1/parse-receipt (comma-separated)
+NATIVE_APP_ORIGINS=                       # Extra CORS origins for POST /api/v1/parse-receipt (comma-separated; * ignored, trailing slashes normalized)
 ```
 
 ## LLM Providers
@@ -280,7 +280,7 @@ The application includes optional observability features that are designed to fa
 - Runs daily at 3 AM UTC (configured in `vercel.json`)
 - Paginates UploadThing `listFiles` (500/page), collects keys older than 90 days, then deletes in batches of 100
 - `CRON_SECRET` is **required** in production (`VERCEL_ENV` or `NODE_ENV`); optional in dev/test
-- Response JSON includes `pages` and `partial` when listing guards stop early
+- Response JSON includes `pages`, `partial`, and `failed` (keys in failed delete batches). Elapsed-time guards apply during listing and delete batches; `partial: true` with no delete failures returns HTTP 200 and sends a `cleanup_partial` webhook; any failed delete batch returns HTTP 500 with `success: false` and a `cleanup_delete_failure` webhook
 
 ### Rate Limiting (parse-receipt)
 `POST /api/parse-receipt` and `POST /api/v1/parse-receipt` are public and proxy paid LLM calls. Inbound limiting is a **Vercel WAF custom rule**, not application code — extend the rule to **both** paths (see `docs/api/parse-receipt-v1.md`):

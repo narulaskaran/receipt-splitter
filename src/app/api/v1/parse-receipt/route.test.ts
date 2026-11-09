@@ -102,6 +102,28 @@ describe("v1 parse-receipt CORS preflight", () => {
     );
   });
 
+  it("matches origins when NATIVE_APP_ORIGINS lists a trailing slash", async () => {
+    process.env.NATIVE_APP_ORIGINS = "https://app.example.com/";
+    const res = await OPTIONS({
+      headers: new Headers({ Origin: "https://app.example.com" }),
+    } as unknown as Parameters<typeof OPTIONS>[0]);
+
+    expect(res.status).toBe(204);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBe(
+      "https://app.example.com"
+    );
+  });
+
+  it("does not reflect a wildcard NATIVE_APP_ORIGINS entry", async () => {
+    process.env.NATIVE_APP_ORIGINS = "*";
+    const res = await OPTIONS({
+      headers: new Headers({ Origin: "https://any.example" }),
+    } as unknown as Parameters<typeof OPTIONS>[0]);
+
+    expect(res.status).toBe(403);
+    expect(res.headers.get("Access-Control-Allow-Origin")).toBeNull();
+  });
+
   it("returns 403 without CORS headers for disallowed origins", async () => {
     const res = await OPTIONS({
       headers: new Headers({ Origin: "https://evil.example" }),

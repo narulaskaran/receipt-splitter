@@ -62,7 +62,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>Receipt Splitter uses the camera only when you tap "Take photo" to capture a receipt you want to split.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Receipt Splitter reads only the receipt photos you choose so it can read the items and prices.</string>
+	<string>Receipt Splitter reads only the receipt photos you choose so it can read the items and prices. If a photo includes location metadata, an approximate location (about 1 km) may be sent with the parse request.</string>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>venmo</string>

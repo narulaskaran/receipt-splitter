@@ -7,9 +7,17 @@ export const TIP_PLUGIN_TIMEOUT_MS = 10_000;
 
 type NativeTipPurchaseResult = { status?: string; message?: string };
 
+type TipCompletedListener = {
+  remove: () => void;
+};
+
 export interface TipJarPlugin {
   getProducts(options: { ids: string[] }): Promise<{ products?: TipProduct[] }>;
   purchase(options: { id: string }): Promise<NativeTipPurchaseResult>;
+  addListener(
+    eventName: "tipCompleted",
+    listener: (data: { id?: string; status?: string }) => void
+  ): Promise<TipCompletedListener>;
 }
 
 export const TipJarNative = registerPlugin<TipJarPlugin>("TipJar");
@@ -99,6 +107,23 @@ export function createNativeTipJar(allowed: readonly string[]): TipJar {
         }
         return { status: "failed", message: errorMessage(error) };
       }
+    },
+
+    onTipCompleted(callback: () => void): () => void {
+      let listener: TipCompletedListener | null = null;
+      let cancelled = false;
+      TipJarNative.addListener("tipCompleted", (data) => {
+        if (data?.status === "success") callback();
+      }).then((handle) => {
+        if (cancelled) handle.remove();
+        else listener = handle;
+      }).catch(() => {
+        // No listener: a deferred tip still completes natively, the sheet just is not updated.
+      });
+      return () => {
+        cancelled = true;
+        listener?.remove();
+      };
     },
   };
 }
