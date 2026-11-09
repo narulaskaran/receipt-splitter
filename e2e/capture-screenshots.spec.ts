@@ -121,10 +121,10 @@ test("Capture validation screenshots", async ({ page }) => {
     .locator("text=Your Phone Number")
     .locator("..")
     .locator("..");
-  // Share Split stays disabled until a 10-digit Venmo phone is entered.
+  // A blank US phone is enough to share; payment buttons are optional.
   const shareButton = page.getByRole("button", { name: "Share Split" });
-  await expect(shareButton).toBeDisabled();
-  await shareSection.screenshot({ path: "screenshots/share-section-disabled.png" });
+  await expect(shareButton).toBeEnabled();
+  await shareSection.screenshot({ path: "screenshots/share-section.png" });
 
   await page.emulateMedia({ colorScheme: "dark" });
   await page.reload();

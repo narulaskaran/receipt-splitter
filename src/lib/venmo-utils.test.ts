@@ -1,6 +1,9 @@
+import { configureApp } from './app-config';
+import { setPlatform, webPlatform } from './platform';
 import {
   generateVenmoLink,
   generateVenmoWebLink,
+  isVenmoAppPreferred,
   openVenmoPayment,
   formatVenmoNote,
   validateVenmoParams,
@@ -196,6 +199,43 @@ describe('generateVenmoWebLink', () => {
   });
 });
 
+describe('isVenmoAppPreferred', () => {
+  const originalUserAgent = navigator.userAgent;
+
+  afterEach(() => {
+    configureApp(null);
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: originalUserAgent,
+    });
+  });
+
+  it('is true for a phone user agent', () => {
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
+    });
+    expect(isVenmoAppPreferred()).toBe(true);
+  });
+
+  it('is false for a desktop user agent', () => {
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+    });
+    expect(isVenmoAppPreferred()).toBe(false);
+  });
+
+  it('treats the native iOS app as phone-preferred even on a desktop user agent', () => {
+    configureApp({ platform: 'ios' });
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+    });
+    expect(isVenmoAppPreferred()).toBe(true);
+  });
+});
+
 describe('openVenmoPayment', () => {
   const originalUserAgent = navigator.userAgent;
 
@@ -207,9 +247,14 @@ describe('openVenmoPayment', () => {
     });
   });
 
-  it('opens the web compose URL on desktop', () => {
+  afterEach(() => {
+    configureApp(null);
+    setPlatform(webPlatform);
+  });
+
+  it('opens the web compose URL on desktop', async () => {
     getMockWindowOpen().mockReturnValue({} as Window);
-    const result = openVenmoPayment('5551234567', 25.50, 'Test Restaurant');
+    const result = await openVenmoPayment('5551234567', 25.50, 'Test Restaurant');
     
     expect(result).toBe(true);
     expect(getMockWindowOpen()).toHaveBeenCalledWith(
@@ -219,14 +264,14 @@ describe('openVenmoPayment', () => {
     );
   });
 
-  it('opens the native paycharge URL on mobile so notes keep %20 spaces', () => {
+  it('opens the native paycharge URL on mobile so notes keep %20 spaces', async () => {
     Object.defineProperty(navigator, 'userAgent', {
       configurable: true,
       value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)',
     });
     getMockWindowOpen().mockReturnValue({} as Window);
 
-    const result = openVenmoPayment('5551234567', 25.80, 'ANGEL INDIAN RESTAURANT - anuraag');
+    const result = await openVenmoPayment('5551234567', 25.80, 'ANGEL INDIAN RESTAURANT - anuraag');
 
     expect(result).toBe(true);
     expect(getMockWindowOpen()).toHaveBeenCalledWith(
@@ -235,23 +280,61 @@ describe('openVenmoPayment', () => {
     );
   });
 
-  it('returns false for invalid parameters', () => {
-    const result = openVenmoPayment('invalid', 25.50, 'Test');
+  it('opens the native scheme when the app platform is iOS', async () => {
+    configureApp({ platform: 'ios' });
+    Object.defineProperty(navigator, 'userAgent', {
+      configurable: true,
+      value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+    });
+    getMockWindowOpen().mockReturnValue({} as Window);
+
+    const result = await openVenmoPayment('5551234567', 25.50, 'Test');
+
+    expect(result).toBe(true);
+    expect(getMockWindowOpen()).toHaveBeenCalledWith(
+      'venmo://paycharge?txn=pay&recipients=5551234567&amount=25.50&note=Test',
+      '_self'
+    );
+  });
+
+  it('falls back to the web compose URL when the native scheme is unavailable', async () => {
+    configureApp({ platform: 'ios' });
+    setPlatform({
+      ...webPlatform,
+      openExternalUrl: jest.fn(async (url: string) => {
+        if (url.startsWith('venmo://')) return 'unavailable';
+        window.open(url, '_blank', 'noopener,noreferrer');
+        return 'opened';
+      }),
+    });
+
+    const result = await openVenmoPayment('5551234567', 25.50, 'Test Restaurant');
+
+    expect(result).toBe(true);
+    expect(getMockWindowOpen()).toHaveBeenCalledWith(
+      'https://venmo.com/pay?txn=pay&recipients=5551234567&amount=25.50&note=Test%20Restaurant',
+      '_blank',
+      'noopener,noreferrer'
+    );
+  });
+
+  it('returns false for invalid parameters', async () => {
+    const result = await openVenmoPayment('invalid', 25.50, 'Test');
     
     expect(result).toBe(false);
     expect(getMockWindowOpen()).not.toHaveBeenCalled();
   });
 
-  it('handles window.open errors gracefully', () => {
+  it('handles window.open errors gracefully', async () => {
     const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     getMockWindowOpen().mockImplementation(() => {
       throw new Error('Window blocked');
     });
 
-    const result = openVenmoPayment('5551234567', 25.50, 'Test');
+    const result = await openVenmoPayment('5551234567', 25.50, 'Test');
     
     expect(result).toBe(false);
-    expect(consoleSpy).toHaveBeenCalledWith('Failed to open Venmo payment link:', expect.any(Error));
+    expect(consoleSpy).toHaveBeenCalledWith('Failed to open URL:', expect.any(Error));
     
     consoleSpy.mockRestore();
   });

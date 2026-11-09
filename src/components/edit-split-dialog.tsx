@@ -229,7 +229,7 @@ export function EditSplitDialog({
                     type="button"
                     variant={splitMode === "percent" ? "default" : "ghost"}
                     size="sm"
-                    className="rounded-none h-7 px-2 text-xs"
+                    className="min-w-11 rounded-none px-3"
                     onClick={() => {
                       setSplitMode("percent");
                       setRawInputs(new Map());
@@ -241,7 +241,7 @@ export function EditSplitDialog({
                     type="button"
                     variant={splitMode === "amount" ? "default" : "ghost"}
                     size="sm"
-                    className="rounded-none h-7 px-2 text-xs"
+                    className="min-w-11 rounded-none px-3"
                     onClick={() => {
                       setSplitMode("amount");
                       setRawInputs(new Map());
@@ -272,7 +272,7 @@ export function EditSplitDialog({
                       setAssignments(newAssignments);
                     }}
                   />
-                  <Label htmlFor={`person-${person.id}-dialog`}>
+                  <Label htmlFor={`person-${person.id}-dialog`} className="min-h-11 min-w-11">
                     {person.name}
                   </Label>
                 </div>
@@ -281,6 +281,7 @@ export function EditSplitDialog({
                     id={`person-${person.id}-${splitMode}`}
                     type="text"
                     inputMode="decimal"
+                    aria-label={`${person.name} share`}
                     value={getDisplayValue(person.id)}
                     onChange={(e) => handleChange(person.id, e.target.value)}
                     onBlur={() => {
@@ -302,8 +303,8 @@ export function EditSplitDialog({
               <span
                 className={
                   isValid
-                    ? "text-green-500 font-medium"
-                    : "text-destructive font-medium"
+                    ? "font-medium text-green-800 dark:text-green-300"
+                    : "font-medium text-destructive"
                 }
               >
                 {splitMode === "amount"

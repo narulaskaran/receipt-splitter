@@ -1015,4 +1015,71 @@ describe("pasted receipt links", () => {
     } as unknown as Parameters<typeof POST>[0]);
     expect(res.status).toBe(400);
   });
+
+  it("neutralizes invalid pasted links in error webhooks", async () => {
+    const malicious = "x\n<!channel> <https://evil.example|open>";
+    mockScreenshot.mockRejectedValue(
+      new ReceiptUrlError("invalid_url", "Not a valid link.", 400, "bad url")
+    );
+
+    const res = await POST(makeRequestWithUrl(malicious));
+
+    expect(res.status).toBe(400);
+    const context = mockSendErrorNotification.mock.calls[0][2];
+    expect(context.sourceUrl).not.toMatch(/[<>|\n]/);
+    expect(context.fileName).not.toMatch(/[<>|\n]/);
+    expect(context.sourceUrl).toMatch(/^invalid link/);
+  });
+});
+
+describe("session id sanitization", () => {
+  const model = {
+    restaurant: "Cafe",
+    date: null,
+    total: 10,
+    subtotal: 10,
+    tax: 0,
+    tip: null,
+    currency: "USD",
+    items: [{ name: "Item", price: 10, quantity: 1 }],
+  };
+
+  beforeEach(() => {
+    process.env.UPLOADTHING_TOKEN = "token";
+    (uploadReceiptFile as jest.Mock).mockResolvedValue({
+      success: true,
+      url: "https://utfs.io/f/x",
+      key: "k",
+    });
+    mockExtract.mockResolvedValue(model);
+  });
+
+  async function postWithSession(sessionId: string) {
+    const fd = new FormData();
+    fd.append("file", new File(["fake-image-bytes"], "receipt.png", { type: "image/png" }));
+    fd.append("sessionId", sessionId);
+    await POST({
+      formData: async () => fd,
+      headers: new Headers(),
+    } as unknown as Parameters<typeof POST>[0]);
+    return (uploadReceiptFile as jest.Mock).mock.calls.at(-1)?.[3] as string;
+  }
+
+  it("replaces session ids with unsafe characters", async () => {
+    const used = await postWithSession("evil`slash/newline\n<!channel>");
+    expect(used).toMatch(/^[A-Za-z0-9_-]{1,64}$/);
+    expect(used).not.toBe("evil`slash/newline\n<!channel>");
+  });
+
+  it("passes through a normal UUID", async () => {
+    const uuid = "550e8400-e29b-41d4-a716-446655440000";
+    expect(await postWithSession(uuid)).toBe(uuid);
+  });
+
+  it("replaces a session id longer than 64 characters", async () => {
+    const longId = "a".repeat(65);
+    const used = await postWithSession(longId);
+    expect(used).not.toBe(longId);
+    expect(used.length).toBeLessThanOrEqual(64);
+  });
 });

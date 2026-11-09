@@ -29,6 +29,27 @@ There is a screenshots command to help quickly audit visual changes. With `npm r
 
 Environment variables are documented in [`.env.example`](.env.example), including which are required. Set them in `.env.local` for development and in your Vercel project settings for deployment.
 
+## iOS app
+
+The iPhone app (iOS 26 and later) is a Capacitor project that bundles the same splitting UI and calls this site's API. Building, signing, and uploading need a Mac and an Apple Developer account. Those steps are documented in [docs/ios/README.md](docs/ios/README.md) and have not been run here.
+
+On Linux you can check the committed native project:
+
+```bash
+npm run ios:check
+```
+
+The asset build and Xcode sync, on a machine that has the mobile scripts, are:
+
+```bash
+npm run mobile:build
+npx cap sync ios
+```
+
+Then open `ios/App/App.xcodeproj` on a Mac. Do not commit a `server.url` development setting.
+
+Public privacy and support pages, also used as the App Store links, are `/privacy` and `/support`.
+
 ## Observability 
 
 ### File Storage (UploadThing)
@@ -45,7 +66,7 @@ Location info captures city and country. It is pulled from the photo's GPS metad
 
 ### Automatic File Cleanup
 
-A daily Vercel Cron job (`/api/cron/cleanup-old-receipts`) deletes files on UploadThing that are older than 90 days.
+A daily Vercel Cron job (`/api/cron/cleanup-old-receipts`) deletes files on UploadThing that are older than 90 days. `CRON_SECRET` is required in production (the job returns 500 without it); Vercel sends it in the `Authorization` header on scheduled runs.
 
 ## License
 

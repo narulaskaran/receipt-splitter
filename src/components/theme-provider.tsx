@@ -9,6 +9,7 @@ import {
   useSyncExternalStore,
 } from "react";
 
+import { safeGetItem, safeSetItem } from "@/lib/storage";
 import { THEME_STORAGE_KEY, isTheme, type Theme } from "@/lib/theme";
 
 type ThemeProviderProps = {
@@ -34,12 +35,8 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
 const THEME_CHANGE_EVENT = "themechange";
 
 function readStoredTheme(): Theme | null {
-  try {
-    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-    return isTheme(stored) ? stored : null;
-  } catch {
-    return null;
-  }
+  const stored = safeGetItem(THEME_STORAGE_KEY);
+  return isTheme(stored) ? stored : null;
 }
 
 const subscribeToNothing = () => () => {};
@@ -91,11 +88,9 @@ export function ThemeProvider({
 
   const setTheme = useCallback((next: Theme) => {
     chosenTheme.current = next;
-    try {
-      window.localStorage.setItem(THEME_STORAGE_KEY, next);
-    } catch {
-      // Storage blocked or full: chosenTheme still applies for this page load.
-    }
+    // Storage blocked or full: chosenTheme still applies for this page load.
+    // The key is "theme", outside the receiptSplitter mirror prefix.
+    safeSetItem(THEME_STORAGE_KEY, next);
     window.dispatchEvent(new Event(THEME_CHANGE_EVENT));
   }, []);
 

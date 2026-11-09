@@ -28,6 +28,21 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Build mobile bundle
+        run: npm run mobile:build
+
+      - name: Check mobile bundle
+        run: node scripts/check-mobile-bundle.mjs
+
+      - name: Check iOS project
+        run: npm run ios:check
+
+      - name: Sync Capacitor iOS project
+        run: npx cap sync ios
+
+      - name: Assert committed iOS project did not drift
+        run: git diff --exit-code ios/
+
       - name: Run tests
         run: npm test
 

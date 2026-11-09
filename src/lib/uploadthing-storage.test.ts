@@ -243,10 +243,10 @@ describe('uploadthing-storage', () => {
   });
 
   describe('listReceiptFiles', () => {
-    it('returns empty array when UPLOADTHING_TOKEN is not configured', async () => {
+    it('returns empty result when UPLOADTHING_TOKEN is not configured', async () => {
       const result = await listReceiptFiles();
 
-      expect(result).toEqual([]);
+      expect(result).toEqual({ files: [], hasMore: false });
     });
 
     it('lists files successfully', async () => {
@@ -257,7 +257,7 @@ describe('uploadthing-storage', () => {
           key: 'key1',
           customId: 'receipts/session1/1234567890',
           name: '1234567890-receipt.jpg',
-          uploadedAt: 1704931200000, // timestamp
+          uploadedAt: 1704931200000,
         },
         {
           key: 'key2',
@@ -267,39 +267,49 @@ describe('uploadthing-storage', () => {
         },
       ];
 
-      getMocks().listFiles.mockResolvedValue({ files: mockFiles });
+      getMocks().listFiles.mockResolvedValue({ files: mockFiles, hasMore: false });
 
-      const result = await listReceiptFiles(100);
+      const result = await listReceiptFiles({ limit: 100 });
 
-      expect(result).toHaveLength(2);
-      expect(result[0]).toEqual({
+      expect(result.files).toHaveLength(2);
+      expect(result.hasMore).toBe(false);
+      expect(result.files[0]).toEqual({
         key: 'key1',
         customId: 'receipts/session1/1234567890',
         name: '1234567890-receipt.jpg',
         uploadedAt: expect.any(Date),
       });
-      expect(result[1].key).toBe('key2');
-      expect(getMocks().listFiles).toHaveBeenCalledWith({ limit: 100 });
+      expect(result.files[1].key).toBe('key2');
+      expect(getMocks().listFiles).toHaveBeenCalledWith({ limit: 100, offset: 0 });
     });
 
-    it('uses default limit of 500', async () => {
+    it('uses default limit of 500 and offset 0', async () => {
       process.env.UPLOADTHING_TOKEN = 'test-token';
 
-      getMocks().listFiles.mockResolvedValue({ files: [] });
+      getMocks().listFiles.mockResolvedValue({ files: [], hasMore: false });
 
       await listReceiptFiles();
 
-      expect(getMocks().listFiles).toHaveBeenCalledWith({ limit: 500 });
+      expect(getMocks().listFiles).toHaveBeenCalledWith({ limit: 500, offset: 0 });
     });
 
-    it('returns empty array when listing fails', async () => {
+    it('propagates errors when listing fails', async () => {
       process.env.UPLOADTHING_TOKEN = 'test-token';
 
       getMocks().listFiles.mockRejectedValue(new Error('API error'));
 
-      const result = await listReceiptFiles();
+      await expect(listReceiptFiles()).rejects.toThrow('API error');
+    });
 
-      expect(result).toEqual([]);
+    it('returns hasMore from the API', async () => {
+      process.env.UPLOADTHING_TOKEN = 'test-token';
+
+      getMocks().listFiles.mockResolvedValue({ files: [], hasMore: true });
+
+      const result = await listReceiptFiles({ limit: 10, offset: 20 });
+
+      expect(result.hasMore).toBe(true);
+      expect(getMocks().listFiles).toHaveBeenCalledWith({ limit: 10, offset: 20 });
     });
   });
 });

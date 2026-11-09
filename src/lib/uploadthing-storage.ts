@@ -156,38 +156,52 @@ export async function deleteReceiptFiles(keys: string[]): Promise<boolean> {
   }
 }
 
-/**
- * List files from UploadThing storage.
- *
- * This can be used by a cron job to find and delete old files.
- * Note: Files are organized with customId format: receipts/{sessionId}/{timestamp}
- *
- * @param limit - Maximum number of files to return (default: 500)
- * @returns Array of file info objects
- */
-export async function listReceiptFiles(limit: number = 500): Promise<Array<{
+export interface ReceiptFileListing {
   key: string;
   customId: string | null;
   name: string;
   uploadedAt: Date;
-}>> {
-  try {
-    if (!process.env.UPLOADTHING_TOKEN) {
-      console.warn('[UploadThing] UPLOADTHING_TOKEN not configured');
-      return [];
-    }
+}
 
-    const response = await utapi.listFiles({ limit });
+export interface ListReceiptFilesResult {
+  files: ReceiptFileListing[];
+  hasMore: boolean;
+}
 
-    return response.files.map((file) => ({
+export interface ListReceiptFilesOptions {
+  limit?: number;
+  offset?: number;
+}
+
+/**
+ * List files from UploadThing storage (paginated).
+ *
+ * Used by the cleanup cron to find old files. Upload paths use customId
+ * `receipts/{sessionId}/{timestamp}`.
+ *
+ * @throws When UPLOADTHING_TOKEN is set but the list API call fails (cron must not
+ *         treat a failed listing as an empty bucket).
+ */
+export async function listReceiptFiles(
+  options: ListReceiptFilesOptions = {}
+): Promise<ListReceiptFilesResult> {
+  const limit = options.limit ?? 500;
+  const offset = options.offset ?? 0;
+
+  if (!process.env.UPLOADTHING_TOKEN) {
+    console.warn('[UploadThing] UPLOADTHING_TOKEN not configured');
+    return { files: [], hasMore: false };
+  }
+
+  const response = await utapi.listFiles({ limit, offset });
+
+  return {
+    files: response.files.map((file) => ({
       key: file.key,
       customId: file.customId,
       name: file.name,
       uploadedAt: new Date(file.uploadedAt),
-    }));
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('[UploadThing] Error listing files:', errorMessage);
-    return [];
-  }
+    })),
+    hasMore: response.hasMore,
+  };
 }

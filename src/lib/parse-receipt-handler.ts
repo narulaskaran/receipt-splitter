@@ -1,0 +1,471 @@
+import { NextRequest, NextResponse } from "next/server";
+import { nearestCity } from "@/lib/nearest-city";
+import {
+  sendReceiptParsedNotification,
+  sendErrorNotification,
+  type ErrorNotificationContext,
+} from "@/lib/webhook-notifications";
+import { summarizeZodValidationForWebhook } from "@/lib/error-webhook-summary";
+import { uploadReceiptFile } from "@/lib/uploadthing-storage";
+import { MAX_FILE_SIZE_BYTES, MAX_FILE_SIZE_MB } from "@/lib/constants";
+import { type GeolocationData } from "@/types";
+import { fixMultiQuantityPrices } from "@/lib/receipt-utils";
+import { screenshotReceiptUrl, ReceiptUrlError } from "@/lib/receipt-screenshot";
+import { normalizeReceiptUrl, neutralizeInvalidReceiptLink } from "@/lib/receipt-url";
+import { sanitizeSessionId } from "@/lib/session";
+import { DEFAULT_CURRENCY, isSupportedCurrency } from "@/lib/currency";
+import { receiptSchema, receiptJsonSchema } from "@/lib/receipt-schema";
+import {
+  getReceiptExtractor,
+  LLMConfigError,
+  LLMError,
+  RECEIPT_PROMPT,
+  type ReceiptExtractor,
+} from "@/lib/llm";
+import { withV1Cors, v1PreflightResponse } from "@/lib/api-cors";
+import { parseClientMetadata, type ClientMetadata } from "@/lib/client-metadata";
+
+export type ParseReceiptApiVersion = "legacy" | 1;
+
+export interface HandleParseReceiptOptions {
+  apiVersion: ParseReceiptApiVersion;
+}
+
+function extractGeolocation(request: NextRequest): GeolocationData | null {
+  const country = request.headers.get("x-vercel-ip-country");
+  const region = request.headers.get("x-vercel-ip-country-region");
+  const city = request.headers.get("x-vercel-ip-city");
+  const latitude = request.headers.get("x-vercel-ip-latitude");
+  const longitude = request.headers.get("x-vercel-ip-longitude");
+
+  if (!country && !region && !city) {
+    return null;
+  }
+
+  return {
+    country: country || null,
+    region: region || null,
+    city: city || null,
+    source: "ip",
+    latitude: latitude || null,
+    longitude: longitude || null,
+  };
+}
+
+// A real photoLocation payload is ~50 bytes; anything this long is not one
+const MAX_PHOTO_LOCATION_LENGTH = 200;
+
+// Resolve a place name for the GPS coordinates the client read from the photo.
+// The values are client-supplied, so they are range-checked, and they are
+// rounded to ~1 km before use so webhooks never carry an exact spot (a photo
+// taken at home would otherwise pin the home address).
+async function photoGeolocation(raw: FormDataEntryValue | null): Promise<GeolocationData | null> {
+  if (typeof raw !== "string" || raw.length > MAX_PHOTO_LOCATION_LENGTH) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    const round = (value: unknown, limit: number) =>
+      typeof value === "number" && Number.isFinite(value) && Math.abs(value) <= limit
+        ? Math.round(value * 100) / 100
+        : null;
+    const latitude = round(parsed?.latitude, 90);
+    const longitude = round(parsed?.longitude, 180);
+    // 0,0 is what some EXIF writers emit for "no fix"
+    if (latitude === null || longitude === null || (latitude === 0 && longitude === 0)) return null;
+    const place = await nearestCity(latitude, longitude);
+    if (!place) return null;
+    return {
+      city: place.city,
+      region: place.region || null,
+      country: place.country,
+      latitude: String(latitude),
+      longitude: String(longitude),
+      source: "photo",
+    };
+  } catch {
+    return null; // Fall back to IP location
+  }
+}
+
+type Fail = (
+  message: string,
+  code: string | undefined,
+  status: number,
+  headers?: Record<string, string>
+) => NextResponse;
+
+/** Error response in the shape of the requested API version (v1 adds `code`, CORS and X-API-Version). */
+function failureResponder(
+  apiVersion: ParseReceiptApiVersion,
+  origin: string | null
+): Fail {
+  return (message, code, status, headers) => {
+    const response = NextResponse.json(
+      apiVersion === 1 && code ? { error: message, code } : { error: message },
+      { status }
+    );
+    return apiVersion === 1 ? withV1Cors(response, origin, headers) : response;
+  };
+}
+
+function mergeClientIntoContext(
+  context: ErrorNotificationContext,
+  client: ClientMetadata
+): ErrorNotificationContext {
+  return {
+    ...context,
+    clientPlatform: client.platform,
+    clientVersion: client.version,
+  };
+}
+
+function handleExtractError(
+  error: unknown,
+  extractor: ReceiptExtractor,
+  errorContext: ErrorNotificationContext,
+  fail: Fail,
+  apiVersion: ParseReceiptApiVersion
+): NextResponse {
+  const { provider } = extractor;
+  const llmError =
+    error instanceof LLMError
+      ? error
+      : new LLMError(
+          "unknown",
+          provider,
+          error instanceof Error ? error.message : "Unknown LLM error",
+          { cause: error }
+        );
+  const { kind, message, status } = llmError;
+  console.error(`LLM extraction failed (${provider}, ${kind}):`, error);
+
+  const notify = (type: string, detail: string) =>
+    sendErrorNotification(type, detail, errorContext).catch(() => {});
+  const parseFailed = () =>
+    fail("Failed to parse receipt. Please try again later.", "parse_failed", 500);
+
+  switch (kind) {
+    case "rate_limit":
+      notify("llm_rate_limit", `Rate limit exceeded: ${message}`);
+      return fail(
+        "Rate limit exceeded. Please try again in a few moments.",
+        "rate_limited",
+        429,
+        apiVersion === 1 ? { "Retry-After": "60" } : undefined
+      );
+    case "bad_request":
+      notify("llm_bad_request", `Bad request to ${provider} API: ${message}`);
+      return fail(
+        "Invalid request format. Please ensure your file is a valid receipt image or PDF.",
+        "bad_request",
+        400
+      );
+    case "auth":
+      notify(
+        "llm_auth_error",
+        `${provider} auth or billing error (${status}): ${message}`
+      );
+      return fail(
+        "Server configuration error: LLM provider is not configured",
+        "llm_not_configured",
+        500
+      );
+    case "empty_response":
+      notify("empty_response", message);
+      return parseFailed();
+    case "invalid_json":
+      notify("json_parse_error", `Failed to parse JSON response: ${message}`);
+      return parseFailed();
+    case "api_error":
+      notify("llm_api_error", `${provider} API error (${status}): ${message}`);
+      break;
+    case "unknown":
+      notify("llm_unknown_error", message);
+      break;
+    default: {
+      const unhandled: never = kind;
+      throw new Error(`Unhandled LLM error kind: ${String(unhandled)}`);
+    }
+  }
+
+  return fail(
+    "Failed to process receipt. Please try again later.",
+    "parse_failed",
+    503
+  );
+}
+
+async function fileFromReceiptUrl(rawUrl: string): Promise<File> {
+  const { data, mimeType } = await screenshotReceiptUrl(rawUrl);
+  const host = new URL(normalizeReceiptUrl(rawUrl) ?? "https://link").hostname;
+  return new File([new Uint8Array(data)], `${host}.${mimeType.split("/")[1]}`, {
+    type: mimeType,
+  });
+}
+
+export function handleParseReceiptOptions(request: NextRequest): NextResponse {
+  return v1PreflightResponse(request.headers.get("origin"));
+}
+
+export async function handleParseReceipt(
+  request: NextRequest,
+  { apiVersion }: HandleParseReceiptOptions
+): Promise<NextResponse> {
+  const origin = request.headers.get("origin");
+  const fail = failureResponder(apiVersion, origin);
+  const client = parseClientMetadata(request);
+
+  try {
+    let geolocation = extractGeolocation(request);
+
+    let extractor: ReceiptExtractor;
+    try {
+      extractor = getReceiptExtractor();
+    } catch (error) {
+      if (!(error instanceof LLMConfigError)) throw error;
+      console.error(error.message);
+      sendErrorNotification(
+        "llm_config_error",
+        error.message,
+        mergeClientIntoContext({ geolocation }, client)
+      ).catch(() => {});
+      return fail("Server configuration error: LLM provider is not configured", "llm_not_configured", 500);
+    }
+
+    const formData = await request.formData();
+    let file = formData.get("file") as File | null;
+    const sessionId = sanitizeSessionId(formData.get("sessionId"));
+    // Coordinates are read client-side before compression, which can remove EXIF.
+    // Location only feeds webhooks, so skip the lookup (the city table loads on first use) without one.
+    if (file && process.env.WEBHOOK_URL) geolocation = (await photoGeolocation(formData.get("photoLocation"))) ?? geolocation;
+
+    const receiptUrl = formData.get("url");
+    let sourceUrl: string | null = null;
+    if (!file && typeof receiptUrl === "string" && receiptUrl.trim()) {
+      sourceUrl =
+        normalizeReceiptUrl(receiptUrl) ??
+        neutralizeInvalidReceiptLink(receiptUrl);
+      try {
+        file = await fileFromReceiptUrl(receiptUrl);
+      } catch (error) {
+        if (!(error instanceof ReceiptUrlError)) throw error;
+        console.warn(
+          `Receipt link failed (${error.code}): ${error.detail ?? error.message}`
+        );
+        sendErrorNotification(
+          `url_${error.code}`,
+          error.detail ?? error.message,
+          mergeClientIntoContext(
+            {
+              sessionId,
+              fileName: sourceUrl,
+              sourceUrl,
+              geolocation,
+              llm: { provider: extractor.provider, model: extractor.model },
+            },
+            client
+          )
+        ).catch(() => {});
+        return fail(error.message, error.code, error.status);
+      }
+    }
+
+    if (!file) {
+      return fail("No file or link provided in the request", "no_input", 400);
+    }
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return fail(`File size exceeds the maximum limit of ${MAX_FILE_SIZE_MB}MB`, "file_too_large", 400);
+    }
+
+    if (file.size === 0) {
+      return fail("Uploaded file is empty", "empty_file", 400);
+    }
+
+    const buffer = await file.arrayBuffer();
+    const mimeType = file.type;
+
+    console.log(
+      `Processing file: ${file.name}, type: ${mimeType}, size: ${file.size} bytes`
+    );
+
+    if (!extractor.supportedMimeTypes.includes(mimeType)) {
+      return fail("Unsupported file format. Please use JPEG, PNG, GIF, WebP, or PDF.", "unsupported_type", 400);
+    }
+
+    const llm = { provider: extractor.provider, model: extractor.model };
+    const errorContext: ErrorNotificationContext = mergeClientIntoContext(
+      {
+        sessionId,
+        fileName: file.name,
+        mimeType,
+        fileUrl: null as string | null,
+        geolocation,
+        llm,
+        sourceUrl,
+      },
+      client
+    );
+
+    let fileUrl: string | null = null;
+    if (process.env.UPLOADTHING_TOKEN) {
+      try {
+        const uploadResult = await uploadReceiptFile(
+          Buffer.from(buffer),
+          file.name,
+          file.type,
+          sessionId
+        );
+        fileUrl = uploadResult.url;
+        errorContext.fileUrl = fileUrl;
+        if (!uploadResult.success) {
+          console.warn(
+            "[API] File upload failed, continuing without file URL:",
+            uploadResult.error
+          );
+        }
+      } catch (error) {
+        console.error("[API] Unexpected upload error:", error);
+      }
+    }
+
+    let parsedData: unknown;
+    try {
+      parsedData = await extractor.extract({
+        data: Buffer.from(buffer),
+        mimeType,
+        prompt: RECEIPT_PROMPT,
+        jsonSchema: receiptJsonSchema,
+      });
+    } catch (error) {
+      return handleExtractError(error, extractor, errorContext, fail, apiVersion);
+    }
+
+    try {
+      const validationResult = receiptSchema.safeParse(parsedData);
+
+      if (!validationResult.success) {
+        console.error("Receipt validation failed:", validationResult.error);
+        sendErrorNotification(
+          "zod_validation",
+          summarizeZodValidationForWebhook(validationResult.error),
+          errorContext
+        ).catch(() => {});
+        return fail("Failed to parse receipt. Please try again later.", "parse_failed", 500);
+      }
+
+      console.log("Successfully parsed receipt data");
+
+      const allItems = validationResult.data.items;
+      const validItems = allItems.filter(
+        (item): item is typeof item & { price: number } => item.price !== null
+      );
+
+      const filteredItems = allItems.filter((item) => item.price === null);
+      if (filteredItems.length > 0) {
+        console.log(
+          `Filtered out ${filteredItems.length} item(s) with null prices:`,
+          filteredItems.map((item) => item.name)
+        );
+      }
+
+      if (validItems.length === 0 && allItems.length > 0) {
+        console.error(
+          "All items filtered out - receipt contained only modifiers/items without prices"
+        );
+        return fail("Could not find any items with prices on the receipt. The receipt may only contain modifiers or add-ons without individual prices.", "no_priced_items", 422);
+      }
+
+      const subtotalValue = validationResult.data.subtotal ?? 0;
+
+      let currency = validationResult.data.currency;
+      if (!isSupportedCurrency(currency)) {
+        console.warn(
+          `[parse-receipt] Unsupported currency "${currency}" returned by the model; falling back to USD`
+        );
+        currency = DEFAULT_CURRENCY;
+      }
+
+      const normalizedItems = validItems.map((item) => ({
+        ...item,
+        quantity: item.quantity ?? 1,
+      }));
+
+      const { items: correctedItems, corrected: pricesCorrected } =
+        fixMultiQuantityPrices(normalizedItems, subtotalValue);
+      if (pricesCorrected) {
+        console.log(
+          "[parse-receipt] Auto-corrected multi-quantity item prices: " +
+            "model returned line totals instead of per-unit prices. " +
+            `Affected items: ${correctedItems.filter((_, i) => normalizedItems[i].price !== correctedItems[i].price).map((item) => item.name).join(", ")}`
+        );
+      }
+
+      const normalizedReceipt = {
+        ...validationResult.data,
+        currency,
+        subtotal: subtotalValue,
+        tax: validationResult.data.tax ?? 0,
+        fees: validationResult.data.fees ?? null,
+        total: validationResult.data.total ?? 0,
+        items: correctedItems,
+      };
+
+      if (process.env.WEBHOOK_URL) {
+        try {
+          const webhookArgs = [
+            normalizedReceipt,
+            fileUrl,
+            sessionId,
+            file.name,
+            file.type,
+            geolocation,
+            llm,
+            sourceUrl,
+          ] as const;
+          if (client.platform || client.version) {
+            await sendReceiptParsedNotification(
+              ...webhookArgs,
+              client.platform,
+              client.version
+            );
+          } else {
+            await sendReceiptParsedNotification(...webhookArgs);
+          }
+        } catch (error) {
+          console.error("[API] Unexpected webhook error:", error);
+        }
+      }
+
+      const response = NextResponse.json(normalizedReceipt);
+      if (apiVersion === 1) {
+        return withV1Cors(response, origin);
+      }
+      return response;
+    } catch (parseError) {
+      const errorMsg =
+        parseError instanceof Error ? parseError.message : "Unknown parse error";
+      console.error("Failed to parse JSON response:", errorMsg);
+      sendErrorNotification(
+        "json_parse_error",
+        "Failed to parse model JSON response",
+        errorContext
+      ).catch(() => {});
+      return fail("Failed to parse receipt. Please try again later.", "parse_failed", 500);
+    }
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error occurred";
+    console.error("Error processing receipt:", errorMessage);
+
+    if (error instanceof TypeError && errorMessage.includes("FormData")) {
+      return fail("Invalid request format. Please upload a valid file.", "bad_request", 400);
+    }
+
+    sendErrorNotification(
+      "unexpected_error",
+      errorMessage,
+      mergeClientIntoContext({}, client)
+    ).catch(() => {});
+    return fail("An unexpected error occurred while processing your receipt. Please try again.", "unexpected", 500);
+  }
+}
